@@ -326,3 +326,25 @@ Prescription: Cycle 5 judge verdict, exit criteria for Cycle 6: formal tests for
 - The first draft of this run's sensible script failed the bands (2 seeds lost, 2 more only survived to the campaign end): it built factories on captured frontier provinces (the levels were lost with the ground, and totals kept slipping back under 16) and rushed the total upward from day 1, raising daily steel upkeep until production starved. The disciplined version (heartland only, a steel headroom gate, one build per day) plus holding attacks until no attacker carried a supply penalty at order time restored 8 of 8 captures with no sim change. A factory is a steel commitment before it is a line unlock; where and when the script builds matters as much as how many.
 - Seed 31337 in the early drafts is the warning case: its field army collapsed in one mid game battle fought into a stronger position while its supply penalties were live at tick level. The supply gate at order time is one tick behind the penalty the supply phase is about to apply, which the log states openly rather than hiding behind the word supplied.
 - Balance harnesses need to live somewhere durable or be rebuilt from their log descriptions every cycle; this is the second cycle rebuilt from prose. The step 5 judge may want to rule on whether the harness should be committed as a repo file in a later cycle.
+
+## Cycle 6 reconciliation: parallel steps 3 and 4 ported onto master (2026-10-13)
+
+Builder: the Claude Code builder session, on Jash's instruction: master is the base, the parallel branch's unique work is ported onto it in small committed slices, with the full suite and the balance rerun after each slice. Vector's loop has stopped and will not build further; this session now holds the build.
+
+### What happened
+The Claude Code session built Cycle 6 steps 3 and 4 on branch claude/adoring-johnson-cf5bmq (PR jashshah854-a11y/ashes-game#1) and claimed each step in CYCLE_LOG.md on that branch only. Vector's loop reads master, never saw the claims, and built both steps on master (entries above). Process lesson, binding from here: a claim only counts where the other builder reads it, so a claim goes on the shared branch or it is not a claim.
+
+### Kept, dropped, and why (decided before porting)
+- Kept, the balance harness tools/balance.js: master has no committed harness (Vector's step 4 script was session glue, the third rebuilt from prose).
+- Kept, one test: the busy order reversal scenario. Evidence: five mutated sims were run against master's own 39 tests. Master already fails on four (meeting battles disabled, engagement rng tied to array order, slot 4 reading slot 3's threshold, unlocks relocking) but stays green when defenders ordered elsewhere are not drawn into the battle for their province. The branch's reversal test fails on that mutant.
+- Dropped, the branch's slot count, locked rejection, AI parity, and edge swap tests, and its lock info test: each duplicates master coverage that already fails on the matching mutants.
+- Dropped, the branch's locked slot rows and their CSS: master's rows (Vector's step 3) stay. They carry the same live numbers plus the "nothing to click yet" note.
+- Dropped, the branch's buildFactory line sync: master's renderProduction syncs on every render, which closes the same legibility gap in the UI, and queueProduction and productionPhase already sync for the rules.
+- Kept, the factory card sentence stating the unlock thresholds, the live total, and permanence: master states the rule only in the production card.
+- Kept, the two sim slices from the branch's step 4 (AI research on start of day numbers; production lines paid before factories, Jash's call), each with its test, plus the idle factory text on the nation card.
+
+### Slice 1: the balance harness
+- `tools/balance.js` ported as written on the branch, except that both sensible profiles start as ruling paths. The no factory script only becomes report only in slice 5, with the economy change Jash ruled on.
+- Suite: 39 pass, 0 fail (unchanged, the harness is not a test file).
+- Harness on master's sim, 8 standard seeds: passive falls on day 36 on all 8 (PASS). Reckless loses 8 of 8 (PASS). Sensible without factories wins 7 of 8 and loses seed 31337 (FAIL). Sensible with factories wins 1 of 8 (FAIL). Seeds 1 to 200: passive 0 survive; sensible 189; factories 27; reckless survives seed 22 only.
+- Why this does not contradict master's step 4 "bands met": Vector's uncommitted script used different rules (a supply penalty attack gate, heartland only factory builds behind a steel headroom gate, one build per day), and the log describes it in prose only. Its own lesson is the same finding seen from the other side: the factory path starved production unless the script rationed it. The harness's factories profile builds toward the next line without rationing, which is what a player reading "Build N more factory levels to unlock" would do.
