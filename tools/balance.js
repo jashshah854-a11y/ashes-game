@@ -14,7 +14,8 @@
 //   node tools/balance.js                      all profiles, the 8 standard seeds
 //   node tools/balance.js --seeds 1-500        a seed range (mass testing)
 //   node tools/balance.js --seeds 1,7,42       a seed list
-//   node tools/balance.js --profile sensible   one profile (repeatable)
+//   node tools/balance.js --profile sensible   one profile (repeatable): passive,
+//                     sensible, factories, reckless, rationed, direct
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -188,6 +189,98 @@ function reckless(Sim, s, mem) {
   if (opts.length && opts[0].x > here.x) Sim.issueOrder(s, u.id, opts[0].id);
 }
 
+// Vector's step 4 scripts, ported from its tools/balance.js (committed on
+// master in 08435ad) in the Cycle 6 reconciliation, round 2, so one harness
+// runs every profile. Logic is unchanged except that the garrison list is
+// kept in the script's own memory instead of on the game state.
+function neighborToward(Sim, s, unit, targetId) {
+  const m = /^p(\d+)_(\d+)$/.exec(targetId);
+  const t = { x: +m[1], y: +m[2] };
+  const here = s.provinces[unit.provinceId];
+  let best = null, bestScore = null;
+  Sim.neighborsOf(s, here).forEach(p => {
+    const d = Math.abs(p.x - t.x) + Math.abs(p.y - t.y);
+    const score = d * 100 + Math.abs(p.y - 3) * 10 - p.x; // distance, then capital row, then east
+    if (bestScore === null || score < bestScore) { bestScore = score; best = p; }
+  });
+  return best;
+}
+
+// Sensible with rationed factory builds: at most one factory per day, only
+// in heartland provinces (x 4 or less), only below 16 total levels, and
+// only when steel income covers the extra upkeep plus a full 3 line drain
+// with headroom. Attacks also wait until no massed unit carries a supply
+// penalty. Otherwise the same mass and push plan as the sensible profile.
+function rationed(Sim, s, mem) {
+  const n = s.nations.player;
+  if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+  if (Sim.factoryLevels(s, 'player') < 16) {
+    const income = Sim.steelIncome(s, 'player');
+    const upkeepAfter = (Sim.factoryLevels(s, 'player') + 1) * Sim.CFG.steelPerFactoryLevel;
+    if (income - upkeepAfter - 15 >= 5) {
+      const owned = Object.values(s.provinces).filter(p => p.owner === 'player' && p.x <= 4 && p.factoryLevel < Sim.CFG.maxFactoryLevel);
+      owned.sort((a, b) => (a.factoryLevel - b.factoryLevel) || (a.x - b.x));
+      for (const p of owned) {
+        if (n.equipment >= Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1)) { Sim.buildFactory(s, 'player', p.id); break; }
+      }
+    }
+  }
+  Sim.syncProductionLines(s, 'player');
+  n.productionLines.forEach(line => { if (line.queue === 0) Sim.queueProduction(s, 'player', line.id); });
+  if (n.steel >= 55) {
+    const sup = Sim.computeSupply(s, 'player');
+    const cands = [];
+    s.edgeList.forEach(e => {
+      if (e.rail) return;
+      const pa = s.provinces[e.a], pb = s.provinces[e.b];
+      if (pa.owner !== 'player' || pb.owner !== 'player') return;
+      const aSup = sup[pa.id] && sup[pa.id].supplied, bSup = sup[pb.id] && sup[pb.id].supplied;
+      if (aSup === bSup) return;
+      cands.push(e);
+    });
+    cands.sort((e1, e2) => Math.max(s.provinces[e2.a].x, s.provinces[e2.b].x) - Math.max(s.provinces[e1.a].x, s.provinces[e1.b].x));
+    if (cands.length) Sim.buildRail(s, 'player', cands[0].a, cands[0].b);
+  }
+  if (!mem.garrison) {
+    mem.garrison = Sim.unitsIn(s, n.capitalId).filter(u => u.nation === 'player' && u.type === 'infantry').slice(0, 2).map(u => u.id);
+  }
+  const row3 = Object.values(s.provinces).filter(p => p.owner === 'player' && p.y === 3);
+  row3.sort((a, b) => b.x - a.x);
+  const staging = row3[0];
+  if (!staging) return;
+  const atStaging = Sim.unitsIn(s, staging.id).filter(u => u.nation === 'player' && !mem.garrison.includes(u.id));
+  let attackTarget = null;
+  if (atStaging.length >= 5 && atStaging.every(u => (u.supplyPenalty || 0) === 0)) {
+    const east = s.provinces[Sim.provinceId(staging.x + 1, 3)];
+    if (east && east.owner === 'enemy') {
+      const defs = Sim.unitsIn(s, east.id).filter(u => u.nation === 'enemy');
+      if (!defs.length || Sim.stackPower(s, atStaging, 'attack') >= Sim.stackPower(s, defs, 'defense') * 1.5) attackTarget = east.id;
+    }
+  }
+  Sim.unitsOf(s, 'player').forEach(u => {
+    if (mem.garrison.includes(u.id)) return;
+    if (u.provinceId === staging.id) { if (attackTarget) Sim.issueOrder(s, u.id, attackTarget); return; }
+    const next = neighborToward(Sim, s, u, staging.id);
+    if (next && next.id !== u.provinceId && next.owner === 'player') Sim.issueOrder(s, u.id, next.id);
+  });
+}
+
+// Reckless, direct march: vacates the capital north and never returns, and
+// each day only the first living unit steps toward the enemy capital.
+function recklessDirect(Sim, s) {
+  const n = s.nations.player;
+  if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+  Sim.syncProductionLines(s, 'player');
+  n.productionLines.forEach(line => { if (line.queue === 0) Sim.queueProduction(s, 'player', line.id); });
+  const capUnits = Sim.unitsIn(s, n.capitalId).filter(u => u.nation === 'player');
+  if (capUnits.length) { capUnits.forEach(u => Sim.issueOrder(s, u.id, Sim.provinceId(0, 2))); return; }
+  const actor = Sim.unitsOf(s, 'player')[0];
+  if (actor) {
+    const next = neighborToward(Sim, s, actor, s.nations.enemy.capitalId);
+    if (next && next.id !== actor.provinceId) Sim.issueOrder(s, actor.id, next.id);
+  }
+}
+
 // ruling: 'win' must win above the floor, 'lose' must lose, 'report' is
 // measured and printed but gates nothing. Since Cycle 6 step 4 (Jash's
 // call: lines are paid before factories) building factories for more
@@ -197,7 +290,9 @@ const PROFILES = {
   passive: { play: passive, ruling: 'lose', label: 'passive (never acts)' },
   sensible: { play: makeSensible(false), ruling: 'report', label: 'sensible without factories (Cycle 5 definition, rebuilt)' },
   factories: { play: makeSensible(true), ruling: 'win', label: 'sensible plus factories toward the next line' },
-  reckless: { play: reckless, ruling: 'lose', label: 'reckless (open capital, piecemeal, no rail)' }
+  reckless: { play: reckless, ruling: 'lose', label: 'reckless (open capital, piecemeal, no rail)' },
+  rationed: { play: rationed, ruling: 'win', label: 'sensible with rationed factory builds (Vector step 4 script)' },
+  direct: { play: recklessDirect, ruling: 'lose', label: 'reckless direct march (Vector step 4 script)' }
 };
 
 // ---------- One campaign ----------
