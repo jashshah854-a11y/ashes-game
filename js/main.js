@@ -54,13 +54,21 @@
       Sim.tick(state);
       render();
       if (state.gameOver) showBanner();
-      checkBeats();
+      else checkBeats(); // no card over the end banner; the codex still lists the beat
     }, ms);
   }
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 
+  // A first game may be replayed with ?seed=N in the address (used by
+  // tools/lore-check.js); New Game always draws a fresh random seed.
+  var urlSeed = (function () {
+    var m = /[?&]seed=(\d{1,9})(?:&|$)/.exec(window.location.search || '');
+    return m ? parseInt(m[1], 10) : null;
+  })();
+
   function newGame() {
-    var seed = Math.floor(Math.random() * 100000);
+    var seed = urlSeed != null ? urlSeed : Math.floor(Math.random() * 100000);
+    urlSeed = null;
     state = Sim.createGame(seed);
     selectedProvinceId = null;
     selectedUnitId = null;
@@ -426,8 +434,11 @@
   function overlayOpen() {
     return !el.eventOverlay.classList.contains('hidden') || !el.codexOverlay.classList.contains('hidden');
   }
+  // The player's own pause is remembered once, when the first overlay of a
+  // run opens, and kept until the last one closes; a second card on the
+  // same day or the codex opened from a card must not overwrite it.
   function openOverlayPause() {
-    if (!overlayOpen()) pauseBeforeOverlay = paused;
+    if (pauseBeforeOverlay === null) pauseBeforeOverlay = paused;
     setPaused(true);
   }
   function closeOverlayPause() {
@@ -480,7 +491,6 @@
   function openCodex(entryId) {
     if (entryId) codexEntryId = entryId;
     el.eventOverlay.classList.add('hidden');
-    cardQueue = [];
     openOverlayPause();
     el.codexOverlay.classList.remove('hidden');
     renderCodex();
@@ -489,6 +499,7 @@
 
   function closeCodex() {
     el.codexOverlay.classList.add('hidden');
+    if (cardQueue.length) { showNextCard(); return; } // cards waiting behind the codex
     closeOverlayPause();
   }
 
