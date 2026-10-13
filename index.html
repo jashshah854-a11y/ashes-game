@@ -46,8 +46,10 @@
       <div class="stat-row"><span>Factory levels</span><strong id="stat-factories">0</strong></div>
       <div class="stat-row"><span>Research points</span><strong id="stat-research">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-drone-gen">Gen 1</strong></div>
-      <button id="btn-research" type="button">Research Drone Gen 2 (60 pts)</button>
-      <p class="explain" id="research-explain">Gen 2 raises every drone wing to attack 5, defense 3.</p>
+      <div class="stat-row"><span>Jamming</span><strong id="stat-jamming">none</strong></div>
+      <h3 class="sub-head">Research</h3>
+      <div id="research-list" class="research-list"></div>
+      <p class="explain" id="research-explain"></p>
     </div>
 
     <div class="card" id="exchange-card">
@@ -91,6 +93,8 @@
       <div class="stat-row"><span>Provinces held</span><strong id="stat-enemy-provs">0</strong></div>
       <div class="stat-row"><span>Units in the field</span><strong id="stat-enemy-units">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-enemy-gen">Gen 1</strong></div>
+      <div class="stat-row"><span>Jamming</span><strong id="stat-enemy-jam">none</strong></div>
+      <div class="stat-row"><span>Next research</span><strong id="stat-enemy-research">Drone Gen 2</strong></div>
       <div class="stat-row"><span>Factory levels</span><strong id="stat-enemy-factories">0</strong></div>
       <div class="stat-row"><span>Production lines open</span><strong id="stat-enemy-lines">2</strong></div>
       <div class="stat-row"><span>Fortified provinces</span><strong id="stat-enemy-forts">none</strong></div>
@@ -100,7 +104,9 @@
       out of supply. Starve its rail and it stalls. It always keeps a garrison of three
       units on its capital. It fortifies its capital, then its Spine province facing the
       river, whenever it holds <span id="ai-fort-eq">300</span> equipment. After that it builds
-      air defense at its capital whenever it holds <span id="ai-ad-eq">400</span> equipment.</p>
+      air defense at its capital whenever it holds <span id="ai-ad-eq">400</span> equipment.
+      It researches <span id="ai-research-order">in a fixed order</span>, each as soon as it has
+      the points, and never changes that order for what you research.</p>
     </div>
 
     <div class="card log-card">

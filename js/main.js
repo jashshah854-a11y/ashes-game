@@ -21,7 +21,7 @@
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
-   'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
+   'stat-drone-gen', 'stat-jamming', 'research-list', 'research-explain', 'stat-enemy-jam', 'stat-enemy-research', 'ai-research-order', 'prov-name', 'prov-details',
    'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'btn-ad', 'stat-enemy-ad',
    'xc-you', 'xc-them', 'xc-ratio', 'xc-you-lost', 'xc-you-launch', 'xc-them-lost', 'xc-them-launch', 'xc-explain', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
@@ -171,11 +171,9 @@
     el.statFactories.textContent = Sim.factoryLevels(state, 'player') +
       (idle > 0 ? ' (' + idle + ' idle today: production lines are paid first and the steel ran out)' : '');
     el.statResearch.textContent = n.researchPoints;
-    el.statDroneGen.textContent = n.droneGen2 ? 'Gen 2' : 'Gen 1';
-    el.btnResearch.disabled = n.droneGen2 || n.researchPoints < Sim.CFG.droneGen2Cost;
-    el.btnResearch.textContent = n.droneGen2
-      ? 'Drone Gen 2 fielded'
-      : 'Research Drone Gen 2 (' + Sim.CFG.droneGen2Cost + ' pts)';
+    el.statDroneGen.textContent = droneGenText('player');
+    el.statJamming.textContent = jammingText('player');
+    renderResearch();
 
     var e = state.nations.enemy;
     var enemyProvs = Object.keys(state.provinces).filter(function (k) {
@@ -183,7 +181,13 @@
     }).length;
     el.statEnemyProvs.textContent = enemyProvs;
     el.statEnemyUnits.textContent = Sim.unitsOf(state, 'enemy').length;
-    el.statEnemyGen.textContent = e.droneGen2 ? 'Gen 2' : 'Gen 1';
+    el.statEnemyGen.textContent = droneGenText('enemy');
+    el.statEnemyJam.textContent = jammingText('enemy');
+    var aiNext = Sim.CFG.aiResearchOrder.filter(function (id) { return !Sim.hasResearched(state, 'enemy', id); })[0];
+    el.statEnemyResearch.textContent = aiNext
+      ? Sim.CFG.research[aiNext].label + ' at ' + Sim.CFG.research[aiNext].cost + ' points (it has ' + e.researchPoints + ')'
+      : 'all researched';
+    el.aiResearchOrder.textContent = Sim.CFG.aiResearchOrder.map(function (id) { return Sim.CFG.research[id].label; }).join(', then ');
     // The Dominion opens lines by the same factory thresholds you do, so its
     // factory total says when its next line arrives.
     var enemyLines = (e.productionLines || []).length;
@@ -327,6 +331,54 @@
     if (lvl > 0) line += ', +' + (lvl * Sim.CFG.fortDefensePctPerLevel) + '% defense for ' + holder + ' units defending here';
     if (p.fortBuild) line += '. Being raised to level ' + p.fortBuild.toLevel + ', ' + p.fortBuild.daysLeft + (p.fortBuild.daysLeft === 1 ? ' day' : ' days') + ' left';
     return line;
+  }
+
+  // ---------- Research and jamming, in plain words from CFG ----------
+  function otherSide(id) { return id === 'player' ? 'enemy' : 'player'; }
+  function projectEffect(id) {
+    var C = Sim.CFG;
+    if (id === 'droneGen2') return 'Every drone wing fights at attack ' + C.droneGen2.attack + ', defense ' + C.droneGen2.defense +
+      ' (Gen 1 is attack ' + C.unitTypes.drone.attack + ', defense ' + C.unitTypes.drone.defense + ').';
+    if (id === 'droneGen3') return 'Every drone wing fights at attack ' + C.droneGen3.attack + ', defense ' + C.droneGen3.defense +
+      ', and no jamming reaches Gen 3.';
+    if (id === 'jamming1') return 'Enemy Gen 1 drone wings fight at -' + C.jammingPct + '% attack and defense.';
+    if (id === 'jamming2') return 'Enemy Gen 1 and Gen 2 drone wings fight at -' + C.jammingPct + '% attack and defense.';
+    return '';
+  }
+  // Is this side's drone generation reached by the other side's jamming?
+  function jammedBy(id) {
+    var gen = Sim.droneGeneration(state, id);
+    return (state.nations[otherSide(id)].jamming || 0) >= gen;
+  }
+  function droneGenText(id) {
+    var gen = Sim.droneGeneration(state, id);
+    return 'Gen ' + gen + (jammedBy(id) ? ' (jammed: -' + Sim.CFG.jammingPct + '% attack and defense)' : '');
+  }
+  function jammingText(id) {
+    var lvl = state.nations[id].jamming || 0;
+    if (!lvl) return 'none';
+    var reaches = jammedBy(otherSide(id));
+    return 'Gen ' + lvl + (reaches ? ', jamming ' + (id === 'player' ? 'their' : 'your') + ' Gen ' + Sim.droneGeneration(state, otherSide(id)) + ' wings'
+      : ', ' + (id === 'player' ? 'their' : 'your') + ' Gen ' + Sim.droneGeneration(state, otherSide(id)) + ' wings are beyond it');
+  }
+  function renderResearch() {
+    var n = state.nations.player;
+    var html = '';
+    Object.keys(Sim.CFG.research).forEach(function (id) {
+      var p = Sim.CFG.research[id];
+      var done = Sim.hasResearched(state, 'player', id);
+      var label = 'Research (' + p.cost + ' pts)', disabled = false;
+      if (done) { label = 'Fielded'; disabled = true; }
+      else if (p.requires && !Sim.hasResearched(state, 'player', p.requires)) { label = 'Needs ' + Sim.CFG.research[p.requires].label + ' first'; disabled = true; }
+      else if (n.researchPoints < p.cost) { label = 'Research (' + p.cost + ' pts): need ' + p.cost + ', you have ' + n.researchPoints; disabled = true; }
+      html += '<div class="research-item' + (done ? ' done' : '') + '"><div class="research-title">' + p.label + ' <span class="research-cost">' +
+        p.cost + ' pts</span></div><div class="research-effect">' + projectEffect(id) + '</div>' +
+        '<button type="button" data-project="' + id + '" id="research-' + id + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button></div>';
+    });
+    el.researchList.innerHTML = html;
+    el.researchExplain.textContent = 'You gain ' + Sim.CFG.researchPerDay + ' research points a day (you have ' + n.researchPoints + '). ' +
+      'Each project is bought once, one at a time, from the points you have. Jamming of a generation works against enemy drone wings of that ' +
+      'generation or lower; the Dominion researches in its stated order, shown on its card.';
   }
 
   // The steel exchange: what each side has bled, from the sim's ledger,
@@ -518,7 +570,9 @@
       }
       preview += '<br>Attack ' + np.name + ': your stack power ' + vsHere +
         (vsHere !== myPower ? ' (' + myPower + ' before interception)' : '') +
+        (stack.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? ' (includes -' + Sim.CFG.jammingPct + '% on your jammed drone wings)' : '') +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
+        (defs.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? '; includes -' + Sim.CFG.jammingPct + '% on their jammed drone wings' : '') +
         (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').' + adText;
       preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
         ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
@@ -538,7 +592,8 @@
       base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
       'Attack ' + st.attack + ', Defense ' + st.defense +
       (st.fortBonus > 0 ? ' (includes +' + st.fortBonus + '% from fortifications here)' : '') +
-      (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
+      (u.type === 'drone' ? ' (Drone Gen ' + Sim.droneGeneration(state, 'player') + ')' : '') +
+      (st.jamming > 0 ? ' (includes -' + st.jamming + '% from Dominion Jamming Gen ' + state.nations.enemy.jamming + ')' : '') + '<br>' +
       'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days on a production line.<br>' +
       supplyText + '<br>' +
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
@@ -729,8 +784,10 @@
     startTimer();
   });
   el.btnNew.addEventListener('click', newGame);
-  el.btnResearch.addEventListener('click', function () {
-    Sim.researchDroneGen2(state, 'player');
+  el.researchList.addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('button[data-project]') : null;
+    if (!b || b.disabled) return;
+    Sim.research(state, 'player', b.getAttribute('data-project'));
     render();
   });
   el.btnFort.addEventListener('click', function () {

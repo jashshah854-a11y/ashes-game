@@ -218,3 +218,13 @@ button.linkish:hover { background: none; color: #fff2c4; }
 }
 .ad-badge.building { font-weight: normal; border-style: dashed; }
 .exchange-box { font-size: 14px; max-width: 100%; }
+
+/* Cycle 11: the research panel. */
+.sub-head { margin: 10px 0 6px; font-size: 14px; color: #e8c87a; font-weight: normal; }
+.research-list { display: flex; flex-direction: column; gap: 6px; }
+.research-item { background: #1c1f23; border: 1px solid #4a4232; border-radius: 4px; padding: 6px 8px; font-size: 13px; line-height: 1.4; }
+.research-item.done { opacity: 0.7; }
+.research-title { color: #e8c87a; }
+.research-cost { color: #b9b09a; font-size: 12px; }
+.research-effect { color: #d8d0bc; margin: 2px 0 4px; }
+.research-item button { width: 100%; font-size: 13px; padding: 5px 8px; }
