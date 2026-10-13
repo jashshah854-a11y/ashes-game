@@ -1061,3 +1061,6 @@ Claimed by the Claude Code builder session after re-reading the log end. A repor
 - Seeds 1 to 200: scout 200 of 200, win days 22 to 106 (median 52), end strength median 312.5 percent; factories 22 to 151 (median 52), 301.4. Sight now changes a war: it cuts the long tail (slowest win day 106 against 151).
 - Blinding's effect, with a scratch Dominion researching Jamming Gen 1, Drone Gen 2, Jamming Gen 2, Drone Gen 3 (not landed): 3,889 of 10,409 scout flights blinded (first on day 19); scout wins 200 of 200, days 37 to 112, median 52; factories 25 to 112, median 49 under the same sim. The same sim with blinding switched off: scout days 37 to 112, median 52, end strength 198.6 to 361.1 (blinded: 198.6 to 358.3). Blinding changes the scout's war only at the margin. DECISIONS item 24 records it.
 - Rulings untouched and passing; suite 87 pass, 0 fail.
+
+## Cycle 13, Step 4: the judge, CLAIMED (2026-10-13)
+Claimed by the Claude Code builder session. A fresh read only context judges Cycle 13 (step 0's five conditions, unique names, AI order independence, the sight consumer) against DESIGN_BIBLE.md, the hard rules, and the Cycle 12 judge's prescription, and prescribes Cycle 14.
