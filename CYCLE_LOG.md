@@ -602,3 +602,25 @@ Judge CONDITIONAL PASS; all eight fix-now flags closed in slices A to D (flag 4,
 
 Prescription: the Cycle 7 judge, accepted. Steps: (1) sim; (2) UI; (3) tests and balance; (4) a fresh judge. Claimed by the Claude Code builder session after re-reading the log end (Cycle 7 closed, master unchanged).
 Step 1 scope: a buildFortification command for both nations by one path, paid in equipment, built over days, capped in levels; the defense bonus applied inside unitStats, so combat, the AI's estimate, and the player's preview read it through the one stackPower; a fortification loses one level when its province is captured; the Dominion fortifies its capital and its Spine province facing the river once its equipment passes a stated threshold. Capitals start unwalled until Jash rules (the judge's condition). Every number is one CFG entry. Balance is measured after this step and tuned only in small separate slices in step 3.
+
+## Cycle 8, Fortifications paid in equipment, Step 1 of 4: sim, DONE (2026-10-13)
+
+Built by the Claude Code builder session.
+
+### What was built (js/sim.js)
+- CFG, one number each: fortMaxLevel 2, fortCostPerLevel 100 (equipment, times the target level: 100 for level 1, 200 for level 2), fortBuildDays 5, fortDefensePctPerLevel 25, aiFortifyEquipment 300. Chosen against measured end of campaign equipment piles (700 to 3300 per side on the factory and rationed paths), on the same scale as factory prices (40 times the target level).
+- Provinces carry fortLevel (0 at the start everywhere, capitals included, until Jash rules) and fortBuild ({ toLevel, daysLeft } while work is under way).
+- buildFortification(state, nation, province), one path for both nations: refuses a province you do not hold, one already under construction, one at max level, or too little equipment, with a plain reason; otherwise pays the equipment up front and logs the start with its cost and days. constructionPhase finishes the work after 5 days and logs the new defense bonus.
+- The bonus is a named modifier inside unitStats: a unit standing in a fortified province its own nation holds gets +25 percent defense per level, applied after the supply penalty, defense only, returned as fortBonus. Province battles and clash defenders read defense through stackPower, so combat, the AI's 1.5x estimate, and the player's attack preview all see the same number; a road meeting uses attack and is unaffected.
+- Capture slights a fortification: onProvinceCaptured drops one level and cancels work in progress (its equipment is lost).
+- The Dominion fortifies while it holds at least 300 equipment: its capital first, then the Spine province facing the river (p5_3), one level at a time.
+- Existing test changed, stated plainly: the Drone Gen 2 test pins the exact object unitStats returns; it now includes fortBonus: 0 in its three expected objects. Its point (Gen 2 changes drone stats and nothing else) is unchanged.
+
+### Test and balance results
+- Suite: 49 pass, 0 fail. No dashes. (Formal fortification tests are step 3.)
+- `node tools/balance.js`, 8 standard seeds, every ruling check passes. Changes against the Cycle 6 baseline: passive unchanged (day 36 on all 8); reckless and direct unchanged in result (lose 8 of 8); factories still wins 8 of 8 but later (days 34 to 88, was 22 to 48) with higher end strength (247.2 to 345.8 percent); rationed wins 8 of 8 on day 49 on seven seeds and day 25 on seed 2024 (was day 25 on all 8); the no factory report script now wins 8 of 8 (it had lost seed 1). Why the last one moved: the Dominion's factory rule needs 140 equipment, and equipment it now spends on walls is equipment it does not spend on factories, so it ends with 3 lines on seed 1 instead of 4.
+- Seeds 1 to 200: passive and both reckless scripts never survive; factories 200 of 200 (median day 49, was 34); rationed 198 (losses on 51 and 91, the same two seeds as before this step); no factory report 198 (was 193).
+- In every passive game the Dominion ends with Khessograd and p5_3 at level 2. In won player campaigns Khessograd ends at level 1 under Vessari ownership (slighted on capture). The Dominion still ends campaigns holding 730 to 6125 equipment, because two provinces are all it fortifies; the player profiles do not fortify yet (a fortifying profile is step 3).
+
+### Lessons
+- A new equipment sink on one side moves an old rule on the same side: the Dominion's factory pacing is gated on equipment, so walls cost it production lines, not only equipment. Visible only because the harness reports enemy lines per seed.
