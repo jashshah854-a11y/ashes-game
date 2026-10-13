@@ -270,3 +270,25 @@ Prescription: Cycle 5 judge verdict, item (B), closing the Cycle 4 caveat that b
 ### Lessons
 - Output caps are a real build risk with this model: a 16000 token cap produced zero usable text on a brief whose answer needed about 21000 characters. Build calls for whole phase rewrites should start at 32000, and the wasted call still counts in the usage ledger above.
 - The one engagement per unit rule is what makes simultaneity tractable: assignment priority (road first, then province defense, then clashes) removes the double fighting and pass-through cases by construction, and per engagement rng seeds make order independence provable rather than hoped for.
+
+## Cycle 6, Close the loop, fix the clock, Step 3 of 5: locked slots in the production panel, UI (2026-10-13)
+
+Prescription: Cycle 5 judge verdict, item (A), second half: locked slots shown in the panel with the exact unlock condition in plain words, no silent absence. This run did step 3 only. Step 4 (tests and balance) and step 5 (judge) remain. All code in this step was authored by Claude Opus 5.5 through the direct Anthropic line (3 anchor replacement blocks, applied verbatim by the orchestrator); the orchestrator wrote the brief, ran every check itself, and verified the panel in a real browser.
+
+### What Opus built
+- `js/main.js`, renderProduction only: it now calls Sim.syncProductionLines(state, 'player') first, so the panel always matches the slots the sim has earned (an earned line appears the moment factories reach the threshold, not after the next production phase). After the live line rows, one locked row renders for each line id above the real line count up to CFG.maxProductionLines where Sim.lineLockInfo returns non-null. A locked row is titled "Line N: Locked", states the condition from the sim's own numbers in exactly this shape: "Line 3 locked. Build 9 more factory levels anywhere to unlock it (needs 16 total factory levels, you have 7)." (singular "factory level" when exactly 1 is missing), and adds the note "This line appears here on its own the day your factories reach the total. Nothing to click yet." Locked rows have no buttons. Nothing else in main.js changed.
+- `css/style.css`: two appended rules only. Locked rows get a dashed border in the existing palette color and 0.75 opacity; the condition text uses the existing muted color. Live rows are untouched.
+
+### Opus usage
+- Build call: [usage: in=12000, out=1101]. One call, no fix rounds: all 3 anchors matched exactly once and the result passed every check below on the first run.
+- Step total: in=12000, out=1101. Cycle 6 running total: in=85791, out=45251. Recorded grand total across cycles (sum of the usage lines in this log; Cycle 5 step 1 and the Cycle 2 judge calls were never recorded, so the true total is higher): in=155716, out=103077.
+
+### Test and verification results (run by the orchestrator)
+- `node --check js/main.js`: pass. Em dash scan of js/main.js and css/style.css: zero.
+- `node --test tests/sim.test.js`: 32 pass, 0 fail (suite unchanged this step; the formal line gating tests are step 4).
+- Real browser check (orchestrator, headless Chromium at /opt/meta-chromium/chrome over CDP against the actual repo index.html, fresh random seed): at day 3 with 7 total factory levels the panel rendered exactly 2 live rows and 2 locked rows. Both locked rows carried zero buttons and the nothing to click note. The condition text matched the live factory total exactly for both slots: line 3 "Build 9 more factory levels anywhere to unlock it (needs 16 total factory levels, you have 7)" and line 4 the same shape with 17 more and 24 needed. Screenshot inspected by the orchestrator: the locked rows sit below the live lines, visibly dimmed and dashed, wording legible.
+- One honest gap: a best effort attempt to drive the unlock transition through pure UI clicks in the same session (clicking provinces and the real Build Factory button whenever affordable, at speed 2) did not reach 16 total factory levels: the unattended clicker never defended and its capital fell on day 36, the standard passive fall day. The transition itself (locked row replaced by a working line at the threshold) is verified at sim level from step 1, where a line earned at 16 queued and deployed a unit; the formal tests for it are step 4, and step 4's prescribed browser check is of this locked slot UI, which is now done and passed.
+
+### Lessons
+- The panel sync call closes a real legibility hole the brief almost missed: without it, a line earned by a factory build would have stayed invisible until the next production phase while its locked row vanished (lineLockInfo already returns null), leaving neither row on screen for a beat. Syncing at render makes the panel and the sim agree at every instant the player can look.
+- Driving an unlock through raw UI clicks is a balance question in disguise: an undefended economy cannot outbuild the day 36 fall. That is the passive band working as designed, not a UI defect, and it is why the step 4 sensible trace (which defends while building) is the right vehicle for showing the factory to line path.
