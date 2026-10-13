@@ -734,7 +734,7 @@ Prescription: the Cycle 8 judge, accepted. Steps: (1) move the AI's production o
 
 ### Step 2 slice B0: the Dominion's rail chooser builds its Spine first
 - `js/sim.js`, the AI rail rule: among unrailed owned edges with one supplied end, an edge on its capital row now sorts ahead of any side edge, then westernmost first, as before. (The player's harness scripts already prefer the capital row.)
-- Measured on the mid tick rail clock, before moving anything: `node tools/balance.js` output byte identical to the previous slice on the 8 standard seeds, and every 200 seed summary identical. Neutral where it was already fine; it only removes the luck.
+- Measured on the mid tick rail clock, before moving anything: `node tools/balance.js` output byte identical to the previous slice on the 8 standard seeds, and every 200 seed summary line identical. Neutral where it was already fine; it only removes the luck. (Correction from the Cycle 9 judge, verified: over 200 seeds every win count is identical, but compared campaign by campaign 6 campaigns end on a different day: sensible 116, rationed 27, 51, and 108, direct 5 and 13. The builder had compared summary lines only.)
 - Suite 57 pass, 0 fail.
 
 ### Step 2 slice B: the Dominion's rail decision moves to the start of the tick
@@ -745,7 +745,7 @@ Prescription: the Cycle 8 judge, accepted. Steps: (1) move the AI's production o
 - Seed 104 classified like the earlier rationed losses: it collapses on day 17 at the full 50 percent supply penalty with steel under the script's rail threshold, the same script cause traced in Cycle 8.
 
 ### Step 2 slice C: the Dominion's fortification decision moves to the start of the tick
-- `js/sim.js`: the wall rule (while holding 300 equipment, the capital first, then the river Spine province) moves out of aiTakeTurn into aiFortify, called at the start of the tick after aiRail. aiTakeTurn now holds only the movement orders, which have to follow the supply phase.
+- `js/sim.js`: the wall rule (while holding 300 equipment, the capital first, then the river Spine province) moves out of aiTakeTurn into aiFortify, called at the start of the tick after aiRail. aiTakeTurn now holds only the movement orders. (Correction from the Cycle 9 judge: they do not have to follow the supply phase; a measured variant with them at the start of the tick keeps every ruling check; it is Cycle 10's first measured slice.)
 - Existing test changed, stated plainly: the AI walls test pinned that the Dominion's first wall ended its first tick with all 5 days left, which was the one day lag this cycle removes. It now expects 4 days left and checks that a player who orders the same wall before the same tick ends it with the identical { toLevel: 1, daysLeft: 4 }.
 - Suite: 57 pass, 0 fail. No dashes.
 - Balance, 8 standard seeds: every ruling check passes; passive day 34 on all 8. Seeds 1 to 200: passive and both reckless scripts never survive; factories and fortress 200 of 200 (medians 55 and 46); rationed 199 (seed 104, traced above); the no factory report 196. A near neutral slice.
@@ -777,3 +777,13 @@ Claimed by the Claude Code builder session after re-reading the log end (master 
 ### Judge flag slice 1: the parity test's factory part tests the clock (flags 1 and 2)
 - `tests/sim.test.js`: the factory part now starts both sides at 200 equipment (enough for the Dominion's factory rule at 140, not its wall rule at 300) with steel to spare, and asserts that each side's equipment change over the day equals the day's output with the new level counted (5 per level) minus the factory's cost. On 7570f79, where production orders had moved but factory growth had not, it fails exactly as the judge predicted: the Dominion comes out 5 short (10 against 15), one level's output for one day. It passes now. The AI walls test's comment now says the threshold is checked at the start of the tick, before the day's income.
 - Suite: 58 pass, 0 fail.
+
+### Judge flag slice 2: the record matches the game (flags 3 to 6)
+- `js/sim.js`: aiTakeTurn's leftover production paragraph and five one line pointers become one accurate comment (comment only; balance byte identical).
+- BACKLOG: the tick order line states the movement clock gap plainly with the judge's measurement; the economy line carries remeasured figures (fortress ends with at most 3360 equipment; the Dominion up to 13960; factories 21 to 97 dry steel days, fortress 21 to 52, rationed 9 to 32 rail edges and the no factory script 30 to 40, neither ever dry); the map line records the duplicate province names as a legibility defect for its own measured slice; a new item records that the AI rail chooser still does not aim at its starving groups.
+- DECISIONS: item 8 carries the remeasured dry days; new item 18 asks whether the Dominion's Spine first rail priority belongs in its doctrine text. The judge's other question (passive on day 30, the edge of the band, if the movement clock lands there) waits for that measured slice.
+- CYCLE_LOG: the Spine slice's 200 seed claim and the slice C "have to" sentence carry the judge's corrections in place.
+- Suite 58 pass, 0 fail. Balance byte identical to tools/baseline-cycle9.txt.
+
+### Cycle 9 closed
+Judge CONDITIONAL PASS; all six flags closed. Next: Cycle 10, interception and the cost exchange scoreboard, starting with the movement order clock as its own measured slice.

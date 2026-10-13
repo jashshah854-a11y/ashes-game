@@ -1176,18 +1176,10 @@
   function aiTakeTurn(state) {
     var ai = 'enemy';
     var n = state.nations[ai];
-    // Research is decided at the start of the tick (aiResearch), not here.
-    // Factory growth is decided at the start of the tick (aiFactories).
-    // Fortification is decided at the start of the tick (aiFortify).
-    // Rail building is decided at the start of the tick (aiRail).
-    // Keep the production lines fed, up to a modest field army. The AI
-    // orders through the same lines, steel costs, and build days as
-    // the player, and finished units deploy at its capital just like
-    // the player's do. It keeps at most one order per line at a time,
-    // which paces its reinforcements the way the old every-3-days
-    // instant training did.
-    // (The cap exists because the first smoke test ended with a 51 unit pile-up.)
-    // Production orders are decided at the start of the tick (aiProduction).
+    // Research, factories, rail, walls, and production orders are decided
+    // at the start of the tick (aiResearch, aiFactories, aiRail, aiFortify,
+    // aiProduction). Only the movement orders below are still decided here,
+    // after the supply phase; see BACKLOG's tick order line for the gap.
     // Orders, decided per origin province so the AI thinks in the same
     // battle groups the combat code fights with. (Cycle 3 lesson: judging
     // a single unit's stats against a whole stack's defense let lone

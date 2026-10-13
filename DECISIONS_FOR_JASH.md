@@ -90,9 +90,10 @@ was invented by the loop, not by you:
    more lines almost never saves the 15 steel a rail edge costs: 0 to 7
    rail edges per campaign and 8 to 43 days at empty steel, against 12 to
    39 edges and no dry days for a player who skips factories. It still
-   wins every seed. Remeasured after fortifications (Cycle 8): still 0 to
-   7 rail edges per campaign on the factory paths, and now 21 to 83 days
-   at empty steel, because walls make the wars longer. Options: leave it (factories and rail are a real
+   wins every seed. Remeasured after fortifications (Cycle 8) and the
+   shared clock (Cycle 9): still 0 to 7 rail edges per campaign on the
+   factory paths, and now 21 to 97 days at empty steel, because walls and
+   a sharper Dominion make the wars longer. Options: leave it (factories and rail are a real
    trade), pay rail before factories, let the player pause factories, or
    let the player set a steel reserve that factories cannot touch.
 
@@ -147,6 +148,11 @@ was invented by the loop, not by you:
     walls today. Once fog of war exists, should walls become something
     you only see with intel?
 
+18. The Dominion's rail priority on screen. Since Cycle 9 the Dominion
+    lays rail on its Spine first. Its doctrine text says only "Starve its
+    rail and it stalls." Should it also say "It lays its Spine first",
+    which tells you exactly where to cut?
+
 Nothing here blocks the loop. Cycle 9 ("one clock for both sides") is
-in its judge pass; Cycle 10 is drones and electronic warfare with the
+closed; Cycle 10 is drones and electronic warfare with the
 cost exchange scoreboard, and runs without waiting on any item above.
