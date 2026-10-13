@@ -20,7 +20,7 @@ sensible without factories (Cycle 5 definition, rebuilt): 8 of 8 won. Report onl
   seed 31337  WIN  day  46  end 177.8%  original army  33.3%  eq  1595/ 2255  factory lvls  9  lines 2  built L1:7 L2:15  enemy lines 3
 
 sensible plus factories toward the next line: 8 of 8 won. Ruling check PASS (must win with 20% strength left).
-  seed     1  WIN  day  88  end 262.5%  original army  33.3%  eq  6060/ 6125  factory lvls 26  lines 4 (L3 day 2)  built L1:14 L2:29 L3:14 L4:27  enemy lines 3
+  seed     1  WIN  day  87  end 315.3%  original army  33.3%  eq  5985/ 6100  factory lvls 26  lines 4 (L3 day 2)  built L1:14 L2:28 L3:14 L4:27  enemy lines 3
   seed     7  WIN  day  35  end 261.1%  original army  33.3%  eq  1735/ 1150  factory lvls 26  lines 4 (L3 day 9)  built L1:5 L2:11 L3:4 L4:7  enemy lines 3
   seed    42  WIN  day  64  end 326.4%  original army  33.3%  eq  3735/ 2955  factory lvls 26  lines 4 (L3 day 6)  built L1:10 L2:21 L3:9 L4:17  enemy lines 3
   seed    99  WIN  day  49  end 329.2%  original army  33.3%  eq  2710/ 2340  factory lvls 26  lines 4 (L3 day 4)  built L1:8 L2:16 L3:7 L4:13  enemy lines 3
@@ -50,14 +50,14 @@ reckless (open capital, piecemeal, no rail): 0 of 8 won. Ruling check PASS (must
   seed 31337  LOSS day  36  end   125%  original army  11.1%  eq  1040/ 1360  factory lvls  2  lines 2  built L1:5 L2:11  enemy lines 3
 
 sensible with rationed factory builds (Vector step 4 script): 8 of 8 won. Ruling check PASS (must win with 20% strength left).
-  seed     1  WIN  day  49  end 179.2%  original army  33.3%  eq  3540/ 3220  factory lvls 17  lines 2  built L1:8 L2:16  enemy lines 3
-  seed     7  WIN  day  49  end 248.6%  original army  33.3%  eq  2800/ 2325  factory lvls 16  lines 2  built L1:8 L2:16  enemy lines 3
-  seed    42  WIN  day  49  end 241.7%  original army  33.3%  eq  2865/ 2270  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 2
-  seed    99  WIN  day  49  end 234.7%  original army  33.3%  eq  2945/ 2540  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 2
-  seed  1234  WIN  day  49  end 213.9%  original army  33.3%  eq  2870/ 2240  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 3
-  seed   555  WIN  day  49  end 233.3%  original army  33.3%  eq  2580/ 2375  factory lvls 13  lines 2  built L1:8 L2:16  enemy lines 3
+  seed     1  WIN  day  49  end 181.9%  original army  33.3%  eq  3540/ 3220  factory lvls 17  lines 2  built L1:8 L2:16  enemy lines 3
+  seed     7  WIN  day  49  end   250%  original army  33.3%  eq  2800/ 2325  factory lvls 16  lines 2  built L1:8 L2:16  enemy lines 3
+  seed    42  WIN  day  49  end 243.1%  original army  33.3%  eq  2865/ 2270  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 2
+  seed    99  WIN  day  49  end 236.1%  original army  33.3%  eq  2945/ 2540  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 2
+  seed  1234  WIN  day  49  end 215.3%  original army  33.3%  eq  2870/ 2240  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 3
+  seed   555  WIN  day  49  end 234.7%  original army  33.3%  eq  2580/ 2375  factory lvls 13  lines 2  built L1:8 L2:16  enemy lines 3
   seed  2024  WIN  day  25  end 208.3%  original army  33.3%  eq  1700/  730  factory lvls 19  lines 3 (L3 day 7)  built L1:4 L2:8 L3:3  enemy lines 2
-  seed 31337  WIN  day  49  end 215.3%  original army  33.3%  eq  2730/ 2560  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 4
+  seed 31337  WIN  day  49  end 216.7%  original army  33.3%  eq  2730/ 2560  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 4
 
 reckless direct march (Vector step 4 script): 0 of 8 won. Ruling check PASS (must lose).
   seed     1  LOSS day  37  end 147.2%  original army  11.1%  eq  2300/ 1990  factory lvls  8  lines 2  built L1:6 L2:12  enemy lines 4

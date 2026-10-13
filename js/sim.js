@@ -863,9 +863,12 @@
       });
       atkIds.sort(byNum); defIds.sort(byNum);
       mark(atkIds); mark(defIds);
+      // Clash defenders fight for the province they are entering, so its
+      // walls, not the walls of the province they marched from, count.
+      var defClones = clonesOf(defIds).map(function (c) { c.provinceId = t; return c; });
       engagements.push({
         kind: 'clash', key: 'clash:' + t, target: t, defNation: defNation,
-        atkIds: atkIds, defIds: defIds, aClones: clonesOf(atkIds), bClones: clonesOf(defIds), cands: []
+        atkIds: atkIds, defIds: defIds, aClones: clonesOf(atkIds), bClones: defClones, cands: []
       });
     });
 

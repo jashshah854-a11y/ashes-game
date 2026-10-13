@@ -1226,3 +1226,38 @@ test('fortify: capture slights the walls by one level and loses any work in prog
   assert.strictEqual(s.provinces.p5_4.fortBuild, null);
   assert.strictEqual(s.provinces.p5_4.fortLevel, 0);
 });
+
+test('fortify: clash defenders use the walls of the province they enter, not the one they left', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  const clash = (targetWalls, originWalls) => {
+    const s = Sim.createGame(5);
+    s.units = [mk(1, 'player', 'p3_4'), mk(2, 'enemy', 'p5_4')];
+    s.provinces.p4_4.fortLevel = targetWalls;
+    s.provinces.p3_4.fortLevel = originWalls;
+    Sim.issueOrder(s, 1, 'p4_4'); Sim.issueOrder(s, 2, 'p4_4');
+    Sim.movementPhase(s);
+    return JSON.stringify([s.provinces.p4_4.owner, s.units.map(u => u.strength)]);
+  };
+  const open = clash(0, 0);
+  assert.strictEqual(clash(0, 2), open, 'walls back home change nothing in a clash elsewhere');
+  assert.notStrictEqual(clash(2, 0), open, 'walls on the contested province change the clash');
+});
+
+test('fortify: the Dominion attacks an open province but holds against the same province walled', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  const aiAttacks = (walls) => {
+    const s = Sim.createGame(5);
+    s.day = Sim.CFG.aiMobilizationDays + 1; // past mobilization
+    s.units = [mk(1, 'player', 'p4_3'), mk(2, 'enemy', 'p5_3'), mk(3, 'enemy', 'p5_3')];
+    s.provinces.p4_3.fortLevel = walls;
+    s.nations.enemy.equipment = 0; // no wall building of its own this tick
+    Sim.tick(s);
+    return s.units.filter(u => u.nation === 'enemy').some(u => u.provinceId === 'p4_3') ||
+      s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group/.test(e.msg));
+  };
+  // Attack 8 against defense 4 clears the 1.5x gate; behind level 2 walls the defense is 6 and 8 does not reach 9.
+  assert.strictEqual(aiAttacks(0), true, 'two infantry attack one in the open');
+  assert.strictEqual(aiAttacks(Sim.CFG.fortMaxLevel), false, 'the same two hold against level 2 walls');
+});
