@@ -1177,16 +1177,7 @@
     var ai = 'enemy';
     var n = state.nations[ai];
     // Research is decided at the start of the tick (aiResearch), not here.
-    // Grow one factory near home when rich, paced and gated on a steel
-    // surplus: every factory level eats steel every day, and an AI that
-    // grows factories daily bankrupts the steel its rail and production
-    // lines need (found in the Cycle 5 balance run: steel pinned at
-    // zero by day 25, rail went unfunded, the lead group starved in place).
-    if (n.equipment >= 140 && n.steel >= 60 && state.day % 3 === 0) {
-      var home = nationProvinces(state, ai).filter(function (p) { return p.factoryLevel < 2; });
-      home.sort(function (a, b) { return b.x - a.x; }); // closest to its own heartland first
-      if (home.length) buildFactory(state, ai, home[0].id);
-    }
+    // Factory growth is decided at the start of the tick (aiFactories).
     // Fortify, paid in equipment: first the capital, then the Spine
     // province facing the river, whenever its equipment is at least
     // CFG.aiFortifyEquipment and the province is not already being worked.
@@ -1358,10 +1349,28 @@
     }
   }
 
+  // Grow one factory near home when rich, paced and gated on a steel
+  // surplus: every factory level eats steel every day, and an AI that
+  // grows factories daily bankrupts the steel its rail and production
+  // lines need (found in the Cycle 5 balance run: steel pinned at zero
+  // by day 25, rail went unfunded, the lead group starved in place).
+  // Decided at the start of the tick, on start of day numbers, like a
+  // player's click (Cycle 9).
+  function aiFactories(state) {
+    var ai = 'enemy';
+    var n = state.nations[ai];
+    if (n.equipment >= 140 && n.steel >= 60 && state.day % 3 === 0) {
+      var home = nationProvinces(state, ai).filter(function (p) { return p.factoryLevel < 2; });
+      home.sort(function (a, b) { return b.x - a.x; }); // closest to its own heartland first
+      if (home.length) buildFactory(state, ai, home[0].id);
+    }
+  }
+
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
     aiResearch(state);   // before the economy, like a player's click before the tick
+    aiFactories(state);  // factory growth, the same moment
     aiProduction(state); // the same start of day moment for production orders
     incomePhase(state, 'player');
     incomePhase(state, 'enemy');
