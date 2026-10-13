@@ -28,14 +28,14 @@ was invented by the loop, not by you:
 - Passages the Cycle 7 judge flagged because they imply edges the game
   does not have: see item 12.
 
-1. Calibration feel. Measured with the committed harness after Cycle 8
-   (walls included): a commander who never acts falls on day 36 on every
-   standard seed; a reckless one loses every time; sensible play that
+1. Calibration feel. Measured with the committed harness after Cycle 9
+   (walls included, and the Dominion deciding on the same clock as you):
+   a commander who never acts falls on day 34 on every standard seed; a reckless one loses every time; sensible play that
    builds factories toward more lines wins every seed tried (200 of 200),
-   median day 46, often ending with about three times its starting
-   strength, and the same with walls at home wins every seed too. Sensible
-   play that never builds a factory wins 197 of 200, median day 43.
-   Questions: does day 36 feel right for a do-nothing commander, and does
+   median day 55, often ending with about three times its starting
+   strength, and the same with walls at home wins every seed too (median
+   day 46). Sensible play that never builds a factory wins 196 of 200,
+   median day 46. Questions: does day 34 feel right for a do-nothing commander, and does
    building up feel like it pays off enough, or too surely?
 
 2. Next build. Cycle 6, "Close the loop, fix the clock", passed two
@@ -147,5 +147,6 @@ was invented by the loop, not by you:
     walls today. Once fog of war exists, should walls become something
     you only see with intel?
 
-Nothing here blocks the loop. Cycle 8 is complete; Cycle 9 ("one clock
-for both sides") is next and runs without waiting on any item above.
+Nothing here blocks the loop. Cycle 9 ("one clock for both sides") is
+in its judge pass; Cycle 10 is drones and electronic warfare with the
+cost exchange scoreboard, and runs without waiting on any item above.
