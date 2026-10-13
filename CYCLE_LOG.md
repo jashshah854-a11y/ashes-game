@@ -955,3 +955,15 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - Arrival day checked against the sim: over two 150 day campaigns (seeds 7 and 42, the player's capital propped up so the war runs long), all 111 daily predictions of the Dominion's next research day matched the day it bought it (Drone Gen 2 day 21, Jamming Gen 1 day 38, Drone Gen 3 day 78, Jamming Gen 2 day 111).
 - `tools/research-check.js`: 19 checks (one new: the jamming reach sentence), expectations updated to the new text, all pass.
 - Suite 80 pass, 0 fail. Balance byte identical to tools/baseline-cycle11-step3.txt. browser-check 6, lore-check 29, fort-check 13, ad-check 23, research-check 19.
+
+### Step 0 (e): the research order report
+- `tools/balance.js`: a --research-order flag sets the player's order for every script without its own (a report tool; rulings use the default). The default output is byte identical to tools/baseline-cycle11-step3.txt.
+- Seeds 1 to 200, rationed and factories under four player orders (wins, median win day, losses):
+  - Gen 2, Jamming 1, Gen 3, Jamming 2 (the Dominion's order, the default): rationed 200 of 200 (median 46); factories 200 of 200 (median 52).
+  - Gen 2, Gen 3, Jamming 1, Jamming 2 (drones first): rationed 200 (46); factories 200 (52).
+  - Gen 2, Jamming 1, Jamming 2, Gen 3 (both jammings before Gen 3): rationed 199, seed 108 lost on day 130; factories 200 (52).
+  - Gen 2 only: rationed 199, seed 108 lost on day 127; factories 200 (52).
+- Reading: factories is indifferent to research order; rationed's long seesaw on seed 108 is decided by whether the player has Drone Gen 3 when the Dominion does (day 78), which is jamming being inert seen from the other side: Jamming Gen 2 never reaches a Gen 3 army. Reproduces the Cycle 11 judge's table.
+
+### Cycle 12 Step 0 closed
+All conditions of the Cycle 11 judge are met: docs (a), the Dominion's steel checks measured with the alternative failing and the rule kept (b), the reserve's province order pinned (c), research timing, jamming reach, and the rounded numbers on screen (d), the research order report (e). Suite 80 pass, 0 fail; every ruling passes on 8 and 200 seeds; passive day 30.

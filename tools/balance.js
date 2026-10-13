@@ -19,6 +19,8 @@
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
+//   node tools/balance.js --research-order droneGen2,droneGen3,jamming1,jamming2
+//                     the player's research order for every script without its own (a report)
 // Exit code 1 when any ruling check fails, so a script can gate on it.
 'use strict';
 
@@ -50,13 +52,16 @@ function feedLines(Sim, s) {
 // points, so both sides research on one clock. Drone Gen 2 comes first, on
 // the same day as before. Older sims without the research table buy Drone
 // Gen 2 only.
+// --research-order overrides the default order for every script that does
+// not set its own (a report tool; the rulings use the default).
+let RESEARCH_ORDER_OVERRIDE = null;
 function researchWhenReady(Sim, s, order) {
   const n = s.nations.player;
   if (!Sim.research) {
     if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
     return;
   }
-  const next = (order || Sim.CFG.aiResearchOrder).filter(id => !Sim.hasResearched(s, 'player', id))[0];
+  const next = (order || RESEARCH_ORDER_OVERRIDE || Sim.CFG.aiResearchOrder).filter(id => !Sim.hasResearched(s, 'player', id))[0];
   if (next && n.researchPoints >= Sim.CFG.research[next].cost) Sim.research(s, 'player', next);
 }
 
@@ -451,6 +456,7 @@ function main(argv) {
     else if (a === '--sim') args.sim = path.resolve(argv[++i]);
     else if (a === '--trace') args.trace = +argv[++i];
     else if (a === '--json') args.json = true;
+    else if (a === '--research-order') RESEARCH_ORDER_OVERRIDE = argv[++i].split(',');
     else { console.error('unknown argument ' + a); process.exit(2); }
   }
   if (!args.profiles.length) args.profiles = Object.keys(PROFILES);
