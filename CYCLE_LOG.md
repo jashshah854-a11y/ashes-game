@@ -886,3 +886,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Cycle 11 Step 0 closed
 All four Cycle 10 conditions are met: the docs match (a), the four rules have tests that fail on their mutations (b), the preview equals the battle in every single origin attack into air defense over 200 seeds (c), and Spine air defense was remeasured and held back (d). Suite 75 pass, 0 fail; every ruling passes on 8 and 200 seeds; passive day 30.
+
+## Cycle 11, Step 1 of 4: EW generations, sim, CLAIMED (2026-10-13)
+Prescription: the Cycle 10 judge, accepted. Claimed by the Claude Code builder session after re-reading the log end. Design, every number in CFG: a research table (Drone Gen 2 60 points, Drone Gen 3 120 needing Gen 2 at attack 7 defense 4, Jamming Gen 1 50, Jamming Gen 2 100 needing Gen 1); one research command for both sides, buying one chosen project at a time from the points pool (3 a day); jamming is a named modifier in unitStats: enemy drone wings of a generation at or below your jamming level fight at -40 percent attack and defense, so combat, the AI's estimate, and the preview agree; the Dominion researches in a fixed stated order (Gen 2, Jamming 1, Gen 3, Jamming 2), each as soon as it can afford it, so its Gen 2 day is unchanged. Tuning toward the drone exit criterion is step 3, in measured slices.
