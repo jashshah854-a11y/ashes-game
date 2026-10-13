@@ -628,3 +628,18 @@ Built by the Claude Code builder session.
 ## Cycle 8, Fortifications paid in equipment, Step 2 of 4: CLAIMED (2026-10-13)
 
 Claimed by the Claude Code builder session. Scope: the province card shows fortification level, the exact defense bonus, work in progress, and a Fortify button with its cost and days (or the plain reason it cannot be pressed); a map badge per level and for work in progress; the attack preview names the fortification bonus inside the enemy's defense; the unit card says when its own defense includes walls; the enemy card lists Dominion fortifications. Real browser check.
+
+## Cycle 8, Fortifications paid in equipment, Step 2 of 4: UI, DONE (2026-10-13)
+
+Built by the Claude Code builder session.
+
+### What was built
+- Province card: a "Fortification" line on every province, for example "level 1 of 2, +25% defense for your units defending here" (or "Dominion units"), plus "Being raised to level N, D days left" while work is under way. A Fortify button: "Fortify to level 1 (100 eq, 5 days, +25% defense)", disabled with the reason in its label: ": need 100, you have 60", "Fortifying: 5 days left", "Fortification at max level", or "Fortify (only your own provinces)".
+- Map: a "Fort 1" or "Fort 2" badge per province (level 2 drawn heavier), and a dashed "Fort 1 in 5d" badge while building.
+- Attack preview: when the target is fortified, the defense number says so, for example "Attack Kharvale: your stack power 7 vs their defense 11 (supply effects included; includes +25% from level 1 fortifications)."
+- Unit card: "Defense 5 (includes +25% from fortifications here)" for a unit standing in its own fortified province.
+- Enemy card: a "Fortified provinces" row, for example "Kharvale 1 (to 2 in 5d), Khessograd 1 (to 2 in 4d)", or "none".
+
+### Test and verification results
+- Suite 49 pass, 0 fail. `node tools/balance.js` byte identical to the step 1 output (UI only). `node tools/lore-check.js` 28 of 28; `node tools/browser-check.js` 6 of 6. No dashes.
+- Real browser checks (headless Chromium, the repo's index.html, seed 7). Unmodified game: at the start the button reads "Fortify to level 1 (100 eq, 5 days, +25% defense): need 100, you have 60" and is disabled. Checker edit, stated plainly: starting player equipment raised to 5000 so a fortify click is possible on day 1; the capital card went from "level 0 of 2" to "Being raised to level 1, 5 days left", the button to "Fortifying: 5 days left", the map badge to "Fort 1 in 5d", and on day 6 to "Fort 1", with the card reading "+25% defense for your units defending here" and the capital's infantry card "Attack 4, Defense 5 (includes +25% from fortifications here)"; by day 20 the enemy card listed the Dominion's own walls. Second checker edit, stated plainly: Dominion starting equipment raised to 2000 so it walls p5_3 while the player's front stack still stands next to it; on day 8 the preview from p4_3 read "your stack power 7 vs their defense 11 (supply effects included; includes +25% from level 1 fortifications)" and the enemy province card read "+25% defense for Dominion units defending here. Being raised to level 2, 5 days left" with the button "Fortify (only your own provinces)". Zero page errors in every run.
