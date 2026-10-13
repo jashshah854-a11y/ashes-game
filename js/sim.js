@@ -1223,16 +1223,7 @@
     // which paces its reinforcements the way the old every-3-days
     // instant training did.
     // (The cap exists because the first smoke test ended with a 51 unit pile-up.)
-    // Lines 3 and 4 open for the AI by the same factory thresholds as the
-    // player, and it feeds them through the same queueProduction path.
-    syncProductionLines(state, ai);
-    if (unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
-      (n.productionLines || []).forEach(function (line) {
-        if (line.queue === 0 && unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
-          queueProduction(state, ai, line.id);
-        }
-      });
-    }
+    // Production orders are decided at the start of the tick (aiProduction).
     // Orders, decided per origin province so the AI thinks in the same
     // battle groups the combat code fights with. (Cycle 3 lesson: judging
     // a single unit's stats against a whole stack's defense let lone
@@ -1344,10 +1335,34 @@
     if (!n.droneGen2 && n.researchPoints >= CFG.droneGen2Cost) researchDroneGen2(state, 'enemy');
   }
 
+  // Keep the production lines fed, up to a modest field army. The AI
+  // orders through the same lines, steel costs, and build days as the
+  // player, and finished units deploy at its capital like the player's.
+  // It keeps at most one order per line at a time. (The cap of 14 exists
+  // because the first smoke test ended with a 51 unit pile-up.) Lines 3
+  // and 4 open for the AI by the same thresholds and the same path.
+  // Decided at the start of the tick, on the same start of day numbers a
+  // player sees: decided inside aiTakeTurn, after the production phase,
+  // every AI order started a day later than the same order from a player
+  // (Cycle 9, one clock for both sides).
+  function aiProduction(state) {
+    var ai = 'enemy';
+    var n = state.nations[ai];
+    syncProductionLines(state, ai);
+    if (unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
+      (n.productionLines || []).forEach(function (line) {
+        if (line.queue === 0 && unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
+          queueProduction(state, ai, line.id);
+        }
+      });
+    }
+  }
+
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
-    aiResearch(state); // before the economy, like a player's click before the tick
+    aiResearch(state);   // before the economy, like a player's click before the tick
+    aiProduction(state); // the same start of day moment for production orders
     incomePhase(state, 'player');
     incomePhase(state, 'enemy');
     productionPhase(state, 'player');  // lines are paid before factories
