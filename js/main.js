@@ -504,10 +504,17 @@
       if (np.airDefense > 0) {
         var wings = stack.filter(function (x) { return x.type === 'drone'; }).length;
         var downed = hit.filter(function (x) { return x.strength <= Sim.CFG.interceptStrength; }).length;
+        var survive = hit.length - downed;
         adText = ' Their air defense there launches one interceptor per drone wing (' + Sim.CFG.interceptorSteel +
-          ' steel each, -' + Sim.CFG.interceptStrength + ' strength) while their steel lasts: ' + hit.length + ' of your ' +
-          wings + (wings === 1 ? ' wing' : ' wings') + ' would be hit' + (hit.length ? ' (' + (hit.length * Sim.CFG.interceptorSteel) + ' of their steel)' : '') +
-          (downed ? ', ' + downed + ' downed before the fight' : '') + '.';
+          ' steel each, -' + Sim.CFG.interceptStrength + ' strength) while their steel lasts: ';
+        if (!wings) {
+          adText += 'it strikes only drone wings, and this stack has none.';
+        } else {
+          adText += hit.length + ' of your ' + wings + (wings === 1 ? ' wing' : ' wings') + ' would be hit' +
+            (hit.length ? ' (' + (hit.length * Sim.CFG.interceptorSteel) + ' of their steel)' : '') +
+            (downed ? ', ' + downed + ' downed before the fight' : '') +
+            (survive ? ', ' + survive + (survive === 1 ? ' fights on' : ' fight on') + ' at lower strength with full attack' : '') + '.';
+        }
       }
       preview += '<br>Attack ' + np.name + ': your stack power ' + vsHere +
         (vsHere !== myPower ? ' (' + myPower + ' before interception)' : '') +

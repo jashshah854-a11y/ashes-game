@@ -335,6 +335,9 @@ function runGame(Sim, seed, profileName, opts) {
   const bledNow = id => s.ledger ? s.ledger[id].lostSteel + s.ledger[id].launchSteel : 0;
   while (!s.gameOver && s.day < MAX_DAYS) {
     const youBefore = bledNow('player'), themBefore = bledNow('enemy');
+    // Province names repeat on the map, so launches are matched to the
+    // Dominion's air defense provinces by id, through their names.
+    const adIds = Object.keys(s.provinces).filter(k => s.provinces[k].airDefense > 0 && s.provinces[k].owner === 'enemy');
     const day = s.day;
     const seen = new Set(s.log); // the log is capped, so diff by entry identity
     profile.play(Sim, s, mem);
@@ -349,7 +352,8 @@ function runGame(Sim, seed, profileName, opts) {
     fresh.forEach(e => {
       const m = /^Khessite air defense at (.+?) (launches|cannot launch)/.exec(e.msg);
       if (!m) return;
-      const taken = fresh.some(f => f.msg.indexOf('Vessari capture ' + m[1]) === 0 || f.msg.indexOf('Vessari take ' + m[1]) === 0);
+      const ids = adIds.filter(k => s.provinces[k].name === m[1]);
+      const taken = ids.some(k => s.provinces[k].owner === 'player');
       intercepts.push({ day, failed: !taken, you: bledNow('player') - youBefore, them: bledNow('enemy') - themBefore });
     });
     if (opts.trace) {

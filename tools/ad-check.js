@@ -147,7 +147,7 @@ async function badge(page, provId) {
     check('preview power is stackPower with the target', !!m && Number(m[1]) === sim.withTarget, (m && m[1]) + ' vs ' + sim.withTarget);
     check('preview names the launch and its steel',
       preview.indexOf('Their air defense there launches one interceptor per drone wing (' + CFG.interceptorSteel + ' steel each, -' +
-        CFG.interceptStrength + ' strength) while their steel lasts: 1 of your 1 wing would be hit (' + CFG.interceptorSteel + ' of their steel).') !== -1, preview);
+        CFG.interceptStrength + ' strength) while their steel lasts: 1 of your 1 wing would be hit (' + CFG.interceptorSteel + ' of their steel), 1 fights on at lower strength with full attack.') !== -1, preview);
     // Order the front stack into the river province through the map: the
     // first click picked the infantry, the second picks the drone wing.
     await page.click('[data-prov="' + RIVER + '"]');

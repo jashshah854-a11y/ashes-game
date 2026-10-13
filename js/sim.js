@@ -271,7 +271,7 @@
     if (line.queue >= CFG.maxQueuePerLine) return { ok: false, reason: 'queue is full' };
     line.queue += 1;
     var t = CFG.unitTypes[line.template];
-    logEvent(state, state.nations[nationId].short + ' queue a ' + t.label +
+    logEvent(state, state.nations[nationId].short + ' queue ' + (/^[AEIOU]/.test(t.label) ? 'an ' : 'a ') + t.label +
       ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + t.buildDays + ' days).');
     return { ok: true, line: line, template: line.template, cost: t.steelCost, buildDays: t.buildDays };
   }
@@ -959,7 +959,8 @@
 
     // Interception: before a province battle or a clash for a province with
     // air defense, its owner launches at the attacking drone wings, paying
-    // steel, in canonical engagement order (by province), while steel lasts.
+    // steel, while steel lasts, in engagement order: province battles sorted
+    // by the attacking group's origin, then clashes sorted by province.
     var launchLog = [];
     engagements.forEach(function (e) {
       if (e.kind !== 'battle' && e.kind !== 'clash') return;

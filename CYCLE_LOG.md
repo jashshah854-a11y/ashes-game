@@ -862,3 +862,11 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 ### Step 0 (b): tests for the four untested interception rules
 - Four new tests (suite 71 pass, 0 fail): a clash for an empty province with air defense draws its owner's launch; groups meeting on the road draw no launch even with air defense at both ends; with steel for one launch the lowest unit id is hit and reversing the unit array changes nothing (plan, strengths, launches, log); the Dominion attacks one infantry with two damaged wings in the open and holds when the player's air defense would down both.
 - Mutation check, one scratch mutation per rule, each failing exactly its own test: no launches in clashes (fails the clash test), launches allowed in meetings (fails the meeting test), launch order reversed (fails the order test), the AI estimate without its target (fails the AI test). Sim unchanged; balance unchanged.
+
+### Step 0 (b2): the judge's small accuracy items
+- `js/sim.js`: the interception comment now states the real order (province battles by the attacking group's origin, then clashes by province); the queue log line reads "queue an Infantry Division".
+- `js/main.js`: a stack with no drone wings is told the air defense strikes only drone wings, instead of "0 of your 0 wings would be hit"; a hit wing that survives is named as fighting on at lower strength with full attack, as the battle math counts it.
+- `tools/balance.js`: a launch is matched to the Dominion's air defense provinces by id (through their names, among the provinces that hold air defense), not by a name match against capture lines, since names repeat.
+- `tools/ad-check.js`: its preview expectation carries the new survivor clause.
+- BACKLOG records the 390 px AD badge overlap as a pending layout slice.
+- Suite 71 pass, 0 fail. Balance byte identical to tools/baseline-cycle10-step3.txt. browser-check 6, lore-check 29, fort-check 13, ad-check 23.
