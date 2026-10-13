@@ -1189,31 +1189,7 @@
         return buildFortification(state, ai, p.id).ok;
       });
     }
-    // Extend rail toward the front every few days when steel allows:
-    // pick the westernmost owned edge with no rail where one end is
-    // already supplied, and lay track there.
-    if (state.day % 4 === 0 && n.steel >= 50) {
-      var supply = computeSupply(state, ai);
-      var candidates = state.edgeList.filter(function (e) {
-        if (e.rail) return false;
-        var pa = state.provinces[e.a], pb = state.provinces[e.b];
-        if (pa.owner !== ai || pb.owner !== ai) return false;
-        return (supply[pa.id] && supply[pa.id].supplied) || (supply[pb.id] && supply[pb.id].supplied);
-      });
-      // The Spine first: an edge on its own capital row shortens its main
-      // supply route, so it beats any side edge. Then westernmost first.
-      // (Without the Spine preference the westernmost side edges always
-      // won, the river crossing of the Spine could go unbuilt for a whole
-      // war, and the front starved at the hop limit; found in Cycle 9.)
-      var row = state.provinces[n.capitalId].y;
-      var onSpine = function (e) { return state.provinces[e.a].y === row && state.provinces[e.b].y === row ? 0 : 1; };
-      candidates.sort(function (e1, e2) {
-        var m1 = Math.min(state.provinces[e1.a].x, state.provinces[e1.b].x);
-        var m2 = Math.min(state.provinces[e2.a].x, state.provinces[e2.b].x);
-        return onSpine(e1) - onSpine(e2) || m1 - m2;
-      });
-      if (candidates.length) buildRail(state, ai, candidates[0].a, candidates[0].b);
-    }
+    // Rail building is decided at the start of the tick (aiRail).
     // Keep the production lines fed, up to a modest field army. The AI
     // orders through the same lines, steel costs, and build days as
     // the player, and finished units deploy at its capital just like
@@ -1373,11 +1349,44 @@
     }
   }
 
+  // Extend rail toward the front every few days when steel allows: pick
+  // the westernmost owned edge with no rail where one end is already
+  // supplied, Spine edges first, and lay track there. Decided at the
+  // start of the tick, on start of day numbers, like a player's click
+  // (Cycle 9).
+  function aiRail(state) {
+    var ai = 'enemy';
+    var n = state.nations[ai];
+    if (state.day % 4 === 0 && n.steel >= 50) {
+      var supply = computeSupply(state, ai);
+      var candidates = state.edgeList.filter(function (e) {
+        if (e.rail) return false;
+        var pa = state.provinces[e.a], pb = state.provinces[e.b];
+        if (pa.owner !== ai || pb.owner !== ai) return false;
+        return (supply[pa.id] && supply[pa.id].supplied) || (supply[pb.id] && supply[pb.id].supplied);
+      });
+      // The Spine first: an edge on its own capital row shortens its main
+      // supply route, so it beats any side edge. Then westernmost first.
+      // (Without the Spine preference the westernmost side edges always
+      // won, the river crossing of the Spine could go unbuilt for a whole
+      // war, and the front starved at the hop limit; found in Cycle 9.)
+      var row = state.provinces[n.capitalId].y;
+      var onSpine = function (e) { return state.provinces[e.a].y === row && state.provinces[e.b].y === row ? 0 : 1; };
+      candidates.sort(function (e1, e2) {
+        var m1 = Math.min(state.provinces[e1.a].x, state.provinces[e1.b].x);
+        var m2 = Math.min(state.provinces[e2.a].x, state.provinces[e2.b].x);
+        return onSpine(e1) - onSpine(e2) || m1 - m2;
+      });
+      if (candidates.length) buildRail(state, ai, candidates[0].a, candidates[0].b);
+    }
+  }
+
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
     aiResearch(state);   // before the economy, like a player's click before the tick
     aiFactories(state);  // factory growth, the same moment
+    aiRail(state);       // rail building, the same moment
     aiProduction(state); // the same start of day moment for production orders
     incomePhase(state, 'player');
     incomePhase(state, 'enemy');

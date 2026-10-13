@@ -736,3 +736,10 @@ Prescription: the Cycle 8 judge, accepted. Steps: (1) move the AI's production o
 - `js/sim.js`, the AI rail rule: among unrailed owned edges with one supplied end, an edge on its capital row now sorts ahead of any side edge, then westernmost first, as before. (The player's harness scripts already prefer the capital row.)
 - Measured on the mid tick rail clock, before moving anything: `node tools/balance.js` output byte identical to the previous slice on the 8 standard seeds, and every 200 seed summary identical. Neutral where it was already fine; it only removes the luck.
 - Suite 57 pass, 0 fail.
+
+### Step 2 slice B: the Dominion's rail decision moves to the start of the tick
+- `js/sim.js`: the rail rule (every fourth day with at least 50 steel, one edge, Spine first) moves out of aiTakeTurn into aiRail, called at the start of the tick between aiFactories and aiProduction.
+- Suite: 57 pass, 0 fail. No dashes.
+- Balance, 8 standard seeds: every ruling check passes; passive falls on day 34 on all 8 (inside 30 to 45; was 36). The Dominion's rail now lands a day sooner, so its front is fed a day sooner.
+- Seeds 1 to 200: passive and both reckless scripts never survive (passive loss days 34 to 61, median 34); factories 200 of 200 (median day 55) and fortress 200 of 200 (median 46), unchanged; rationed 199 (was 196; only seed 104 still loses); the no factory report 195 (was 192).
+- Seed 104 classified like the earlier rationed losses: it collapses on day 17 at the full 50 percent supply penalty with steel under the script's rail threshold, the same script cause traced in Cycle 8.
