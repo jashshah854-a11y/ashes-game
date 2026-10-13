@@ -3,12 +3,16 @@
 Taste calls the loop will not make for you. Each one is blocking something
 specific; everything else keeps moving.
 
-1. Calibration feel. After Cycle 5, the scripted sensible player captures
-   the enemy capital 8 of 8 seeds on days 43 to 52, a reckless player who
-   abandons the capital lane loses 8 of 8, and a commander who never acts
-   falls on day 36, inside the judge's 30 to 45 band. Question: does day 36
-   feel right to you for a do-nothing commander, or do you want the
-   skeleton gentler while you learn it?
+1. Calibration feel. Measured with the committed harness after Cycle 6
+   (and your lines first call): a commander who never acts falls on day
+   36 on every standard seed; a reckless one loses every time; sensible
+   play that builds factories toward more lines wins every seed tried
+   (200 of 200), median day 34, often ending with about twice its starting
+   strength. Sensible play that never builds a factory still wins most
+   seeds (193 of 200) but can lose a long war to a Dominion running 4
+   lines. Questions: does day 36 feel right for a do-nothing commander,
+   and is the factory path now too strong (an easy win once you find it),
+   or is that the payoff you want for building up?
 
 2. Next build. Production lines shipped (Cycle 5, judge PASS). The judge
    now prescribes Cycle 6, "Close the loop, fix the clock": factories gate
@@ -41,11 +45,18 @@ specific; everything else keeps moving.
    exist, and if so with a full refund, a partial refund, or none? Parked
    until your call; nothing is blocked by it.
 
-7. Locked production lines (Cycle 6, judge ruled). Factories will gate how
-   many production lines a nation can run, with locked slots visible in
-   the panel and the unlock condition written out. The thresholds are
-   loop tuning, but whether a locked slot feels good or frustrating is
-   taste. Flag it when you play Cycle 6 if it feels wrong.
+7. Locked production lines (Cycle 6, judge ruled). Factories now gate how
+   many production lines a nation can run: line 3 opens at 16 total
+   factory levels, line 4 at 24, and an opened line stays open. The panel
+   shows each locked slot with its condition, for example "Line 3 locked.
+   Build 9 more factory levels anywhere to unlock it (needs 16 total
+   factory levels, you have 7)." The thresholds are loop tuning, but
+   whether a locked slot feels good or frustrating, and whether unlocks
+   should stay permanent when factories are lost, is taste. Flag it when
+   you play if it feels wrong. Decided by you on 2026-10-13: production
+   lines are paid before factories each day, so building for more lines
+   pays off instead of starving every line.
 
-Nothing here blocks tonight. The production lines cycle is complete and
-the build loop is stopped; Cycle 6 runs when you say so.
+Nothing here blocks the build. Cycle 6 steps 1 to 4 are done and
+reconciled on one branch; the judge pass is next, then Cycle 7 (lore).
+Every item above routes around your answer until you give it.
