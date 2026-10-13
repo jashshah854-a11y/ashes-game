@@ -155,6 +155,27 @@ was invented by the loop, not by you:
     rail and it stalls." Should it also say "It lays its Spine first",
     which tells you exactly where to cut?
 
+19. Interception and the steel exchange (Cycle 10). Built with working
+    answers, each a CFG number or one line to change:
+    - Name: the header and card say "Steel bled" and "Steel exchange".
+      Keep, or call it something else?
+    - Does it score the campaign? Today it only informs, and says so; the
+      war is still won by taking the capital.
+    - How expensive should a launch feel? Today 20 steel against a 15
+      steel drone wing, stripping 4 of its 6 strength. The defender wins
+      the fight and loses the steel exchange.
+    - A hold fire toggle, so a player can save steel and let wings through?
+      Not built; air defense always fires while steel lasts.
+    - Drones striking rail or factories? Not built; drones fight only in
+      battles.
+    - Air defense on capture: today it is lost with the province. Keep it,
+      or let the captor take it over?
+    - Where the Dominion builds it: today its capital only. On its river
+      Spine province too measured as a loss on one seed in 200 for the
+      rationed script; that is a balance question the builder will measure
+      again, but whether the Dominion should defend its front this way is
+      a feel question.
+
 Nothing here blocks the loop. Cycle 9 ("one clock for both sides") is
-closed; Cycle 10 is drones and electronic warfare with the
-cost exchange scoreboard, and runs without waiting on any item above.
+closed; Cycle 10 (interception and the steel exchange) is in progress and
+runs without waiting on any item above.

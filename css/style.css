@@ -208,3 +208,13 @@ button.linkish:hover { background: none; color: #fff2c4; }
 }
 .fort-badge.lvl2 { background: rgba(60, 60, 60, 0.85); color: #fff; border-color: #d9d2c0; }
 .fort-badge.building { font-weight: normal; border-style: dashed; }
+
+/* Cycle 10: air defense badges and the steel exchange. */
+.ad-badge {
+  /* Under the fort badge, still above where unit chips sit. */
+  position: absolute; top: 20px; right: 2px; z-index: 1;
+  display: inline-block; padding: 0 4px; border-radius: 2px;
+  background: rgba(20, 40, 60, 0.8); color: #cfe6ff; border: 1px solid #7fa6cc; font-weight: bold;
+}
+.ad-badge.building { font-weight: normal; border-style: dashed; }
+.exchange-box { font-size: 14px; max-width: 100%; }

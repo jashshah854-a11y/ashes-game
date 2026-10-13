@@ -22,7 +22,8 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'prov-explain', 'unit-details',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'btn-ad', 'stat-enemy-ad',
+   'xc-you', 'xc-them', 'xc-ratio', 'xc-you-lost', 'xc-you-launch', 'xc-them-lost', 'xc-them-launch', 'xc-explain', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
    'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
    'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
@@ -135,6 +136,8 @@
         }
         if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">Fort ' + p.fortLevel + '</span>';
         if (p.fortBuild) html += ' <span class="fort-badge building">Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd</span>';
+        if (p.airDefense > 0) html += ' <span class="ad-badge">AD</span>';
+        if (p.airDefenseBuild) html += ' <span class="ad-badge building">AD in ' + p.airDefenseBuild.daysLeft + 'd</span>';
         if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
         if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
         var units = Sim.unitsIn(state, p.id);
@@ -192,6 +195,11 @@
       .filter(function (p) { return p.owner === 'enemy' && (p.fortLevel > 0 || p.fortBuild); })
       .map(function (p) { return p.name + ' ' + (p.fortLevel || 0) + (p.fortBuild ? ' (to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd)' : ''); });
     el.statEnemyForts.textContent = forts.length ? forts.join(', ') : 'none';
+    var ads = Object.keys(state.provinces).map(function (k) { return state.provinces[k]; })
+      .filter(function (p) { return p.owner === 'enemy' && (p.airDefense > 0 || p.airDefenseBuild); })
+      .map(function (p) { return p.name + (p.airDefenseBuild ? ' (building, ' + p.airDefenseBuild.daysLeft + 'd)' : ''); });
+    el.statEnemyAd.textContent = ads.length ? ads.join(', ') : 'none';
+    renderExchange();
     el.statEnemyLines.textContent = enemyLines + ' of ' + Sim.CFG.maxProductionLines +
       (enemyNext ? ' (next at ' + enemyNext.required + ' factory levels)' : '');
 
@@ -321,6 +329,62 @@
     return line;
   }
 
+  // The steel exchange: what each side has bled, from the sim's ledger,
+  // rounded to whole steel for display only.
+  function bled(id) { var l = state.ledger[id]; return Math.round(l.lostSteel + l.launchSteel); }
+  function renderExchange() {
+    var you = bled('player'), them = bled('enemy');
+    el.xcYou.textContent = you;
+    el.xcThem.textContent = them;
+    var ratio = 'No steel bled yet.';
+    if (you > 0 && them > 0) {
+      ratio = them >= you
+        ? 'The Dominion bleeds ' + (them / you).toFixed(1) + ' steel for every 1 of yours.'
+        : 'You bleed ' + (you / them).toFixed(1) + ' steel for every 1 of theirs.';
+    } else if (you > 0) {
+      ratio = 'Only you have bled so far.';
+    } else if (them > 0) {
+      ratio = 'Only the Dominion has bled so far.';
+    }
+    el.xcRatio.textContent = ratio;
+    el.xcYouLost.textContent = Math.round(state.ledger.player.lostSteel);
+    var launches = function (n) { return n + (n === 1 ? ' launch' : ' launches'); };
+    el.xcYouLaunch.textContent = state.ledger.player.launchSteel + ' (' + launches(state.ledger.player.launches) + ')';
+    el.xcThemLost.textContent = Math.round(state.ledger.enemy.lostSteel);
+    el.xcThemLaunch.textContent = state.ledger.enemy.launchSteel + ' (' + launches(state.ledger.enemy.launches) + ')';
+    var per = Object.keys(Sim.CFG.unitTypes).map(function (k) {
+      var t = Sim.CFG.unitTypes[k];
+      var name = t.label.toLowerCase();
+      return (/^[aeiou]/.test(name) ? 'an ' : 'a ') + name + ' of ' + t.strength + ' strength costs ' + t.steelCost + ' steel, so ' +
+        (t.steelCost / t.strength) + ' a point';
+    });
+    el.xcExplain.textContent = 'Who bleeds steel faster. Every point of strength a unit loses, in battle, to interceptors, ' +
+      'or to attrition, is counted at its share of the unit\'s steel cost (' + per.join('; ') + '). Interceptor launches ' +
+      'count the steel they burn, ' + Sim.CFG.interceptorSteel + ' each. The header shows both totals, rounded. ' +
+      'The scoreboard informs; it does not decide the war.';
+  }
+
+  // Air defense in plain words: what stands, what it does, what it costs.
+  function airDefenseLine(p) {
+    var holder = p.owner === 'player' ? 'your' : 'the Dominion\'s';
+    if (p.airDefenseBuild) return 'Air defense: being built, ' + p.airDefenseBuild.daysLeft + (p.airDefenseBuild.daysLeft === 1 ? ' day' : ' days') + ' left';
+    if (!(p.airDefense > 0)) return 'Air defense: none';
+    return 'Air defense: standing. When enemy drone wings attack troops here, it launches one interceptor per wing before the fight, ' +
+      Sim.CFG.interceptorSteel + ' steel each from ' + holder + ' stockpile, -' + Sim.CFG.interceptStrength +
+      ' strength per wing hit, while that steel lasts. It is lost if the province falls';
+  }
+
+  function renderAirDefenseButton(p, mine) {
+    var b = el.btnAd, cost = Sim.CFG.airDefenseCost;
+    if (!mine) { b.disabled = true; b.textContent = 'Air defense (only your own provinces)'; return; }
+    if (p.airDefense > 0) { b.disabled = true; b.textContent = 'Air defense standing'; return; }
+    if (p.airDefenseBuild) { b.disabled = true; b.textContent = 'Building air defense: ' + p.airDefenseBuild.daysLeft + ' days left'; return; }
+    var have = state.nations.player.equipment;
+    b.disabled = have < cost;
+    b.textContent = 'Build air defense (' + cost + ' eq, ' + Sim.CFG.airDefenseBuildDays + ' days; ' + Sim.CFG.interceptorSteel +
+      ' steel per launch)' + (have < cost ? ': need ' + cost + ', you have ' + have : '');
+  }
+
   function renderFortButton(p, mine) {
     var b = el.btnFort, lvl = p.fortLevel || 0;
     var cost = Sim.CFG.fortCostPerLevel * (lvl + 1);
@@ -342,6 +406,8 @@
       btnF.disabled = true;
       el.btnFort.disabled = true;
       el.btnFort.textContent = 'Fortify';
+      el.btnAd.disabled = true;
+      el.btnAd.textContent = 'Build air defense';
       el.provExplain.textContent = '';
       el.railActions.innerHTML = '';
       return;
@@ -362,6 +428,7 @@
       'Steel output: ' + p.steel + ' per day<br>' +
       'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
       fortLine(p) + '<br>' +
+      airDefenseLine(p) + '<br>' +
       supplyLine + '<br>' +
       'Units here: ' + Sim.unitsIn(state, p.id).length;
     renderRailActions(p);
@@ -372,6 +439,7 @@
       ? 'Factory at max level'
       : 'Build / Upgrade Factory (' + cost + ' eq)';
     renderFortButton(p, mine);
+    renderAirDefenseButton(p, mine);
     el.provExplain.textContent = mine
       ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
         'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
@@ -438,7 +506,8 @@
         var downed = hit.filter(function (x) { return x.strength <= Sim.CFG.interceptStrength; }).length;
         adText = ' Their air defense there launches one interceptor per drone wing (' + Sim.CFG.interceptorSteel +
           ' steel each, -' + Sim.CFG.interceptStrength + ' strength) while their steel lasts: ' + hit.length + ' of your ' +
-          wings + (wings === 1 ? ' wing' : ' wings') + ' would be hit' + (downed ? ', ' + downed + ' downed before the fight' : '') + '.';
+          wings + (wings === 1 ? ' wing' : ' wings') + ' would be hit' + (hit.length ? ' (' + (hit.length * Sim.CFG.interceptorSteel) + ' of their steel)' : '') +
+          (downed ? ', ' + downed + ' downed before the fight' : '') + '.';
       }
       preview += '<br>Attack ' + np.name + ': your stack power ' + vsHere +
         (vsHere !== myPower ? ' (' + myPower + ' before interception)' : '') +
@@ -659,6 +728,9 @@
   });
   el.btnFort.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildFortification(state, 'player', selectedProvinceId); render(); }
+  });
+  el.btnAd.addEventListener('click', function () {
+    if (selectedProvinceId) { Sim.buildAirDefense(state, 'player', selectedProvinceId); render(); }
   });
   el.btnFactory.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildFactory(state, 'player', selectedProvinceId); render(); }
