@@ -787,3 +787,7 @@ Claimed by the Claude Code builder session after re-reading the log end (master 
 
 ### Cycle 9 closed
 Judge CONDITIONAL PASS; all six flags closed. Next: Cycle 10, interception and the cost exchange scoreboard, starting with the movement order clock as its own measured slice.
+
+## Cycle 10, Interception and the cost exchange scoreboard, Step 0: CLAIMED (2026-10-13)
+
+Prescription: the Cycle 9 judge, accepted. Steps: (0) the Dominion's movement orders to the start of the tick, as its own measured slice, landed only if passive stays inside 30 to 45 on all 8 seeds and every ruling check passes; (1) sim: air defense for equipment by one command for both sides, interceptor launches paid in steel that strip drone strength before battle, inside stackPower, a per nation steel ledger, the Dominion's air defense rule stated in its doctrine; (2) UI: an always visible scoreboard, the province card line and button, the preview naming launches, a log line per launch; (3) tests and balance, including a drone heavy report profile that must win the steel exchange while losing the fight; (4) a fresh judge. Claimed by the Claude Code builder session after re-reading the log end (Cycle 9 closed, master unchanged).
