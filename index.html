@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ashes of Empires, Iteration 1</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <div class="title-block">
+    <h1>Ashes of Empires</h1>
+    <p class="subtitle">The Vessari Compact vs. The Khessite Dominion</p>
+  </div>
+  <div class="controls">
+    <div class="day-box">Day <span id="day-counter">1</span> / <span id="day-max">150</span></div>
+    <button id="btn-pause" type="button">Pause</button>
+    <button id="btn-speed1" type="button" class="speed active">Speed 1x</button>
+    <button id="btn-speed2" type="button" class="speed">Speed 2x</button>
+    <button id="btn-new" type="button">New Game</button>
+  </div>
+</header>
+
+<main>
+  <section class="map-wrap">
+    <div id="map" class="map" aria-label="Province map"></div>
+    <p class="hint">
+      Click one of your units to select it, then click a highlighted neighboring
+      province to march or attack. Blue is yours, red is the Dominion.
+      A star marks a capital. Take theirs before the campaign ends.
+    </p>
+    <div id="banner" class="banner hidden"></div>
+  </section>
+
+  <aside class="panel">
+    <div class="card" id="nation-card">
+      <h2>The Vessari Compact (you)</h2>
+      <div class="stat-row"><span>Equipment stockpile</span><strong id="stat-equipment">0</strong></div>
+      <div class="stat-row"><span>Steel stockpile</span><strong id="stat-steel">0</strong></div>
+      <div class="stat-row"><span>Steel income / day</span><strong id="stat-steel-income">0</strong></div>
+      <div class="stat-row"><span>Factory levels</span><strong id="stat-factories">0</strong></div>
+      <div class="stat-row"><span>Research points</span><strong id="stat-research">0</strong></div>
+      <div class="stat-row"><span>Drone generation</span><strong id="stat-drone-gen">Gen 1</strong></div>
+      <button id="btn-research" type="button">Research Drone Gen 2 (60 pts)</button>
+      <p class="explain" id="research-explain">Gen 2 raises every drone wing to attack 5, defense 3.</p>
+    </div>
+
+    <div class="card" id="province-card">
+      <h2 id="prov-name">No province selected</h2>
+      <div id="prov-details" class="prov-details">Click any province to inspect it.</div>
+      <div class="btn-col">
+        <button id="btn-factory" type="button" disabled>Build / Upgrade Factory</button>
+        <button id="btn-train-inf" type="button" disabled>Train Infantry Division (30 eq)</button>
+        <button id="btn-train-drone" type="button" disabled>Train Drone Wing (15 eq)</button>
+      </div>
+      <p class="explain" id="prov-explain"></p>
+    </div>
+
+    <div class="card" id="unit-card">
+      <h2>Selected unit</h2>
+      <div id="unit-details">No unit selected. Click a province holding your troops.</div>
+    </div>
+
+    <div class="card" id="enemy-card">
+      <h2>The Khessite Dominion</h2>
+      <div class="stat-row"><span>Provinces held</span><strong id="stat-enemy-provs">0</strong></div>
+      <div class="stat-row"><span>Units in the field</span><strong id="stat-enemy-units">0</strong></div>
+      <div class="stat-row"><span>Drone generation</span><strong id="stat-enemy-gen">Gen 1</strong></div>
+    </div>
+
+    <div class="card log-card">
+      <h2>War log</h2>
+      <ul id="log" class="log"></ul>
+    </div>
+  </aside>
+</main>
+
+<script src="js/sim.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
