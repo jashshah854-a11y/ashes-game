@@ -15,7 +15,8 @@
 //   node tools/balance.js --seeds 1-500        a seed range (mass testing)
 //   node tools/balance.js --seeds 1,7,42       a seed list
 //   node tools/balance.js --profile sensible   one profile (repeatable): passive,
-//                     sensible, factories, fortress, reckless, rationed, direct, drones, jamming, recon
+//                     sensible, factories, fortress, reckless, rationed, direct, drones, jamming, recon,
+//                     scout
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -165,8 +166,8 @@ function passive() {}
 // garrison, masses every other unit at the easternmost capital row
 // province, and attacks only eastward along that row with 5 or more units
 // massed and a 1.5x stackPower edge.
-function makeSensible(withFactories, withForts, droneLines, researchOrder, recon) {
-  return function sensible(Sim, s) {
+function makeSensible(withFactories, withForts, droneLines, researchOrder, recon, scout) {
+  return function sensible(Sim, s, mem) {
     const n = s.nations.player;
     const row = s.provinces[n.capitalId].y;
     researchWhenReady(Sim, s, researchOrder);
@@ -196,12 +197,24 @@ function makeSensible(withFactories, withForts, droneLines, researchOrder, recon
       if (step) Sim.issueOrder(s, u.id, step);
     });
 
-    const massed = field.filter(u => u.provinceId === staging);
+    // Scout: recon from the staging province before deciding, so the
+    // province behind the target can be seen.
+    if (scout && Sim.reconFlight) {
+      const w = field.filter(u => u.provinceId === staging && u.type === 'drone' && !u.order).sort((a, b) => a.id - b.id)[0];
+      if (w) Sim.reconFlight(s, 'player', w.id);
+    }
+    const massed = field.filter(u => u.provinceId === staging && u.reconDay !== s.day);
     if (massed.length >= 5 && sx + 1 < s.mapW) {
       const target = pid(Sim, sx + 1, row);
       const defs = seenEnemies(Sim, s, target);
       const mine = Sim.stackPower(s, massed, 'attack', target);
-      if (defs && (!defs.length || mine >= 1.5 * Sim.stackPower(s, defs, 'defense'))) {
+      let hold = false;
+      if (scout && sx + 2 < s.mapW) {
+        const behind = seenEnemies(Sim, s, pid(Sim, sx + 2, row));
+        if (behind && Sim.stackPower(s, behind, 'defense') > mine) hold = true;
+        if (hold) mem.scoutHolds = (mem.scoutHolds || 0) + 1;
+      }
+      if (!hold && defs && (!defs.length || mine >= 1.5 * Sim.stackPower(s, defs, 'defense'))) {
         massed.forEach(u => Sim.issueOrder(s, u.id, target));
       }
     }
@@ -350,7 +363,13 @@ const PROFILES = {
   jamming: { play: makeSensible(true, false, false, ['jamming1', 'jamming2', 'droneGen2', 'droneGen3']), ruling: 'report', label: 'sensible plus factories, jamming researched first (jamming report)' },
   // Cycle 12: the recon report. Same as factories, and on days the massed
   // stack holds, one of its drone wings flies recon from the staging province.
-  recon: { play: makeSensible(true, false, false, null, true), ruling: 'report', label: 'sensible plus factories, flying recon from the staging province (recon report)' }
+  recon: { play: makeSensible(true, false, false, null, true), ruling: 'report', label: 'sensible plus factories, flying recon from the staging province (recon report)' },
+  // Cycle 13: sight with a consumer. The factories plan, but before the
+  // attack decision a drone wing flies recon from the staging province,
+  // and the stack holds if the province behind its target is seen holding
+  // more defense than its own attack (a counterattack waiting). The
+  // factories profile is its blind twin.
+  scout: { play: makeSensible(true, false, false, null, false, true), ruling: 'report', label: 'scout: factories, holding when recon sees a counterattack behind the target (sight report)' }
 };
 
 // ---------- One campaign ----------
