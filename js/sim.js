@@ -1200,10 +1200,17 @@
         if (pa.owner !== ai || pb.owner !== ai) return false;
         return (supply[pa.id] && supply[pa.id].supplied) || (supply[pb.id] && supply[pb.id].supplied);
       });
+      // The Spine first: an edge on its own capital row shortens its main
+      // supply route, so it beats any side edge. Then westernmost first.
+      // (Without the Spine preference the westernmost side edges always
+      // won, the river crossing of the Spine could go unbuilt for a whole
+      // war, and the front starved at the hop limit; found in Cycle 9.)
+      var row = state.provinces[n.capitalId].y;
+      var onSpine = function (e) { return state.provinces[e.a].y === row && state.provinces[e.b].y === row ? 0 : 1; };
       candidates.sort(function (e1, e2) {
         var m1 = Math.min(state.provinces[e1.a].x, state.provinces[e1.b].x);
         var m2 = Math.min(state.provinces[e2.a].x, state.provinces[e2.b].x);
-        return m1 - m2;
+        return onSpine(e1) - onSpine(e2) || m1 - m2;
       });
       if (candidates.length) buildRail(state, ai, candidates[0].a, candidates[0].b);
     }
