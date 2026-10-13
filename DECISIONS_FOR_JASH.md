@@ -94,7 +94,9 @@ was invented by the loop, not by you:
    more lines almost never saves the 15 steel a rail edge costs: 0 to 7
    rail edges per campaign and 8 to 43 days at empty steel, against 12 to
    39 edges and no dry days for a player who skips factories. It still
-   wins every seed. Options: leave it (factories and rail are a real
+   wins every seed. Remeasured after fortifications (Cycle 8): unchanged,
+   0 to 7 rail edges per campaign on the factory paths, 21 to 83 days at
+   empty steel. Options: leave it (factories and rail are a real
    trade), pay rail before factories, let the player pause factories, or
    let the player set a steel reserve that factories cannot touch.
 
@@ -107,9 +109,12 @@ was invented by the loop, not by you:
     province order, not by design (it has never happened in a test run).
     Draw, loss, or win?
 
-11. What equipment buys. Today it buys factories only, and piles up past
-    5000 once every line is open. The plan is fortifications paid in
-    equipment (Cycle 8). Your call if you want something else.
+11. What equipment buys. Since Cycle 8 it buys factories and
+    fortifications (100 equipment per level, up to level 2, +25 percent
+    defense per level). A player who fortifies no longer piles it up.
+    Questions: do capitals start with walls (today no city does, so the
+    Dominion has to build Khessograd's walls during the war)? And should
+    the Dominion fortify more than its capital and its river province?
 
 12. Lore against a symmetric game. The lore says the Vessari invent and
     the Khessites out-build and out-wall them, but the game is symmetric:
