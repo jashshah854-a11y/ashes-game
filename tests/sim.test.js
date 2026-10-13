@@ -555,6 +555,257 @@ test('steel starvation: exactly zero steel stalls, topping up to the drain recov
   assert.strictEqual(Sim.unitsOf(s, 'player').length, unitsBefore + 1);
 });
 
+// ---------- Cycle 6: factory gated line slots, simultaneous battles ----------
+
+// Set a nation's total factory levels exactly, spreading levels over
+// its own provinces in id order, at most CFG.maxFactoryLevel each.
+// Test staging only: the balance runs never do this.
+function setFactoryTotal(s, nationId, total) {
+  const owned = Object.values(s.provinces)
+    .filter(p => p.owner === nationId)
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  let left = total;
+  owned.forEach(p => {
+    const give = Math.min(Sim.CFG.maxFactoryLevel, left);
+    p.factoryLevel = give;
+    left -= give;
+  });
+  assert.strictEqual(left, 0, 'enough provinces to hold the total');
+  assert.strictEqual(Sim.factoryLevels(s, nationId), total);
+}
+
+test('line slots: every standard seed starts with exactly 2 lines for both nations', () => {
+  [1, 7, 42, 99, 1234, 555, 2024, 31337].forEach(seed => {
+    const s = Sim.createGame(seed);
+    ['player', 'enemy'].forEach(nid => {
+      assert.ok(Sim.factoryLevels(s, nid) < 16, 'seed ' + seed + ' ' + nid + ' starts below the line 3 threshold');
+      assert.strictEqual(Sim.unlockedLineCount(s, nid), 2);
+      assert.strictEqual(s.nations[nid].productionLines.length, 2);
+      const info = Sim.lineLockInfo(s, nid, 3);
+      assert.strictEqual(info.required, 16);
+      assert.strictEqual(info.current, Sim.factoryLevels(s, nid));
+      assert.strictEqual(info.missing, 16 - Sim.factoryLevels(s, nid));
+      assert.strictEqual(Sim.isLineUnlocked(s, nid, 3), false);
+      assert.strictEqual(Sim.isLineUnlocked(s, nid, 2), true);
+    });
+  });
+});
+
+test('line slots: thresholds at 15, 16, 23, and 24, the hard cap of 4, permanence', () => {
+  const s = Sim.createGame(211);
+  assert.deepStrictEqual(Sim.CFG.lineUnlockFactoryLevels, [0, 0, 16, 24]);
+  assert.strictEqual(Sim.CFG.maxProductionLines, 4);
+
+  setFactoryTotal(s, 'player', 15);
+  assert.deepStrictEqual(Sim.syncProductionLines(s, 'player'), []);
+  assert.strictEqual(s.nations.player.productionLines.length, 2);
+  assert.strictEqual(Sim.unlockedLineCount(s, 'player'), 2);
+  assert.strictEqual(Sim.lineLockInfo(s, 'player', 3).missing, 1);
+  assert.strictEqual(Sim.lineLockInfo(s, 'player', 4).missing, 9);
+
+  setFactoryTotal(s, 'player', 16);
+  const opened3 = Sim.syncProductionLines(s, 'player');
+  assert.strictEqual(opened3.length, 1);
+  assert.strictEqual(opened3[0].id, 3);
+  assert.strictEqual(opened3[0].template, 'infantry');
+  assert.strictEqual(s.nations.player.productionLines.length, 3);
+  assert.strictEqual(Sim.unlockedLineCount(s, 'player'), 3);
+  assert.strictEqual(Sim.lineLockInfo(s, 'player', 3), null);
+  assert.strictEqual(Sim.lineLockInfo(s, 'player', 4).missing, 8);
+
+  setFactoryTotal(s, 'player', 23);
+  assert.deepStrictEqual(Sim.syncProductionLines(s, 'player'), []);
+  assert.strictEqual(s.nations.player.productionLines.length, 3);
+  assert.strictEqual(Sim.lineLockInfo(s, 'player', 4).missing, 1);
+
+  setFactoryTotal(s, 'player', 24);
+  const opened4 = Sim.syncProductionLines(s, 'player');
+  assert.strictEqual(opened4.length, 1);
+  assert.strictEqual(opened4[0].id, 4);
+  assert.strictEqual(opened4[0].template, 'drone');
+  assert.strictEqual(s.nations.player.productionLines.length, 4);
+  assert.strictEqual(Sim.unlockedLineCount(s, 'player'), 4);
+  assert.strictEqual(Sim.lineLockInfo(s, 'player', 4), null);
+
+  // The cap is hard: more factories open nothing, and slot 5 does not exist.
+  setFactoryTotal(s, 'player', 30);
+  assert.deepStrictEqual(Sim.syncProductionLines(s, 'player'), []);
+  assert.strictEqual(s.nations.player.productionLines.length, 4);
+  assert.strictEqual(Sim.productionLine(s, 'player', 5), null);
+  const noSlot = Sim.queueProduction(s, 'player', 5);
+  assert.strictEqual(noSlot.ok, false);
+  assert.strictEqual(noSlot.reason, 'no such production line');
+
+  // Permanence: losing every factory never relocks an opened line.
+  setFactoryTotal(s, 'player', 0);
+  assert.strictEqual(Sim.unlockedLineCount(s, 'player'), 4);
+  assert.strictEqual(Sim.isLineUnlocked(s, 'player', 3), true);
+  assert.strictEqual(Sim.queueProduction(s, 'player', 3).ok, true);
+  assert.strictEqual(Sim.productionLine(s, 'player', 3).queue, 1);
+});
+
+test('locked lines: queue and retool are rejected with the exact numbers, nothing changes', () => {
+  const s = Sim.createGame(213);
+  const current = Sim.factoryLevels(s, 'player');
+  assert.ok(current < 16, 'this seed starts below the threshold');
+  const missing = 16 - current;
+  const logBefore = s.log.length;
+
+  const q = Sim.queueProduction(s, 'player', 3);
+  assert.strictEqual(q.ok, false);
+  assert.strictEqual(q.locked, true);
+  assert.strictEqual(q.lineId, 3);
+  assert.strictEqual(q.required, 16);
+  assert.strictEqual(q.current, current);
+  assert.strictEqual(q.missing, missing);
+  assert.strictEqual(q.reason,
+    'Line 3 is locked. Build ' + missing + ' more factory ' +
+    (missing === 1 ? 'level' : 'levels') + ' anywhere to unlock it (needs 16 total factory levels, you have ' +
+    current + ').');
+  // No phantom line, no queue, no log line.
+  assert.strictEqual(s.nations.player.productionLines.length, 2);
+  assert.strictEqual(Sim.productionLine(s, 'player', 3), null);
+  assert.strictEqual(Sim.queuedUnits(s, 'player'), 0);
+  assert.strictEqual(s.log.length, logBefore);
+
+  const rt = Sim.assignLineTemplate(s, 'player', 3, 'drone');
+  assert.strictEqual(rt.ok, false);
+  assert.strictEqual(rt.locked, true);
+  assert.strictEqual(s.nations.player.productionLines.length, 2);
+
+  // At 15 total the reason goes singular: exactly 1 more factory level.
+  setFactoryTotal(s, 'player', 15);
+  const q15 = Sim.queueProduction(s, 'player', 3);
+  assert.strictEqual(q15.ok, false);
+  assert.strictEqual(q15.reason,
+    'Line 3 is locked. Build 1 more factory level anywhere to unlock it (needs 16 total factory levels, you have 15).');
+
+  // Line 4 stays locked at 16 with its own numbers.
+  setFactoryTotal(s, 'player', 16);
+  Sim.syncProductionLines(s, 'player');
+  const q4 = Sim.queueProduction(s, 'player', 4);
+  assert.strictEqual(q4.ok, false);
+  assert.strictEqual(q4.locked, true);
+  assert.strictEqual(q4.reason,
+    'Line 4 is locked. Build 8 more factory levels anywhere to unlock it (needs 24 total factory levels, you have 16).');
+  assert.strictEqual(Sim.productionLine(s, 'player', 3).queue, 0);
+});
+
+test('AI parity: the enemy unlocks at the same thresholds and pays the same for line 3', () => {
+  const s = Sim.createGame(217);
+  setFactoryTotal(s, 'player', 16);
+  setFactoryTotal(s, 'enemy', 16);
+  Sim.syncProductionLines(s, 'player');
+  Sim.syncProductionLines(s, 'enemy');
+  assert.strictEqual(s.nations.player.productionLines.length, 3);
+  assert.strictEqual(s.nations.enemy.productionLines.length, 3);
+  assert.deepStrictEqual(
+    s.nations.enemy.productionLines.map(l => l.template),
+    s.nations.player.productionLines.map(l => l.template));
+
+  s.nations.player.steel = 100;
+  s.nations.enemy.steel = 100;
+  const qp = Sim.queueProduction(s, 'player', 3);
+  const qe = Sim.queueProduction(s, 'enemy', 3);
+  assert.strictEqual(qp.ok, true);
+  assert.strictEqual(qe.ok, true);
+  assert.strictEqual(qe.template, qp.template);
+  assert.strictEqual(qe.cost, qp.cost);
+  assert.strictEqual(qe.cost, 30);
+  assert.strictEqual(qe.buildDays, qp.buildDays);
+  assert.strictEqual(Sim.productionDrain(s, 'enemy'), Sim.productionDrain(s, 'player'));
+
+  const pr = runUntilComplete(s, 'player', 20);
+  const er = runUntilComplete(s, 'enemy', 20);
+  assert.strictEqual(pr.day, 6);
+  assert.strictEqual(er.day, 6);
+  assert.strictEqual(pr.spent, 30);
+  assert.strictEqual(er.spent, 30);
+  assert.strictEqual(pr.completed[0].provinceId, s.nations.player.capitalId);
+  assert.strictEqual(er.completed[0].provinceId, s.nations.enemy.capitalId);
+  assert.strictEqual(s.nations.player.steel, s.nations.enemy.steel);
+});
+
+test('AI parity: one real tick opens and queues the enemy line 3 at 16 factory levels', () => {
+  const s = Sim.createGame(223);
+  setFactoryTotal(s, 'enemy', 16);
+  assert.ok(Sim.factoryLevels(s, 'player') < 16);
+  Sim.tick(s);
+  assert.strictEqual(s.nations.enemy.productionLines.length, 3);
+  const line3 = Sim.productionLine(s, 'enemy', 3);
+  assert.ok(line3, 'the AI has a line 3 after the tick');
+  assert.strictEqual(line3.template, 'infantry');
+  assert.strictEqual(line3.queue, 1, 'the AI queued on line 3 through the real tick path');
+  assert.strictEqual(s.nations.player.productionLines.length, 2, 'the player gained no line');
+});
+
+test('simultaneous battles: reversing the unit array changes nothing', () => {
+  function scenario() {
+    const s = Sim.createGame(229);
+    const order = (nation, provId, target) => {
+      Sim.unitsIn(s, provId).filter(u => u.nation === nation)
+        .forEach(u => assert.strictEqual(Sim.issueOrder(s, u.id, target).ok, true));
+    };
+    // Two player groups: one attacks p5_3, one moves up to the capital row.
+    order('player', Sim.provinceId(4, 3), Sim.provinceId(5, 3));
+    order('player', Sim.provinceId(3, 2), Sim.provinceId(3, 3));
+    // The p5_3 defenders are ordered away east: the snapshot still makes
+    // them defend. Another enemy group moves, the capital group marches west.
+    order('enemy', Sim.provinceId(5, 3), Sim.provinceId(6, 3));
+    order('enemy', Sim.provinceId(6, 2), Sim.provinceId(6, 3));
+    order('enemy', s.nations.enemy.capitalId, Sim.provinceId(8, 3));
+    return s;
+  }
+  function snapshot(s) {
+    return {
+      units: s.units.map(u => [u.id, u.nation, u.provinceId, u.strength])
+        .sort((a, b) => a[0] - b[0]),
+      owners: Object.keys(s.provinces).sort().map(pid => s.provinces[pid].owner),
+      gameOver: s.gameOver,
+      winner: s.winner
+    };
+  }
+  const a = scenario();
+  const strengthBefore = a.units.reduce((sum, u) => sum + u.strength, 0);
+  const b = scenario();
+  b.units.reverse();
+  Sim.movementPhase(a);
+  Sim.movementPhase(b);
+  assert.deepStrictEqual(snapshot(b), snapshot(a));
+  // The scenario is not vacuous: the phase fought or moved something.
+  const after = snapshot(a);
+  const strengthAfter = after.units.reduce((sum, row) => sum + row[3], 0);
+  assert.ok(strengthAfter < strengthBefore || after.owners.includes('player'),
+    'the phase must change strengths or owners');
+  assert.ok(after.units.some(row => row[2] === Sim.provinceId(3, 3) || row[2] === Sim.provinceId(8, 3)),
+    'unopposed groups marched');
+});
+
+test('meeting battle: groups crossing the same edge fight on the road, they do not pass through', () => {
+  const s = Sim.createGame(233);
+  const aId = Sim.provinceId(4, 3);
+  const bId = Sim.provinceId(5, 3);
+  s.units = s.units.filter(u =>
+    (u.provinceId === aId && u.nation === 'player' && u.type === 'infantry') ||
+    (u.provinceId === bId && u.nation === 'enemy' && u.type === 'infantry'));
+  assert.strictEqual(s.units.length, 2);
+  const mine = s.units.find(u => u.nation === 'player');
+  const theirs = s.units.find(u => u.nation === 'enemy');
+  // A weakened enemy column, staged the way earlier tests weaken a
+  // defender: the road battle must still cost the winner strength.
+  theirs.strength = 1;
+  assert.strictEqual(Sim.issueOrder(s, mine.id, bId).ok, true);
+  assert.strictEqual(Sim.issueOrder(s, theirs.id, aId).ok, true);
+  Sim.movementPhase(s);
+  assert.strictEqual(theirs.strength, 0, 'the crossing enemy column is destroyed on the road');
+  assert.ok(mine.strength > 0 && mine.strength < 12, 'the winner paid for the road battle');
+  assert.strictEqual(mine.provinceId, bId, 'the winner marched on to its target');
+  assert.strictEqual(s.provinces[bId].owner, 'player');
+  assert.strictEqual(Sim.unitsIn(s, aId).filter(u => u.nation === 'enemy').length, 0,
+    'no enemy unit passed through to the other side');
+  assert.ok(s.log.some(e => e.msg.includes('meet on the road')), 'the meeting battle is logged');
+});
+
 // ---------- Cycle 5 step 4: judge flags, capital garrison and retooling ----------
 
 test('AI garrison: the first 3 idle units on the Dominion capital hold, a 4th unit acts', () => {
