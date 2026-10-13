@@ -3,7 +3,7 @@
 Honest list of what is stubbed, simplified, or missing. If it is not in the
 game, it is written here. Nothing in this file is secretly faked in the code.
 
-## Stubbed or simplified (current, after Cycle 6 step 5 and the reconciliation)
+## Stubbed or simplified (current, after Cycle 7 step 3)
 
 - Battle model: simultaneous damage rounds, damage soaks into the first unit of a stack (by unit id order now, deterministically), no terrain, no fortification bonus, no retreat. Supply penalties do apply to attack and defense through unitStats. Simultaneous resolution itself shipped in Cycle 6 step 2 (see Done below).
 - Tick order: income, then production lines, then factories (lines are paid first since Cycle 6 step 4), then construction, supply, the AI turn, and movement. The player acts before the tick; the AI decides inside it, after those phases, except research, which it decides at the start of the tick like a player's click (since Cycle 6 step 4, removing a one day Drone Gen 2 head start). Its factory, rail, production, and movement decisions still run mid tick: it sees one more day of income when it builds factories and rail, and its production orders start a day later than a player's. Moving the whole AI turn to the start of the tick was measured and rejected as one slice (a passive player then held to day 64 instead of 36 and survived 19 of 200 seeds).
@@ -19,6 +19,8 @@ game, it is written here. Nothing in this file is secretly faked in the code.
 - Production lines (Cycle 5, all 4 steps done, judge PASS): each nation has 2 lines (line 1 infantry, line 2 drone at start), a queue cap of 9 per line, no way to cancel or refund a queued order, and no way to pause a line (cancel and pause are parked pending Jash's call, see DECISIONS_FOR_JASH.md); retooling scraps work in progress with no steel refund, and the panel now states the steel that will be lost before the player acts. The production panel (step 2) shows each line, its template, queue, days remaining, and steel drain, and the unit card shows unit cost; the old train buttons are gone. Line count is gated by factories in the sim since Cycle 6 step 1 (thresholds and rules below), and the panel shows the locked slots with their unlock conditions since Cycle 6 step 3 (see below). Simultaneous battle resolution shipped in Cycle 6 step 2 (see below). Cycle 6 is complete: step 4 (tests and balance) and step 5 (judge, PASS WITH FIX-NOW FLAGS, all flags closed in the step 5 commit) are done. Cycle 7 (lore) is next.
 
 ## Done since Iteration 1 (kept honest, limits noted)
+
+- Lore seed (Cycle 7, steps 1 to 3; judge pending): js/lore.js holds the history of the Ashwater and the Spine, both nations (about 400 words each), both capitals, and three event cards, all loop written and flagged for Jash's rewrite or veto (DECISIONS_FOR_JASH.md). The sim records three turning points in state.beats (first capital row capture, first Drone Gen 2, first line 3), once each, for the side that reached them or both; no rule reads them, and a full campaign is identical with the hook on and off. A Codex button opens the five entries and the turning points so far; a new turning point opens its card, pauses the war, says why it fired and that it changes nothing, and closing restores the player's pause. Designed first as a Claude Design canvas. Limits: three cards only, none with a mechanical effect, no images or maps in the codex, and a card for a line opened while paused waits for the next tick.
 
 - Balance harness (Cycle 6 step 4, ported in the reconciliation): tools/balance.js plays passive, sensible without factories (report only), sensible with factories, and reckless campaigns through public commands only, checks Jash's ruling with exit code 1 on failure, and runs seed ranges for mass testing (300 campaigns in about 2.5 seconds). Its sensible script is rebuilt from the log's definition because the Cycle 5 script was never committed. Validated against the Cycle 5 sim (commit 4909b70): passive fell on day 36 on all 8 seeds, matching the record exactly; reckless lost 8 of 8, matching the verdict; sensible won 8 of 8 with the original army at 33.3 percent, matching, but on day 25 instead of the recorded days 43 to 52, because it masses by about day 3 and pushes during the Dominion's printed 10 day mobilization. Its numbers are the baseline from Cycle 6 on.
 
@@ -44,7 +46,7 @@ game, it is written here. Nothing in this file is secretly faked in the code.
 - EW arms race: jamming generations countering drone generations in the research tree.
 - Intel and recon: fog of war, drone recon lifting it, finding soft spots.
 - Production line efficiency over time (lines exist since Cycle 5 step 1 and can be retooled; output does not ramp with experience yet).
-- Lore: nation backstories in an in-game codex, event cards that fire as the campaign unfolds, named characters or grudges. Current lore is names only.
+- Lore beyond the seed: more event cards, named characters, and events with mechanical effects (the Cycle 7 cards are history only, by design).
 - Multiple AI rivals and a second theater.
 - Save and load, campaign scoring screen, difficulty settings.
 

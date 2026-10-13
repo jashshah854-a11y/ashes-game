@@ -554,3 +554,7 @@ Built by the Claude Code builder session.
 ### Lessons
 - The zero effect test is the strongest lore test: a switch that turns the hook off, and a whole campaign compared as JSON, proves no number moved without trusting anyone's reading of the code.
 - A scan that errors is not a scan that passed: the first repo wide dash check used a grep mode this locale rejects and printed its fallback message. Rerun with plain grep before trusting it.
+
+## Cycle 7, The lore seed, Step 4 of 4: judge, CLAIMED (2026-10-13)
+
+Claimed by the Claude Code builder session after re-reading the log end (step 3 done, master unchanged). BACKLOG.md now records the lore seed under Done with its limits. The judge is a fresh Claude Opus 5.5 context at high reasoning, read only, no builder context, grading the lore for consistency with the sim and tone against the bible, plus codex and card legibility, and verifying every exit criterion itself.
