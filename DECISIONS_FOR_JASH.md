@@ -25,6 +25,8 @@ was invented by the loop, not by you:
 - The tone: grounded, dry, a little wry, no magic, no chosen ones.
 - Three event cards: "Blood on the Spine", "The Second Generation", and
   "A Third Line", each with a Vessari, a Khessite, and a same day text.
+- Passages the Cycle 7 judge flagged because they imply edges the game
+  does not have: see item 12.
 
 1. Calibration feel. Measured with the committed harness after Cycle 6
    (and your lines first call): a commander who never acts falls on day
@@ -45,13 +47,12 @@ was invented by the loop, not by you:
    CYCLE_LOG): factories gate production line count with locked slots
    shown with their unlock condition, battles resolve simultaneously from
    a snapshot taken at the start of the movement phase, and production
-   lines are paid before factories. Cycle 7 is the lore seed, reserved by
-   the Cycle 5 judge and confirmed by both Cycle 6 judges, not to be
-   bumped again: written backstories for both nations, a codex panel, and
-   3 event cards. Per the lore rule, the loop writes the lore itself and
-   flags it here prominently as loop written and open for your rewrite or
-   veto; the loop does not stall waiting for approval. Your call only if
-   you feel strongly about the direction before it starts.
+   lines are paid before factories. Cycle 7, the lore seed, is done too:
+   both nations' histories, a codex panel, and 3 event cards, loop written
+   under the lore rule and flagged at the top of this file for your
+   rewrite or veto. Cycle 8 is fortifications paid in equipment, so that
+   equipment finally buys something besides factories (item 11). The loop
+   follows the judge unless you say otherwise.
 
 3. Rail conversion. It emerged from balance work and the judge voted
    keeper. It is in the game now: captured rail takes 4 days to convert
@@ -110,5 +111,26 @@ was invented by the loop, not by you:
     5000 once every line is open. The plan is fortifications paid in
     equipment (Cycle 8). Your call if you want something else.
 
-Nothing here blocks the loop. Cycle 6 is complete; Cycle 7 (the lore
-seed) is next and runs without waiting on any item above.
+12. Lore against a symmetric game. The lore says the Vessari invent and
+    the Khessites out-build and out-wall them, but the game is symmetric:
+    equal starting armies, equal research, symmetric steel and factories,
+    and no walls yet. Three passages imply edges the game does not have
+    (Khessograd "foundries inside walls inside more walls" against
+    Vesskar's "walls are not much"; the Khessite foundries "old and
+    enormous"; Vessari steel "never enough"), and the Vessari card for
+    Drone Gen 2 can never fire, because a player can at best tie the
+    Dominion's research. Make the game asymmetric to match (for example a
+    Vessari research edge, or Khessograd walls once fortifications exist),
+    or make the text symmetric?
+
+13. Event cards pause the war. Every card hard-pauses until you press
+    Continue; two land on the same day in about 16 percent of games. Keep
+    the hard pause, or show cards without pausing?
+
+14. Cards with choices. Today every card is history with no effect. Should
+    a later card offer a choice with a real effect, the way EU5 events do,
+    and from which cycle?
+
+Nothing here blocks the loop. Cycle 7 is complete; Cycle 8
+(fortifications paid in equipment) is next and runs without waiting on
+any item above.

@@ -589,3 +589,11 @@ Claimed by the Claude Code builder session after re-reading the log end (step 3 
 ### Judge flag slice C: the gauge contradiction
 - `js/lore.js`, the Ashwater history, paragraph 3: "both sides had relaid their track to rival gauges" became "the Compact had relaid its track to a narrower gauge ...; the Dominion kept the imperial gauge", which is what the Vessari entry (the narrow Compact gauge) and the Khessite entry (the full imperial gauge) already said. The Claude Design canvas's codex artboard carries the same corrected sentence. History entry: 281 words.
 - Suite 49 pass, 0 fail. Balance byte identical to the baseline. No dashes.
+
+### Judge flag slice D: the record matches the game
+- BACKLOG.md: the two lines that still said Cycle 7 was next now point to the lore seed entry under Done; the line describing Vector's step 5 harness says its scripts now run as profiles of the one tools/balance.js; the lore seed entry is marked done with its judge result, names tools/lore-check.js, and adds the limits the judge found (no card on the game's final tick, three of nine card texts never seen in 1200 campaigns, the Vessari Drone Gen 2 card impossible under symmetric research).
+- DECISIONS_FOR_JASH.md: item 2 says Cycle 7 is done and Cycle 8 is fortifications; the lore block points to the new item 12, which lists the three passages that imply edges the game does not have and the impossible Vessari card, and asks Jash whether the game or the text should change; items 13 (hard pause on every card) and 14 (cards with choices) carry the judge's other taste questions; the closing line names Cycle 8.
+- Suite 49 pass, 0 fail. Balance byte identical to the baseline. No dashes.
+
+### Cycle 7 closed
+Judge CONDITIONAL PASS; all eight fix-now flags closed in slices A to D (flag 4, the log dashes, in the verdict commit). The lore seed shipped: history with a two sided grudge, a codex, three turning point cards, zero effect on any number, proven by the suite and by byte identical balance output. Next: Cycle 8, fortifications paid in equipment, as prescribed above.
