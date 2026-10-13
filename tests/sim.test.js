@@ -1890,3 +1890,12 @@ test('recon: a lit province is unseen again two days on, Gen 3 reaches 4 hops, a
   assert.deepStrictEqual(lit, Sim.provincesWithin(g, 'p4_3', 4));
   assert.ok(lit.indexOf('p8_3') !== -1 && lit.indexOf('p9_3') === -1, 'p8_3 is 4 hops, p9_3 is 5');
 });
+
+test('map: province names are unique on every seed', () => {
+  // That naming still draws the same random numbers is shown by the balance
+  // output staying byte identical (Cycle 13 step 1 in CYCLE_LOG).
+  for (let seed = 1; seed <= 300; seed++) {
+    const names = Object.values(Sim.createGame(seed).provinces).map(p => p.name);
+    assert.strictEqual(new Set(names).size, names.length, 'seed ' + seed);
+  }
+});

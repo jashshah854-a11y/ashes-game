@@ -1039,3 +1039,9 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Cycle 13 Step 0 closed
 All conditions of the Cycle 12 judge are met: the preview leaves out wings that flew recon (a), the war log hides Dominion unit lines in fog (b), the three surviving mutants die (c), the harness treats unseen as unknown (d), docs (e). Suite 85 pass, 0 fail; balance byte identical on 8 seeds and identical on 200; all six browser checks pass.
+
+## Cycle 13, Step 1: unique province names (built after re-reading the log end)
+- `js/sim.js`: createGame names each province with the same two rng draws as before (prefix and suffix); a name already taken on the map walks to the next unused prefix and suffix pair in a fixed order, so no extra random number is drawn and the rest of the game is unchanged. Capitals keep their lore names.
+- Measured: duplicate names on 0 of seeds 1 to 500 (the judge's exit). Balance: 8 standard seeds byte identical to tools/baseline-cycle12-step1.txt; seeds 1 to 200, the full JSON identical to the step 0d run. Some maps' names change where they had repeated (seed 7's p4_3 is now Kharmund).
+- Test, one new (suite 86 pass, 0 fail): names unique on seeds 1 to 300; it fails on the previous sim. All six browser checks pass (they read names from the sim, not hard coded, apart from capitals).
+- BACKLOG's map line records the fix; its recon line now says recon is free and unlimited (DECISIONS item 25), a line step 0e meant to add.

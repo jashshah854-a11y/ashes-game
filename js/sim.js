@@ -451,6 +451,20 @@
     };
 
     // Provinces: west half player, east half enemy. Front line in the middle.
+    // Province names are unique (Cycle 13; repeats made log lines
+    // ambiguous). The same two rng draws pick a prefix and suffix as
+    // before, so the random stream is unchanged; a name already taken walks
+    // to the next unused pair in a fixed order. Capitals are renamed below.
+    var usedNames = {};
+    function uniqueName(a, b) {
+      var k = a * NAME_B.length + b;
+      for (var tries = 0; tries < NAME_A.length * NAME_B.length; tries++) {
+        var nm = NAME_A[Math.floor(k / NAME_B.length) % NAME_A.length] + NAME_B[k % NAME_B.length];
+        if (!usedNames[nm]) { usedNames[nm] = true; return nm; }
+        k = (k + 1) % (NAME_A.length * NAME_B.length);
+      }
+      return NAME_A[a] + NAME_B[b];
+    }
     for (var y = 0; y < CFG.mapH; y++) {
       for (var x = 0; x < CFG.mapW; x++) {
         var id = provinceId(x, y);
@@ -460,7 +474,7 @@
         var isCapital = (id === state.nations.player.capitalId || id === state.nations.enemy.capitalId);
         state.provinces[id] = {
           id: id, x: x, y: y, owner: owner,
-          name: NAME_A[Math.floor(rng() * NAME_A.length)] + NAME_B[Math.floor(rng() * NAME_B.length)],
+          name: uniqueName(Math.floor(rng() * NAME_A.length), Math.floor(rng() * NAME_B.length)),
           steel: steel,
           factoryLevel: isCapital ? 2 : (rng() < 0.22 ? 1 : 0),
           isCapital: isCapital,
