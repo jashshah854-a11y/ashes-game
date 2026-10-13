@@ -647,3 +647,12 @@ Built by the Claude Code builder session.
 ## Cycle 8, Fortifications paid in equipment, Step 3 of 4: CLAIMED (2026-10-13)
 
 Claimed by the Claude Code builder session. Scope: tests (the bonus in unitStats, stackPower, the battle, and the AI's attack decision; AI parity through the same command; refusals; build timing; slighting on capture); a fortifying harness profile; end of campaign equipment per profile in the harness report (judge's exit: no more piling past 5000 on the fortification path); rulings on the 8 standard seeds and seeds 1 to 200; traces of rationed seeds 51 and 91 with the cause recorded; rail starvation remeasured. Balance changes, if any, in small separate slices.
+
+### Step 3 part 1: fortification tests
+- `tests/sim.test.js`, a pure append of 5 tests. Suite: 54 pass, 0 fail.
+  - Refusals and timing: not your province, too little equipment (reports the cost), already under construction, max level; equipment paid up front (100, then 200 for level 2); the level arrives on exactly the 5th tick, not before.
+  - One modifier: in unitStats, fortBonus is 25 percent per level, defense becomes round(defense times 1.5) at level 2, attack is untouched, stackPower defense equals the walled number, and an enemy unit standing in the province gets nothing from walls it does not hold.
+  - Combat: the same two infantry attack on one defender, same seed, tick, and engagement key, so identical rolls: open ground leaves the attackers 18 strength, level 2 walls leave them 14. (A first draft asserted the walls would save the defender; the probe showed two against one still wins against level 2 walls, so the test now asserts what walls really do.)
+  - AI parity: past the threshold the Dominion starts Khessograd to level 1 through the same buildFortification (same log line), then the river Spine province the next tick; below the threshold it starts nothing. (The threshold is checked after the day's income, so the below threshold case starts the Dominion at 0 equipment.)
+  - Capture: an unopposed capture of a level 2 province leaves level 1; capturing a province with work in progress cancels it and leaves level 0.
+- Mutation check (scratch copies): removing the bonus fails the stats and combat tests; removing the slight fails the capture test; an AI that never fortifies fails the AI test.
