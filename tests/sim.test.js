@@ -1283,3 +1283,56 @@ test('fortify: walls multiply a stack once, so each level adds its stated percen
   s.provinces.p1_3.fortLevel = 2;
   assert.strictEqual(Sim.stackPower(s, [stack[0]], 'defense'), Sim.unitStats(s, stack[0]).defense);
 });
+
+// ---------- Cycle 9: one clock for both sides ----------
+
+test('one clock: the same order from the player and the AI on the same day starts, pays, and finishes on the same day', () => {
+  // Production: both nations start with idle lines; the player queues
+  // before tick 1, the Dominion queues at the start of tick 1. The first
+  // unit on each line must complete on the same day for both.
+  const p = Sim.createGame(42);
+  [p.nations.player, p.nations.enemy].forEach(n => { n.steel = 1000; });
+  Sim.queueProduction(p, 'player', 1);
+  Sim.queueProduction(p, 'player', 2);
+  const firstDone = { player: {}, enemy: {} };
+  for (let d = 1; d <= Sim.CFG.unitTypes.infantry.buildDays; d++) {
+    const day = p.day, seen = new Set(p.log);
+    Sim.tick(p);
+    p.log.filter(e => !seen.has(e)).forEach(e => {
+      const m = /^(Vessari|Khessite) line (\d) completes/.exec(e.msg);
+      if (m) { const nat = m[1] === 'Vessari' ? 'player' : 'enemy'; if (firstDone[nat][m[2]] == null) firstDone[nat][m[2]] = day; }
+    });
+  }
+  assert.strictEqual(firstDone.player['1'], Sim.CFG.unitTypes.infantry.buildDays, 'the player infantry finishes on its last build day');
+  assert.strictEqual(firstDone.player['2'], Sim.CFG.unitTypes.drone.buildDays, 'the player drone finishes on its last build day');
+  assert.deepStrictEqual(firstDone.enemy, firstDone.player, 'the Dominion first units finish on the same days');
+  // Factories: on a day the Dominion's rule fires (every third day), the
+  // player builds the same level; both count it in that day's output.
+  const f = Sim.createGame(42);
+  while (f.day % 3 !== 0) Sim.tick(f);
+  [f.nations.player, f.nations.enemy].forEach(n => { n.steel = 1000; n.equipment = 1000; });
+  const before = { player: Sim.factoryLevels(f, 'player'), enemy: Sim.factoryLevels(f, 'enemy') };
+  const target = Object.values(f.provinces).find(q => q.owner === 'player' && q.factoryLevel === 0);
+  assert.strictEqual(Sim.buildFactory(f, 'player', target.id).ok, true);
+  const fday = f.day;
+  Sim.tick(f);
+  ['player', 'enemy'].forEach(nat => {
+    assert.strictEqual(Sim.factoryLevels(f, nat), before[nat] + 1, nat + ' gained one level on day ' + fday);
+    assert.ok(f.log.some(e => e.day === fday && new RegExp('^' + f.nations[nat].short + ' raise a factory').test(e.msg)), nat + ' logged it on day ' + fday);
+  });
+  // Rail: on a day the Dominion's rule fires (every fourth day), the
+  // player lays one edge too; both finish on the same day.
+  const r = Sim.createGame(42);
+  while (r.day % 4 !== 0) Sim.tick(r);
+  [r.nations.player, r.nations.enemy].forEach(n => { n.steel = 1000; });
+  const bare = r.edgeList.find(e => !e.rail && r.provinces[e.a].owner === 'player' && r.provinces[e.b].owner === 'player');
+  assert.strictEqual(Sim.buildRail(r, 'player', bare.a, bare.b).ok, true);
+  const railDay = r.day;
+  const enemyRailsBefore = new Set(r.edgeList.filter(e => e.rail && e.rail.owner === 'enemy').map(e => e.a + e.b));
+  Sim.tick(r);
+  const theirs = r.edgeList.find(e => e.rail && e.rail.owner === 'enemy' && !enemyRailsBefore.has(e.a + e.b));
+  assert.ok(theirs, 'the Dominion laid an edge on day ' + railDay);
+  assert.strictEqual(theirs.rail.daysLeft, bare.rail.daysLeft, 'both rails stand at the same days left after the same tick');
+  while (bare.rail.daysLeft > 0) Sim.tick(r);
+  assert.strictEqual(theirs.rail.daysLeft, 0, 'and finish on the same day');
+});
