@@ -597,3 +597,8 @@ Claimed by the Claude Code builder session after re-reading the log end (step 3 
 
 ### Cycle 7 closed
 Judge CONDITIONAL PASS; all eight fix-now flags closed in slices A to D (flag 4, the log dashes, in the verdict commit). The lore seed shipped: history with a two sided grudge, a codex, three turning point cards, zero effect on any number, proven by the suite and by byte identical balance output. Next: Cycle 8, fortifications paid in equipment, as prescribed above.
+
+## Cycle 8, Fortifications paid in equipment, Step 1 of 4: CLAIMED (2026-10-13)
+
+Prescription: the Cycle 7 judge, accepted. Steps: (1) sim; (2) UI; (3) tests and balance; (4) a fresh judge. Claimed by the Claude Code builder session after re-reading the log end (Cycle 7 closed, master unchanged).
+Step 1 scope: a buildFortification command for both nations by one path, paid in equipment, built over days, capped in levels; the defense bonus applied inside unitStats, so combat, the AI's estimate, and the player's preview read it through the one stackPower; a fortification loses one level when its province is captured; the Dominion fortifies its capital and its Spine province facing the river once its equipment passes a stated threshold. Capitals start unwalled until Jash rules (the judge's condition). Every number is one CFG entry. Balance is measured after this step and tuned only in small separate slices in step 3.
