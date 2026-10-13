@@ -624,3 +624,7 @@ Built by the Claude Code builder session.
 
 ### Lessons
 - A new equipment sink on one side moves an old rule on the same side: the Dominion's factory pacing is gated on equipment, so walls cost it production lines, not only equipment. Visible only because the harness reports enemy lines per seed.
+
+## Cycle 8, Fortifications paid in equipment, Step 2 of 4: CLAIMED (2026-10-13)
+
+Claimed by the Claude Code builder session. Scope: the province card shows fortification level, the exact defense bonus, work in progress, and a Fortify button with its cost and days (or the plain reason it cannot be pressed); a map badge per level and for work in progress; the attack preview names the fortification bonus inside the enemy's defense; the unit card says when its own defense includes walls; the enemy card lists Dominion fortifications. Real browser check.
