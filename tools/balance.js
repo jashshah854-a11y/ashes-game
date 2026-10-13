@@ -57,10 +57,12 @@ function feedLines(Sim, s) {
 let RESEARCH_ORDER_OVERRIDE = null;
 // Enemy units a script may read in a province: since Cycle 12 only what
 // the player sees (Sim.seenUnitsIn), the same rule the Dominion follows.
-// Its targets are always next to its own provinces, so always seen.
+// An unseen province returns null (unknown), and the scripts never attack
+// on a guess. Their targets are always next to their own provinces, so
+// always seen.
 function seenEnemies(Sim, s, provId) {
   const seen = Sim.seenUnitsIn ? Sim.seenUnitsIn(s, 'player', provId) : Sim.unitsIn(s, provId);
-  return (seen || []).filter(u => u.nation === 'enemy');
+  return seen ? seen.filter(u => u.nation === 'enemy') : null;
 }
 
 function researchWhenReady(Sim, s, order) {
@@ -199,7 +201,7 @@ function makeSensible(withFactories, withForts, droneLines, researchOrder, recon
       const target = pid(Sim, sx + 1, row);
       const defs = seenEnemies(Sim, s, target);
       const mine = Sim.stackPower(s, massed, 'attack', target);
-      if (!defs.length || mine >= 1.5 * Sim.stackPower(s, defs, 'defense')) {
+      if (defs && (!defs.length || mine >= 1.5 * Sim.stackPower(s, defs, 'defense'))) {
         massed.forEach(u => Sim.issueOrder(s, u.id, target));
       }
     }
@@ -300,7 +302,7 @@ function rationed(Sim, s, mem) {
     const east = s.provinces[Sim.provinceId(staging.x + 1, 3)];
     if (east && east.owner === 'enemy') {
       const defs = seenEnemies(Sim, s, east.id);
-      if (!defs.length || Sim.stackPower(s, atStaging, 'attack', east.id) >= Sim.stackPower(s, defs, 'defense') * 1.5) attackTarget = east.id;
+      if (defs && (!defs.length || Sim.stackPower(s, atStaging, 'attack', east.id) >= Sim.stackPower(s, defs, 'defense') * 1.5)) attackTarget = east.id;
     }
   }
   Sim.unitsOf(s, 'player').forEach(u => {

@@ -1026,3 +1026,7 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (c): tests for the three surviving mutants
 - One new test (suite 85 pass, 0 fail): a province lit by Gen 2 recon is seen today and tomorrow and unseen the day after (read through canSee, not the stored day); the Dominion's view is unchanged by your recon; Gen 3 recon lights exactly the provinces within 4 hops (p8_3 in, p9_3 out). Each of the judge's three surviving mutants now fails this test: the read side keeping a province a day longer, Gen 3 range 3, and your recon lighting the Dominion's view. Test only; balance unchanged.
+
+### Step 0 (d): the harness treats unseen as unknown
+- `tools/balance.js`: seenEnemies returns null for a province the player cannot see, and both attack rules (sensible and rationed) attack only when the target is seen, never on an empty guess, matching the sim's rule. (A first edit missed parentheses in the rationed condition; caught on reading before any run.)
+- Balance: 8 standard seeds byte identical to tools/baseline-cycle12-step1.txt; seeds 1 to 200, the results of all nine shared profiles identical to the step 1 run (recon flights stripped), as expected since every script target is a seen neighbour.
