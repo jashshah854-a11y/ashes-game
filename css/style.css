@@ -201,7 +201,9 @@ button.linkish:hover { background: none; color: #fff2c4; }
 
 /* Cycle 8: fortification badges on the map. */
 .fort-badge {
-  display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: 2px;
+  /* Pinned to the tile's top right, where unit chips never reach. */
+  position: absolute; top: 2px; right: 2px; z-index: 1;
+  display: inline-block; padding: 0 4px; border-radius: 2px;
   background: rgba(0, 0, 0, 0.5); color: #d9d2c0; border: 1px solid #8a8070; font-weight: bold;
 }
 .fort-badge.lvl2 { background: rgba(60, 60, 60, 0.85); color: #fff; border-color: #d9d2c0; }

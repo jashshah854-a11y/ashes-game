@@ -22,7 +22,7 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'prov-explain', 'unit-details',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
    'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
    'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
@@ -186,6 +186,7 @@
     var enemyLines = (e.productionLines || []).length;
     var enemyNext = Sim.lineLockInfo(state, 'enemy', enemyLines + 1);
     el.statEnemyFactories.textContent = Sim.factoryLevels(state, 'enemy');
+    el.aiFortEq.textContent = Sim.CFG.aiFortifyEquipment;
     var forts = Object.keys(state.provinces).map(function (k) { return state.provinces[k]; })
       .filter(function (p) { return p.owner === 'enemy' && (p.fortLevel > 0 || p.fortBuild); })
       .map(function (p) { return p.name + ' ' + (p.fortLevel || 0) + (p.fortBuild ? ' (to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd)' : ''); });
