@@ -885,3 +885,56 @@ test('retool: switching a line template resets progress, keeps the queue, refund
   assert.strictEqual(100 - n.steel, 10 + 15);
   assert.strictEqual(n.steel, 75);
 });
+
+// ---------- Cycle 6 reconciliation: drawn in defenders under reversal ----------
+
+// A busy movement phase with every engagement kind in it: a province
+// battle whose defenders had orders elsewhere, a meeting on a road, a
+// clash over an empty province, and a plain move.
+function busyScenario(reverse) {
+  const s = Sim.createGame(77);
+  const byId = id => s.units.find(u => u.id === id);
+  // Starting ids: player 1 (p3_2 inf), 2 (p3_4 inf), 3 (p4_3 inf), 4 (p4_3 drone),
+  // 5 and 6 (capital inf), 7 (capital drone); enemy 8 (p6_2 inf), 9 (p6_4 inf),
+  // 10 (p5_3 inf), 11 (p5_3 drone), 12 to 14 on its capital.
+  byId(1).provinceId = 'p4_2'; byId(8).provinceId = 'p5_2';
+  byId(9).provinceId = 'p5_4';
+  Sim.issueOrder(s, 3, 'p5_3'); Sim.issueOrder(s, 4, 'p5_3');   // battle
+  Sim.issueOrder(s, 10, 'p5_2'); Sim.issueOrder(s, 11, 'p5_2'); // defenders ordered away
+  Sim.issueOrder(s, 1, 'p5_2'); Sim.issueOrder(s, 8, 'p4_2');   // meeting on the road
+  Sim.issueOrder(s, 2, 'p4_4'); Sim.issueOrder(s, 9, 'p4_4');   // clash over empty ground
+  Sim.issueOrder(s, 7, 'p1_3');                                 // unopposed move
+  if (reverse) s.units.reverse();
+  Sim.movementPhase(s);
+  return s;
+}
+
+function snapshot(s) {
+  return {
+    units: s.units.slice().sort((a, b) => a.id - b.id)
+      .map(u => [u.id, u.provinceId, u.strength, u.order]),
+    owners: Object.keys(s.provinces).sort().map(k => s.provinces[k].owner),
+    log: s.log.map(e => e.msg),
+    over: [s.gameOver, s.winner]
+  };
+}
+
+test('simultaneous battles: every engagement kind is order independent, and ordered defenders still defend', () => {
+  const a = busyScenario(false);
+  const b = busyScenario(true);
+  assert.deepStrictEqual(snapshot(b), snapshot(a));
+  const msgs = a.log.map(e => e.msg).join('\n');
+  assert.match(msgs, /columns meet on the road/, 'the scenario includes a meeting battle');
+  assert.match(msgs, /Columns clash at|win the clash for/, 'the scenario includes a clash');
+  // The defenders ordered north were drawn into the defense of p5_3:
+  // a battle was fought there, both took damage, and neither marched to p5_2.
+  const p53 = a.provinces.p5_3.name;
+  assert.ok(new RegExp('(destroyed at|attack on|capture) ' + p53).test(msgs), 'a province battle is fought at ' + p53);
+  [10, 11].forEach(id => {
+    const u = a.units.find(x => x.id === id);
+    assert.ok(u.strength < u.maxStrength, 'defender ' + id + ' fought');
+    assert.notStrictEqual(u.provinceId, 'p5_2', 'defender ' + id + ' did not march away');
+  });
+  // Every order the phase touched is cleared.
+  assert.ok(a.units.every(u => u.order === null));
+});

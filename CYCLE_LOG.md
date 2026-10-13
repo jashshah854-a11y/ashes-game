@@ -348,3 +348,8 @@ The Claude Code session built Cycle 6 steps 3 and 4 on branch claude/adoring-joh
 - Suite: 39 pass, 0 fail (unchanged, the harness is not a test file).
 - Harness on master's sim, 8 standard seeds: passive falls on day 36 on all 8 (PASS). Reckless loses 8 of 8 (PASS). Sensible without factories wins 7 of 8 and loses seed 31337 (FAIL). Sensible with factories wins 1 of 8 (FAIL). Seeds 1 to 200: passive 0 survive; sensible 189; factories 27; reckless survives seed 22 only.
 - Why this does not contradict master's step 4 "bands met": Vector's uncommitted script used different rules (a supply penalty attack gate, heartland only factory builds behind a steel headroom gate, one build per day), and the log describes it in prose only. Its own lesson is the same finding seen from the other side: the factory path starved production unless the script rationed it. The harness's factories profile builds toward the next line without rationing, which is what a player reading "Build N more factory levels to unlock" would do.
+
+### Slice 2: the drawn in defender test
+- `tests/sim.test.js`: a pure append of the branch's busy order reversal scenario (one movement phase holding a province battle whose defenders were ordered elsewhere, a road meeting, a clash over empty ground, and a plain move, run twice with state.units reversed), renamed "every engagement kind is order independent, and ordered defenders still defend".
+- Suite: 40 pass, 0 fail. Against the mutant that stops drawing ordered defenders into the battle for their province, this test fails and every other test passes, so it closes the one gap the mutation check found.
+- Balance rerun: unchanged from slice 1 (tests do not touch the sim).
