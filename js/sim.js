@@ -1178,17 +1178,7 @@
     var n = state.nations[ai];
     // Research is decided at the start of the tick (aiResearch), not here.
     // Factory growth is decided at the start of the tick (aiFactories).
-    // Fortify, paid in equipment: first the capital, then the Spine
-    // province facing the river, whenever its equipment is at least
-    // CFG.aiFortifyEquipment and the province is not already being worked.
-    if (n.equipment >= CFG.aiFortifyEquipment) {
-      var capProv = state.provinces[n.capitalId];
-      var riverSpine = state.provinces[provinceId(CFG.mapW / 2, capProv.y)];
-      [capProv, riverSpine].some(function (p) {
-        if (!p || p.owner !== ai || p.fortBuild || (p.fortLevel || 0) >= CFG.fortMaxLevel) return false;
-        return buildFortification(state, ai, p.id).ok;
-      });
-    }
+    // Fortification is decided at the start of the tick (aiFortify).
     // Rail building is decided at the start of the tick (aiRail).
     // Keep the production lines fed, up to a modest field army. The AI
     // orders through the same lines, steel costs, and build days as
@@ -1381,12 +1371,31 @@
     }
   }
 
+  // Fortify, paid in equipment: first the capital, then the Spine province
+  // facing the river, whenever its equipment is at least
+  // CFG.aiFortifyEquipment and the province is not already being worked.
+  // Decided at the start of the tick, on start of day numbers, like a
+  // player's click (Cycle 9).
+  function aiFortify(state) {
+    var ai = 'enemy';
+    var n = state.nations[ai];
+    if (n.equipment >= CFG.aiFortifyEquipment) {
+      var capProv = state.provinces[n.capitalId];
+      var riverSpine = state.provinces[provinceId(CFG.mapW / 2, capProv.y)];
+      [capProv, riverSpine].some(function (p) {
+        if (!p || p.owner !== ai || p.fortBuild || (p.fortLevel || 0) >= CFG.fortMaxLevel) return false;
+        return buildFortification(state, ai, p.id).ok;
+      });
+    }
+  }
+
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
     aiResearch(state);   // before the economy, like a player's click before the tick
     aiFactories(state);  // factory growth, the same moment
     aiRail(state);       // rail building, the same moment
+    aiFortify(state);    // fortification, the same moment
     aiProduction(state); // the same start of day moment for production orders
     incomePhase(state, 'player');
     incomePhase(state, 'enemy');

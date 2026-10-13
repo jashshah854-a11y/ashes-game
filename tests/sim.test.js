@@ -1191,7 +1191,14 @@ test('fortify: the AI walls its capital and its river Spine province through the
   s.nations.enemy.equipment = Sim.CFG.aiFortifyEquipment + 1000;
   Sim.tick(s);
   const cap = s.provinces[s.nations.enemy.capitalId];
-  assert.deepStrictEqual(cap.fortBuild, { toLevel: 1, daysLeft: Sim.CFG.fortBuildDays });
+  // Ordered at the start of the tick and worked one day in that tick's
+  // construction phase, exactly like a player's order made before the tick.
+  assert.deepStrictEqual(cap.fortBuild, { toLevel: 1, daysLeft: Sim.CFG.fortBuildDays - 1 });
+  const mine = Sim.createGame(42);
+  mine.nations.player.equipment = 1000;
+  Sim.buildFortification(mine, 'player', mine.nations.player.capitalId);
+  Sim.tick(mine);
+  assert.deepStrictEqual(mine.provinces[mine.nations.player.capitalId].fortBuild, cap.fortBuild, 'same day, same progress for both sides');
   assert.ok(s.log.some(e => /^Khessite begin fortifying Khessograd to level 1/.test(e.msg)), 'the same command logs the same way');
   Sim.tick(s);
   const river = s.provinces[Sim.provinceId(Sim.CFG.mapW / 2, cap.y)];
