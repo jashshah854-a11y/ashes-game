@@ -3,6 +3,29 @@
 Taste calls the loop will not make for you. Each one is blocking something
 specific; everything else keeps moving.
 
+LORE WRITTEN BY THE LOOP, OPEN FOR YOUR REWRITE OR VETO (Cycle 7). Under
+the lore rule the loop wrote the world's first lore itself rather than
+stall. All of it is in js/lore.js and none of it changes a number in the
+game. Read it, then keep, rewrite, or strike any of it. Everything below
+was invented by the loop, not by you:
+- The Ashen Empire, the old empire both nations came out of, broken
+  forty-one years ago in the Partition.
+- The Ashwater, the river frontier, and the Spine, the old imperial
+  railway along the capital row, cut at the river.
+- The Treaty of the Ashwater, signed on a barge in midstream.
+- The rival rail gauges (the in game reason captured rail must be
+  converted), and the engineers' name for it, the gauge war.
+- The Vessari: a charter of guild cities, the Compact Assembly, the First
+  Delegate, a nation of ledgers and workshops that invented the drone
+  wing, and remembers the Partition as "the line where the debt ended."
+- The Khessites: the old imperial arsenal turned capital, the great
+  Houses of the general staff, the Dominar chosen for life, and the
+  Reckoning ("never attack without three against two", the in game
+  reason the Dominion attacks only at 1.5x and keeps three units home).
+- The tone: grounded, dry, a little wry, no magic, no chosen ones.
+- Three event cards: "Blood on the Spine", "The Second Generation", and
+  "A Third Line", each with a Vessari, a Khessite, and a same day text.
+
 1. Calibration feel. Measured with the committed harness after Cycle 6
    (and your lines first call): a commander who never acts falls on day
    36 on every standard seed; a reckless one loses every time; sensible
