@@ -41,7 +41,7 @@
 
   function reachableIds() {
     var u = selectedUnit();
-    if (!u) return {};
+    if (!u || u.reconDay === state.day) return {}; // a wing that flew recon holds today
     var out = {};
     Sim.neighborsOf(state, state.provinces[u.provinceId]).forEach(function (p) { out[p.id] = true; });
     return out;
@@ -120,6 +120,8 @@
   function renderMap() {
     var reach = reachableIds();
     var playerSupply = Sim.computeSupply(state, 'player');
+    var seen = Sim.visibleProvinces(state, 'player');
+    var lit = (state.recon && state.recon.player) || {};
     var html = '';
     for (var y = 0; y < state.mapH; y++) {
       for (var x = 0; x < state.mapW; x++) {
@@ -128,6 +130,9 @@
         if (p.id === selectedProvinceId) cls += ' selected';
         if (reach[p.id]) cls += ' reachable';
         if (p.owner === 'player' && playerSupply[p.id] && !playerSupply[p.id].supplied) cls += ' unsupplied';
+        var fogged = !seen[p.id];
+        if (fogged) cls += ' fogged';
+        else if (lit[p.id] >= state.day && p.owner !== 'player' && !Sim.neighborsOf(state, p).some(function (np) { return np.owner === 'player'; })) cls += ' lit';
         html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '">';
         html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
         html += '<span class="steel">Steel ' + p.steel + '</span>';
@@ -140,7 +145,8 @@
         if (p.airDefenseBuild) html += ' <span class="ad-badge building">AD in ' + p.airDefenseBuild.daysLeft + 'd</span>';
         if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
         if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
-        var units = Sim.unitsIn(state, p.id);
+        var units = fogged ? [] : Sim.unitsIn(state, p.id);
+        if (fogged) html += '<span class="fog-tag">Unseen</span>';
         if (units.length) {
           html += '<span class="units">';
           units.forEach(function (u) {
@@ -180,7 +186,8 @@
       return state.provinces[k].owner === 'enemy';
     }).length;
     el.statEnemyProvs.textContent = enemyProvs;
-    el.statEnemyUnits.textContent = Sim.unitsOf(state, 'enemy').length;
+    var seenEnemy = Sim.unitsOf(state, 'enemy').filter(function (x) { return Sim.canSee(state, 'player', x.provinceId); }).length;
+    el.statEnemyUnits.textContent = seenEnemy + ' seen (the rest are out of sight)';
     el.statEnemyGen.textContent = droneGenText('enemy');
     el.statEnemyJam.textContent = jammingText('enemy');
     var aiNext = Sim.CFG.aiResearchOrder.filter(function (id) { return !Sim.hasResearched(state, 'enemy', id); })[0];
@@ -504,7 +511,9 @@
       fortLine(p) + '<br>' +
       airDefenseLine(p) + '<br>' +
       supplyLine + '<br>' +
-      'Units here: ' + Sim.unitsIn(state, p.id).length;
+      (Sim.canSee(state, 'player', p.id)
+        ? 'Units here: ' + Sim.unitsIn(state, p.id).length
+        : 'Units here: unknown. You see your provinces, the provinces next to them, and what your recon lights.');
     renderRailActions(p);
     var mine = p.owner === 'player';
     var cost = Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1);
@@ -541,6 +550,21 @@
     });
   }
 
+  // Recon for a drone wing: range, how long it lights, and whether
+  // Dominion jamming would blind it, before the click.
+  function reconButton(u) {
+    if (u.type !== 'drone') return '';
+    var gen = Sim.droneGeneration(state, 'player');
+    var range = Sim.CFG.reconRange[gen];
+    var foeJam = state.nations.enemy.jamming || 0;
+    var label = 'Fly recon (Gen ' + gen + ': lights every province within ' + range + ' hops through tomorrow; the wing holds today)';
+    var disabled = false;
+    if (u.order) { label = 'Fly recon: this wing is already ordered to march today'; disabled = true; }
+    else if (u.reconDay === state.day) { label = 'Fly recon: this wing already flew today'; disabled = true; }
+    else if (foeJam >= gen) label += '. Warning: Dominion Jamming Gen ' + foeJam + ' reaches Gen ' + gen + ' drones, so the flight would be blinded';
+    return '<br><button type="button" id="btn-recon" data-unit="' + u.id + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>';
+  }
+
   function renderUnitCard() {
     var u = selectedUnit();
     if (!u) {
@@ -549,7 +573,7 @@
     }
     var st = Sim.unitStats(state, u);
     var base = Sim.CFG.unitTypes[u.type];
-    var orderText = 'Holding position.';
+    var orderText = u.reconDay === state.day ? 'Flew recon today; it holds this province until tomorrow.' : 'Holding position.';
     if (u.order) {
       orderText = 'Marching to ' + state.provinces[u.order.target].name + ' at dawn. ' +
         'If an enemy column marches on ' + state.provinces[u.provinceId].name +
@@ -618,7 +642,7 @@
       (st.jamming > 0 ? ' (includes -' + st.jamming + '% from Dominion Jamming Gen ' + state.nations.enemy.jamming + ')' : '') + '<br>' +
       'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days on a production line.<br>' +
       supplyText + '<br>' +
-      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
+      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + reconButton(u) + preview;
   }
 
   function renderLog() {
@@ -806,6 +830,12 @@
     startTimer();
   });
   el.btnNew.addEventListener('click', newGame);
+  el.unitDetails.addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('#btn-recon') : null;
+    if (!b || b.disabled) return;
+    Sim.reconFlight(state, 'player', Number(b.getAttribute('data-unit')));
+    render();
+  });
   el.researchList.addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('button[data-project]') : null;
     if (!b || b.disabled) return;

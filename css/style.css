@@ -228,3 +228,12 @@ button.linkish:hover { background: none; color: #fff2c4; }
 .research-cost { color: #b9b09a; font-size: 12px; }
 .research-effect { color: #d8d0bc; margin: 2px 0 4px; }
 .research-item button { width: 100%; font-size: 13px; padding: 5px 8px; }
+
+/* Cycle 12: fog of war. */
+.province.fogged { filter: brightness(0.55) saturate(0.6); }
+.province.lit { box-shadow: inset 0 0 0 2px rgba(159, 224, 138, 0.7); }
+.fog-tag {
+  position: absolute; bottom: 3px; left: 3px; font-size: 9px; padding: 0 3px;
+  background: rgba(0, 0, 0, 0.6); color: #b9b09a; border-radius: 2px;
+}
+#btn-recon { margin-top: 6px; width: 100%; font-size: 13px; padding: 5px 8px; text-align: left; }
