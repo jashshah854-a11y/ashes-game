@@ -36,3 +36,36 @@ Everything in BACKLOG.md. Short version: no fortifications, rail, navy, intel or
 
 ### Judge verdict
 Not yet called for this cycle. Iteration 1 stands on the bible's own definition of done: running, playable end to end, tests green. The first Opus 5.5 judge pass should grade this skeleton before Iteration 2 scope is chosen.
+
+## Cycle 2, Opus 5.5 judge pass on Iteration 1 (2026-10-13)
+
+Judge: Claude Opus 5.5 at high, direct Anthropic line, graded against DESIGN_BIBLE.md with the cycle 1 summary and test results. Two calls: the main verdict (its tail was cut at the token cap) and a short completion call for the remainder. Verdict recorded here in substance.
+
+### Verdict: PASS against the Iteration 1 bar
+Every bar item confirmed: map and nations, day tick with pause and speeds, steel-gated economy, select/move/attack with battle groups, growing factory badge, Drone Gen 2 live stat change, win/lose/survival endings, 14 passing tests on a sim core shared by browser and tests, and an honest backlog. The judge called the multi-seed headless smoke runs "more rigor than the bar asked for."
+
+### Two confirmations the judge demanded, both verified in code by Vector
+- Day counter IS rendered (index.html day box; main.js updates it every render).
+- Unit training DOES spend the equipment stockpile (trainUnit deducts CFG cost from nation equipment). The compounding loop's first link is intact.
+
+### Compass check (judge's grades)
+- HOI4 war heart: EMBRYO. Units, groups, captures exist. No production lines, no frontline concept, no supply, no retreat. "A board game of chips."
+- Civ visible progression: EMBRYO. One badge grows. A day 140 map does not yet look like a different animal from day 1.
+- EU5 lore: ABSENT. Syllable names, no events, no history, no grudges.
+- Legibility: EMBRYO. Live chips and war log are good. Hidden rules will feel like bugs: the AI's private odds, first-unit damage soak, player-first resolution order.
+
+### Risks named (accepted as the roadmap)
+1. Grid coordinates as topology. Rail, rivers, coasts, crossings, blockade all need edge data. Move to an explicit province graph with typed edges now, while it is one file.
+2. Units bought whole, priced in nothing. Production lines and the cost-exchange scoreboard both need units built from equipment over time, every asset carrying a cost. Later means touching combat, AI, and UI at once.
+3. Hidden, order-dependent combat. Player-first resolution and damage soak are biases everything else will balance against. Fix before supply, terrain, and drones layer on. Combat odds must be one shared function the AI and the player preview both call.
+
+### Next cycle prescribed by the judge (accepted as Cycle 3)
+Rail is supply, legible on the map:
+- Graph refactor: typed edges (land, river, coast). The CSS grid stays as a renderer. STOP computing adjacency from coordinates anywhere; delete the coordinate helpers.
+- Rail: a buildable edge, costs steel, takes days to construct.
+- Supply: a province is supplied if rail connects it to its capital within N hops through owned provinces. Out-of-supply units lose 10 percent attack and defense per day out (floor at 50 percent effectiveness), cannot reinforce, and after a 3-day grace take 2 percent strength attrition per day. Penalties are named modifiers in the combat math, shown on screen. Resupply clears penalties at the same 10 percent per day rate they accrued.
+- Legibility: supply overlay (hatched red for unsupplied), rail drawn as track lines, construction dashed with days remaining, broken-supply marker with day count on unit counters, province hover or inspector shows the supply route and the break point, combat preview lists supply modifiers for both sides.
+- Test: cutting one rail province flips a pocket to unsupplied; penalties verified after 1, 3, and 7 days.
+
+### Sequencing note
+Risk 2 (unit production over time and money costs) and the simultaneous-resolution half of risk 3 are real but come after Cycle 3. The shared odds function half of risk 3 rides along with Cycle 3 because supply modifiers must be visible to both sides.

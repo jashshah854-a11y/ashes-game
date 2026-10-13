@@ -16,7 +16,7 @@
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
    'btn-factory', 'btn-train-inf', 'btn-train-drone', 'prov-explain', 'unit-details',
-   'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner'
+   'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -74,8 +74,26 @@
     renderLog();
   }
 
+  // Rail state of the edge from this province toward a neighbor id, as a
+  // little track bar on the shared border. Presentation only: the rules
+  // all live in the graph inside sim.js.
+  function railBar(p, neighborId, side) {
+    var e = Sim.edgeBetween(state, p.id, neighborId);
+    if (!e || !e.rail) return '';
+    if (e.rail.daysLeft > 0) {
+      return '<span class="rail-bar ' + side + ' building"></span>' +
+        '<span class="rail-tag">Rail ' + e.rail.daysLeft + 'd</span>';
+    }
+    if (e.rail.converting) {
+      return '<span class="rail-bar ' + side + ' building"></span>' +
+        '<span class="rail-tag">Converting ' + e.rail.converting.daysLeft + 'd</span>';
+    }
+    return '<span class="rail-bar ' + side + '"></span>';
+  }
+
   function renderMap() {
     var reach = reachableIds();
+    var playerSupply = Sim.computeSupply(state, 'player');
     var html = '';
     for (var y = 0; y < state.mapH; y++) {
       for (var x = 0; x < state.mapW; x++) {
@@ -83,18 +101,22 @@
         var cls = 'province owner-' + p.owner;
         if (p.id === selectedProvinceId) cls += ' selected';
         if (reach[p.id]) cls += ' reachable';
+        if (p.owner === 'player' && playerSupply[p.id] && !playerSupply[p.id].supplied) cls += ' unsupplied';
         html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '">';
         html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
         html += '<span class="steel">Steel ' + p.steel + '</span>';
         if (p.factoryLevel > 0) {
           html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
         }
+        if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
+        if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
         var units = Sim.unitsIn(state, p.id);
         if (units.length) {
           html += '<span class="units">';
           units.forEach(function (u) {
             var st = Sim.unitStats(state, u);
             var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack;
+            if (st.supplyPenalty > 0) label += ' <span class="sup-tag">-' + st.supplyPenalty + '%</span>';
             var c = 'unit-chip ' + (u.nation === 'player' ? 'mine' : 'theirs');
             if (u.id === selectedUnitId) c += ' picked';
             html += '<span class="' + c + '">' + label + '</span>';
@@ -143,15 +165,27 @@
       el.provDetails.textContent = 'Click any province to inspect it.';
       btnF.disabled = btnI.disabled = btnD.disabled = true;
       el.provExplain.textContent = '';
+      el.railActions.innerHTML = '';
       return;
     }
     el.provName.textContent = p.name + (p.isCapital ? ' (capital)' : '');
     var ownerName = p.owner === 'player' ? 'Yours' : 'Dominion';
+    var sup = Sim.computeSupply(state, p.owner)[p.id];
+    var supplyLine = 'Supply: ';
+    if (sup && sup.supplied) {
+      supplyLine += 'fed by rail, ' + sup.hops + (sup.hops === 1 ? ' hop' : ' hops') + ' from the capital';
+    } else if (sup) {
+      supplyLine += 'NOT supplied (' + sup.reason + '). Units here weaken daily.';
+    } else {
+      supplyLine += 'unknown';
+    }
     el.provDetails.innerHTML =
       'Owner: ' + ownerName + '<br>' +
       'Steel output: ' + p.steel + ' per day<br>' +
       'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
+      supplyLine + '<br>' +
       'Units here: ' + Sim.unitsIn(state, p.id).length;
+    renderRailActions(p);
     var mine = p.owner === 'player';
     var cost = Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1);
     btnF.disabled = !(mine && p.factoryLevel < Sim.CFG.maxFactoryLevel && state.nations.player.equipment >= cost);
@@ -165,6 +199,26 @@
       : 'Enemy province. March a unit in to take it.';
   }
 
+  // Rail build buttons for the selected province: one per neighbor that
+  // is yours, unrailed, and reachable. Building rail is how new ground
+  // gets fed, so it lives right next to the supply line in this card.
+  function renderRailActions(p) {
+    el.railActions.innerHTML = '';
+    if (!p || p.owner !== 'player') return;
+    Sim.neighborEdges(state, p).forEach(function (ne) {
+      if (ne.province.owner !== 'player' || ne.edge.rail) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Build rail to ' + ne.province.name + ' (' + Sim.CFG.railCostSteel + ' steel, ' + Sim.CFG.railBuildDays + ' days)';
+      btn.disabled = state.nations.player.steel < Sim.CFG.railCostSteel;
+      btn.addEventListener('click', function () {
+        Sim.buildRail(state, 'player', p.id, ne.province.id);
+        render();
+      });
+      el.railActions.appendChild(btn);
+    });
+  }
+
   function renderUnitCard() {
     var u = selectedUnit();
     if (!u) {
@@ -175,11 +229,30 @@
     var base = Sim.CFG.unitTypes[u.type];
     var orderText = 'Holding position.';
     if (u.order) orderText = 'Marching to ' + state.provinces[u.order.target].name + ' at dawn.';
+    var supplyText = 'In supply. The rail net feeds this unit.';
+    if ((u.daysOut || 0) > 0) {
+      supplyText = 'OUT OF SUPPLY for ' + u.daysOut + (u.daysOut === 1 ? ' day' : ' days') +
+        ': attack and defense -' + st.supplyPenalty + '%.';
+      if (u.daysOut > Sim.CFG.supplyGraceDays) supplyText += ' It is losing strength to attrition.';
+    }
+    // Attack preview: the same stackPower the combat and the AI use, so
+    // the numbers here are the numbers the war is fought with.
+    var stack = Sim.unitsIn(state, u.provinceId).filter(function (x) { return x.nation === 'player'; });
+    var myPower = Sim.stackPower(state, stack, 'attack');
+    var preview = '';
+    Sim.neighborsOf(state, state.provinces[u.provinceId]).forEach(function (np) {
+      if (np.owner !== 'enemy') return;
+      var defs = Sim.unitsIn(state, np.id).filter(function (d) { return d.nation === 'enemy'; });
+      if (!defs.length) return;
+      preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
+        ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included).';
+    });
     el.unitDetails.innerHTML =
       base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
       'Attack ' + st.attack + ', Defense ' + st.defense +
       (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
-      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText;
+      supplyText + '<br>' +
+      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
   }
 
   function renderLog() {
