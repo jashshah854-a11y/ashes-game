@@ -554,3 +554,83 @@ test('steel starvation: exactly zero steel stalls, topping up to the drain recov
   assert.strictEqual(n.steel, 0);
   assert.strictEqual(Sim.unitsOf(s, 'player').length, unitsBefore + 1);
 });
+
+// ---------- Cycle 5 step 4: judge flags, capital garrison and retooling ----------
+
+test('AI garrison: the first 3 idle units on the Dominion capital hold, a 4th unit acts', () => {
+  // Part 1: the 3 starting capital units stay home for several days.
+  const s = Sim.createGame(151);
+  const capId = s.nations.enemy.capitalId;
+  const startCap = Sim.unitsIn(s, capId).filter(u => u.nation === 'enemy');
+  assert.strictEqual(startCap.length, 3, 'the Dominion starts with 3 units on its capital');
+  Sim.tick(s);
+  Sim.tick(s);
+  Sim.tick(s);
+  startCap.forEach(u => {
+    assert.strictEqual(u.provinceId, capId, 'garrison unit ' + u.id + ' must stay on the capital');
+  });
+
+  // Part 2: a fresh game with a 4th unit staged onto the capital.
+  const s2 = Sim.createGame(151);
+  const cap2 = s2.nations.enemy.capitalId;
+  const enemyUnits = Sim.unitsOf(s2, 'enemy');
+  const capUnits = enemyUnits.filter(u => u.provinceId === cap2);
+  assert.strictEqual(capUnits.length, 3);
+  const lastCap = capUnits[capUnits.length - 1];
+  const lastCapIdx = s2.units.indexOf(lastCap);
+  // State.units order decides who is held. Pick an enemy field unit that
+  // sits earlier in the array than the last capital unit, so the field
+  // unit joins the held 3 and the last capital unit is the one beyond 3.
+  const field = s2.units.find((u, i) =>
+    u.nation === 'enemy' && u.provinceId !== cap2 && i < lastCapIdx);
+  assert.ok(field, 'need an enemy field unit created before the last capital unit');
+  field.provinceId = cap2;
+  field.order = null;
+  assert.strictEqual(Sim.unitsIn(s2, cap2).filter(u => u.nation === 'enemy').length, 4);
+
+  Sim.tick(s2);
+
+  const after = Sim.unitsIn(s2, cap2).filter(u => u.nation === 'enemy');
+  assert.strictEqual(after.length, 3, 'exactly 3 units remain as the garrison');
+  assert.ok(!after.includes(lastCap), 'the last capital unit in array order is the one that left');
+  assert.ok(after.includes(field), 'the staged field unit is held on the capital');
+  // The unit beyond 3 drifts one province west of the capital.
+  const m = /^p(\d+)_(\d+)$/.exec(cap2);
+  assert.ok(m, 'capital id has the pX_Y form');
+  const westId = Sim.provinceId(Number(m[1]) - 1, Number(m[2]));
+  assert.strictEqual(lastCap.provinceId, westId);
+});
+
+test('retool: switching a line template resets progress, keeps the queue, refunds nothing', () => {
+  const s = Sim.createGame(157);
+  const n = s.nations.player;
+  // Baseline for the whole test: 100 steel, no further top-ups.
+  n.steel = 100;
+  assert.strictEqual(Sim.queueProduction(s, 'player', 1).ok, true);
+  const line = Sim.productionLine(s, 'player', 1);
+  assert.strictEqual(line.template, 'infantry');
+  // Two funded infantry days at 5 steel each.
+  Sim.productionPhase(s, 'player');
+  Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.progressDays, 2);
+  assert.strictEqual(n.steel, 90);
+  // Retool to drone: the 10 steel already spent stays spent.
+  const res = Sim.assignLineTemplate(s, 'player', 1, 'drone');
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.retooled, true);
+  assert.strictEqual(line.template, 'drone');
+  assert.strictEqual(line.progressDays, 0);
+  assert.strictEqual(line.queue, 1);
+  assert.strictEqual(n.steel, 90, 'the retool itself refunds nothing');
+  // 90 steel is enough to fund the full 3 day drone build.
+  const done = runUntilComplete(s, 'player', 10);
+  assert.strictEqual(done.day, 3);
+  assert.strictEqual(done.spent, 15);
+  assert.strictEqual(done.completed.length, 1);
+  assert.strictEqual(done.completed[0].type, 'drone');
+  assert.strictEqual(done.completed[0].provinceId, n.capitalId);
+  assert.strictEqual(line.queue, 0);
+  // Total spend from the 100 steel baseline: 10 before retool plus 15 after.
+  assert.strictEqual(100 - n.steel, 10 + 15);
+  assert.strictEqual(n.steel, 75);
+});
