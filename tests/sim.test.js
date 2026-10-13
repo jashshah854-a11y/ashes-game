@@ -1488,3 +1488,53 @@ test('air defense: the Dominion builds it at its capital through the same comman
   Sim.tick(p);
   assert.ok(!p.provinces[p.nations.enemy.capitalId].airDefenseBuild, 'nothing below the threshold');
 });
+
+test('air defense parity: the same order from both sides starts, pays, and finishes on the same day, and launches cost the same', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = Sim.CFG.aiAirDefenseEquipment + 2 * Sim.CFG.fortCostPerLevel; // walls take theirs first
+  s.nations.player.equipment = 1000;
+  const playerCap = s.provinces[s.nations.player.capitalId], enemyCap = s.provinces[s.nations.enemy.capitalId];
+  const eqBefore = s.nations.player.equipment;
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', playerCap.id).ok, true);
+  assert.strictEqual(eqBefore - s.nations.player.equipment, Sim.CFG.airDefenseCost);
+  Sim.tick(s);
+  assert.deepStrictEqual(playerCap.airDefenseBuild, enemyCap.airDefenseBuild, 'same progress after the same tick');
+  let days = 1;
+  while (playerCap.airDefenseBuild) { Sim.tick(s); days++; assert.strictEqual(enemyCap.airDefense > 0, playerCap.airDefense > 0); }
+  assert.strictEqual(days, Sim.CFG.airDefenseBuildDays);
+  assert.strictEqual(enemyCap.airDefense, 1);
+  // Mirror launches: Dominion wings into a Vessari province pay the Vessari exactly what the reverse pays the Dominion.
+  const launch = (attacker, defender, from, to) => {
+    const g = Sim.createGame(5);
+    g.units = [mkU(1, attacker, 'drone', from), mkU(2, defender, 'infantry', to)];
+    g.provinces[to].airDefense = 1;
+    g.nations[defender].steel = 100;
+    Sim.issueOrder(g, 1, to);
+    Sim.movementPhase(g);
+    return { spent: 100 - g.nations[defender].steel, launches: g.ledger[defender].launches };
+  };
+  assert.deepStrictEqual(launch('enemy', 'player', 'p5_3', 'p4_3'), launch('player', 'enemy', 'p4_3', 'p5_3'));
+  assert.deepStrictEqual(launch('enemy', 'player', 'p5_3', 'p4_3'), { spent: Sim.CFG.interceptorSteel, launches: 1 });
+});
+
+test('steel exchange: a drone attack into air defense can lose the fight and still bleed the defender more steel', () => {
+  // Three full wings against two infantry behind level 2 walls with air
+  // defense. The launches leave each wing at 2; the walled defense then
+  // kills all of them in the first round on any roll (the least damage it
+  // can deal is 8, against 6 strength left), so this holds for every seed.
+  for (const seed of [1, 7, 42]) {
+    const s = Sim.createGame(seed);
+    s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3'), mkU(3, 'player', 'drone', 'p4_3'),
+      mkU(9, 'enemy', 'infantry', 'p5_3'), mkU(10, 'enemy', 'infantry', 'p5_3')];
+    s.provinces.p5_3.airDefense = 1;
+    s.provinces.p5_3.fortLevel = Sim.CFG.fortMaxLevel;
+    s.nations.enemy.steel = 1000;
+    [1, 2, 3].forEach(id => Sim.issueOrder(s, id, 'p5_3'));
+    Sim.movementPhase(s);
+    const bled = id => s.ledger[id].lostSteel + s.ledger[id].launchSteel;
+    assert.strictEqual(s.provinces.p5_3.owner, 'enemy', 'the attack fails');
+    assert.strictEqual(s.units.filter(u => u.nation === 'player' && u.strength > 0).length, 0, 'every wing is lost');
+    assert.strictEqual(bled('player'), 3 * Sim.CFG.unitTypes.drone.steelCost);
+    assert.ok(bled('enemy') > bled('player'), 'seed ' + seed + ': the Dominion bled ' + bled('enemy') + ' against ' + bled('player'));
+  }
+});

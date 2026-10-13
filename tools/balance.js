@@ -15,7 +15,7 @@
 //   node tools/balance.js --seeds 1-500        a seed range (mass testing)
 //   node tools/balance.js --seeds 1,7,42       a seed list
 //   node tools/balance.js --profile sensible   one profile (repeatable): passive,
-//                     sensible, factories, fortress, reckless, rationed, direct
+//                     sensible, factories, fortress, reckless, rationed, direct, drones
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -140,11 +140,14 @@ function passive() {}
 // garrison, masses every other unit at the easternmost capital row
 // province, and attacks only eastward along that row with 5 or more units
 // massed and a 1.5x stackPower edge.
-function makeSensible(withFactories, withForts) {
+function makeSensible(withFactories, withForts, droneLines) {
   return function sensible(Sim, s) {
     const n = s.nations.player;
     const row = s.provinces[n.capitalId].y;
     researchWhenReady(Sim, s);
+    // Drone heavy: every open line builds drone wings (retooling is free
+    // while a line is idle, and a line keeps its template once set).
+    if (droneLines) (n.productionLines || []).forEach(line => { if (line.template !== 'drone') Sim.assignLineTemplate(s, 'player', line.id, 'drone'); });
     if (withFactories) factoriesTowardNextLine(Sim, s);
     feedLines(Sim, s);
     railDiscipline(Sim, s, 40);
@@ -307,7 +310,10 @@ const PROFILES = {
   fortress: { play: makeSensible(true, true), ruling: 'win', label: 'sensible plus factories, then walls at home and at the staging province' },
   reckless: { play: reckless, ruling: 'lose', label: 'reckless (open capital, piecemeal, no rail)' },
   rationed: { play: rationed, ruling: 'win', label: 'sensible with rationed factory builds (Vector step 4 script)' },
-  direct: { play: recklessDirect, ruling: 'lose', label: 'reckless direct march (Vector step 4 script)' }
+  direct: { play: recklessDirect, ruling: 'lose', label: 'reckless direct march (Vector step 4 script)' },
+  // Cycle 10: the steel exchange report. Same as factories, but every line
+  // builds drone wings, so its attacks meet the Dominion's air defense.
+  drones: { play: makeSensible(true, false, true), ruling: 'report', label: 'sensible plus factories, every line building drone wings (steel exchange report)' }
 };
 
 // ---------- One campaign ----------
@@ -323,7 +329,12 @@ function runGame(Sim, seed, profileName, opts) {
   const builtByLine = {};
   const lineOpenDay = {};
   const trace = [];
+  // Days the Dominion's air defense launched at you: whether that day's
+  // attack on the province failed, and the steel each side bled that day.
+  const intercepts = [];
+  const bledNow = id => s.ledger ? s.ledger[id].lostSteel + s.ledger[id].launchSteel : 0;
   while (!s.gameOver && s.day < MAX_DAYS) {
+    const youBefore = bledNow('player'), themBefore = bledNow('enemy');
     const day = s.day;
     const seen = new Set(s.log); // the log is capped, so diff by entry identity
     profile.play(Sim, s, mem);
@@ -334,6 +345,12 @@ function runGame(Sim, seed, profileName, opts) {
       if (m) builtByLine[m[1]] = (builtByLine[m[1]] || 0) + 1;
       m = /^Vessari open production line (\d+)/.exec(e.msg);
       if (m && lineOpenDay[m[1]] == null) lineOpenDay[m[1]] = day;
+    });
+    fresh.forEach(e => {
+      const m = /^Khessite air defense at (.+?) (launches|cannot launch)/.exec(e.msg);
+      if (!m) return;
+      const taken = fresh.some(f => f.msg.indexOf('Vessari capture ' + m[1]) === 0 || f.msg.indexOf('Vessari take ' + m[1]) === 0);
+      intercepts.push({ day, failed: !taken, you: bledNow('player') - youBefore, them: bledNow('enemy') - themBefore });
     });
     if (opts.trace) {
       const units = playerUnits(Sim, s);
@@ -365,6 +382,9 @@ function runGame(Sim, seed, profileName, opts) {
     lines: (s.nations.player.productionLines || []).length,
     enemyLines: (s.nations.enemy.productionLines || []).length,
     builtByLine, lineOpenDay,
+    bled: Math.round(bledNow('player')), enemyBled: Math.round(bledNow('enemy')),
+    launches: s.ledger ? s.ledger.enemy.launches : 0,
+    intercepts,
     trace
   };
 }
@@ -453,7 +473,8 @@ function main(argv) {
           '  eq ' + String(r.endEquipment).padStart(5) + '/' + String(r.enemyEquipment).padStart(5) +
           '  factory lvls ' + String(r.factoryLevels).padStart(2) + '  lines ' + r.lines +
           (r.lineOpenDay['3'] != null ? ' (L3 day ' + r.lineOpenDay['3'] + ')' : '') +
-          '  built ' + (lines || 'none') + '  enemy lines ' + r.enemyLines);
+          '  built ' + (lines || 'none') + '  enemy lines ' + r.enemyLines +
+          '  bled ' + r.bled + '/' + r.enemyBled + (r.launches ? '  launches at you ' + r.launches : ''));
       });
     } else {
       const losses = results.filter(r => r.winner !== 'player');
@@ -461,6 +482,16 @@ function main(argv) {
       console.log('  loss days: ' + summarize(losses.map(r => r.day)));
       console.log('  end strength % on wins: ' + summarize(wins.map(r => r.endPercent)));
       console.log('  end equipment, yours: ' + summarize(results.map(r => r.endEquipment)) + '; Dominion: ' + summarize(results.map(r => r.enemyEquipment)));
+      console.log('  steel bled, yours: ' + summarize(results.map(r => r.bled)) + '; Dominion: ' + summarize(results.map(r => r.enemyBled)));
+    }
+    // The steel exchange on days the Dominion's air defense fired at you.
+    const ix = [].concat.apply([], results.map(r => r.intercepts));
+    if (ix.length) {
+      const failed = ix.filter(i => i.failed);
+      const failedWon = failed.filter(i => i.you < i.them);
+      console.log('  air defense fired at you on ' + ix.length + ' days in ' + results.filter(r => r.intercepts.length).length +
+        ' campaigns; ' + failed.length + ' of those attacks failed, and on ' + failedWon.length +
+        ' of the failed ones you still bled less steel that day than the Dominion');
     }
     if (verdict.missed.length) {
       console.log('  ' + (verdict.pass ? 'seeds short of a floor win: ' : 'failing seeds: ') +

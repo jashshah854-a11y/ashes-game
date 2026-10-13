@@ -1,0 +1,87 @@
+
+passive (never acts): 0 of 8 won. Ruling check PASS (must lose).
+  seed     1  LOSS day  30  end  12.5%  original army  12.5%  eq  1965/ 1120  factory lvls  9  lines 2  built none  enemy lines 3  bled 158/55
+  seed     7  LOSS day  30  end  12.5%  original army  12.5%  eq   610/  590  factory lvls  1  lines 2  built none  enemy lines 3  bled 158/78
+  seed    42  LOSS day  30  end  12.5%  original army  12.5%  eq  1020/ 1010  factory lvls  3  lines 2  built none  enemy lines 3  bled 158/60
+  seed    99  LOSS day  30  end  12.5%  original army  12.5%  eq  1640/  575  factory lvls  8  lines 2  built none  enemy lines 3  bled 158/60
+  seed  1234  LOSS day  30  end  12.5%  original army  12.5%  eq  1050/  730  factory lvls  4  lines 2  built none  enemy lines 3  bled 158/63
+  seed   555  LOSS day  30  end  12.5%  original army  12.5%  eq  1395/  490  factory lvls  6  lines 2  built none  enemy lines 3  bled 158/75
+  seed  2024  LOSS day  30  end  12.5%  original army  12.5%  eq  1315/  755  factory lvls  5  lines 2  built none  enemy lines 3  bled 158/65
+  seed 31337  LOSS day  30  end  12.5%  original army  12.5%  eq   890/  745  factory lvls  3  lines 2  built none  enemy lines 3  bled 158/68
+
+sensible without factories (Cycle 5 definition, rebuilt): 8 of 8 won. Report only, not a ruling path.
+  seed     1  WIN  day  46  end 176.4%  original army  33.3%  eq  3165/ 2850  factory lvls 15  lines 2  built L1:7 L2:15  enemy lines 4  bled 298/428  launches at you 1
+  seed     7  WIN  day  43  end 195.8%  original army  33.3%  eq  1110/ 1545  factory lvls  7  lines 2  built L1:7 L2:14  enemy lines 3  bled 248/453  launches at you 3
+  seed    42  WIN  day  46  end 186.1%  original army  33.3%  eq  1860/ 1890  factory lvls 10  lines 2  built L1:7 L2:15  enemy lines 2  bled 280/525  launches at you 5
+  seed    99  WIN  day  43  end 227.8%  original army  33.3%  eq  2370/ 1790  factory lvls 13  lines 2  built L1:7 L2:14  enemy lines 3  bled 190/453  launches at you 3
+  seed  1234  WIN  day  43  end 147.2%  original army  33.3%  eq  2095/ 1440  factory lvls 12  lines 2  built L1:7 L2:14  enemy lines 3  bled 335/513  launches at you 6
+  seed   555  WIN  day  43  end 161.1%  original army  33.3%  eq  2160/ 1545  factory lvls 12  lines 2  built L1:7 L2:14  enemy lines 3  bled 310/493  launches at you 5
+  seed  2024  WIN  day  43  end 166.7%  original army  33.3%  eq  2335/ 1410  factory lvls 13  lines 2  built L1:7 L2:14  enemy lines 3  bled 300/455  launches at you 3
+  seed 31337  WIN  day  61  end 218.1%  original army  33.3%  eq  2080/ 3720  factory lvls  9  lines 2  built L1:10 L2:20  enemy lines 4  bled 388/565  launches at you 1
+  air defense fired at you on 8 days in 8 campaigns; 0 of those attacks failed, and on 0 of the failed ones you still bled less steel that day than the Dominion
+
+sensible plus factories toward the next line: 8 of 8 won. Ruling check PASS (must win with 20% strength left).
+  seed     1  WIN  day  46  end 270.8%  original army  33.3%  eq  3065/ 2850  factory lvls 25  lines 4 (L3 day 2)  built L1:7 L2:15 L3:7 L4:13  enemy lines 4  bled 533/428  launches at you 1
+  seed     7  WIN  day  34  end 240.3%  original army  33.3%  eq  1660/  920  factory lvls 26  lines 4 (L3 day 9)  built L1:5 L2:11 L3:4 L4:6  enemy lines 3  bled 273/485  launches at you 5
+  seed    42  WIN  day  70  end 319.4%  original army  33.3%  eq  4105/ 3345  factory lvls 26  lines 4 (L3 day 6)  built L1:11 L2:23 L3:10 L4:19  enemy lines 3  bled 865/730  launches at you 2
+  seed    99  WIN  day  50  end 318.1%  original army  33.3%  eq  2705/ 2315  factory lvls 26  lines 4 (L3 day 4)  built L1:8 L2:16 L3:7 L4:14  enemy lines 3  bled 508/438  launches at you 2
+  seed  1234  WIN  day  70  end 320.8%  original army  33.3%  eq  3770/ 3650  factory lvls 26  lines 4 (L3 day 6)  built L1:11 L2:23 L3:10 L4:20  enemy lines 3  bled 878/758  launches at you 2
+  seed   555  WIN  day  64  end 322.2%  original army  33.3%  eq  2960/ 3230  factory lvls 26  lines 4 (L3 day 4)  built L1:10 L2:21 L3:9 L4:18  enemy lines 3  bled 755/680  launches at you 2
+  seed  2024  WIN  day  48  end 290.3%  original army  33.3%  eq  3650/ 1810  factory lvls 26  lines 4 (L3 day 4)  built L1:7 L2:15 L3:7 L4:13  enemy lines 3  bled 498/460  launches at you 3
+  seed 31337  WIN  day  42  end 219.4%  original army  33.3%  eq  2115/ 1770  factory lvls 26  lines 4 (L3 day 8)  built L1:6 L2:13 L3:5 L4:10  enemy lines 3  bled 460/625  launches at you 5
+  air defense fired at you on 8 days in 8 campaigns; 0 of those attacks failed, and on 0 of the failed ones you still bled less steel that day than the Dominion
+
+sensible plus factories, then walls at home and at the staging province: 8 of 8 won. Ruling check PASS (must win with 20% strength left).
+  seed     1  WIN  day  46  end 270.8%  original army  33.3%  eq  2365/ 2850  factory lvls 25  lines 4 (L3 day 2)  built L1:7 L2:15 L3:7 L4:13  enemy lines 4  bled 533/428  launches at you 1
+  seed     7  WIN  day  34  end 240.3%  original army  33.3%  eq  1060/  920  factory lvls 26  lines 4 (L3 day 9)  built L1:5 L2:11 L3:4 L4:6  enemy lines 3  bled 273/485  launches at you 5
+  seed    42  WIN  day  70  end 319.4%  original army  33.3%  eq  2920/ 3270  factory lvls 26  lines 4 (L3 day 6)  built L1:11 L2:23 L3:10 L4:19  enemy lines 3  bled 865/730  launches at you 2
+  seed    99  WIN  day  50  end 318.1%  original army  33.3%  eq  2105/ 2315  factory lvls 26  lines 4 (L3 day 4)  built L1:8 L2:16 L3:7 L4:14  enemy lines 3  bled 508/438  launches at you 2
+  seed  1234  WIN  day  52  end 312.5%  original army  33.3%  eq  2175/ 2190  factory lvls 24  lines 4 (L3 day 6)  built L1:8 L2:17 L3:7 L4:14  enemy lines 4  bled 533/458  launches at you 3
+  seed   555  WIN  day  50  end 308.3%  original army  33.3%  eq  1655/ 2175  factory lvls 24  lines 4 (L3 day 4)  built L1:8 L2:16 L3:7 L4:13  enemy lines 4  bled 510/435  launches at you 2
+  seed  2024  WIN  day  48  end 290.3%  original army  33.3%  eq  3050/ 1810  factory lvls 26  lines 4 (L3 day 4)  built L1:7 L2:15 L3:7 L4:13  enemy lines 3  bled 498/460  launches at you 3
+  seed 31337  WIN  day  42  end 219.4%  original army  33.3%  eq  1115/ 1770  factory lvls 26  lines 4 (L3 day 8)  built L1:6 L2:13 L3:5 L4:10  enemy lines 3  bled 460/625  launches at you 5
+  air defense fired at you on 8 days in 8 campaigns; 0 of those attacks failed, and on 0 of the failed ones you still bled less steel that day than the Dominion
+
+reckless (open capital, piecemeal, no rail): 0 of 8 won. Ruling check PASS (must lose).
+  seed     1  LOSS day  30  end 138.9%  original army  18.1%  eq  2025/ 1060  factory lvls 11  lines 2  built L1:4 L2:9  enemy lines 3  bled 185/73
+  seed     7  LOSS day  30  end 129.2%  original army  13.9%  eq   630/  570  factory lvls  1  lines 2  built L1:4 L2:9  enemy lines 3  bled 203/103
+  seed    42  LOSS day  30  end 123.6%  original army   8.3%  eq  1160/  870  factory lvls  4  lines 2  built L1:4 L2:9  enemy lines 3  bled 213/113
+  seed    99  LOSS day  30  end 129.2%  original army  13.9%  eq  1590/  625  factory lvls  7  lines 2  built L1:4 L2:9  enemy lines 3  bled 203/95
+  seed  1234  LOSS day  30  end 120.8%  original army   5.6%  eq  1095/  685  factory lvls  4  lines 2  built L1:4 L2:9  enemy lines 3  bled 218/118
+  seed   555  LOSS day  30  end 129.2%  original army  13.9%  eq  1400/  485  factory lvls  5  lines 2  built L1:4 L2:9  enemy lines 3  bled 203/90
+  seed  2024  LOSS day  30  end 120.8%  original army   5.6%  eq  1425/  645  factory lvls  7  lines 2  built L1:4 L2:9  enemy lines 3  bled 218/110
+  seed 31337  LOSS day  30  end 144.4%  original army  23.6%  eq   860/  775  factory lvls  2  lines 2  built L1:4 L2:9  enemy lines 3  bled 175/70
+
+sensible with rationed factory builds (Vector step 4 script): 8 of 8 won. Ruling check PASS (must win with 20% strength left).
+  seed     1  WIN  day  46  end 152.8%  original army  33.3%  eq  3310/ 2820  factory lvls 16  lines 2  built L1:7 L2:15  enemy lines 3  bled 340/540  launches at you 2
+  seed     7  WIN  day  46  end   200%  original army  33.3%  eq  2590/ 1940  factory lvls 16  lines 2  built L1:7 L2:15  enemy lines 3  bled 255/525  launches at you 2
+  seed    42  WIN  day  46  end 186.1%  original army  33.3%  eq  2670/ 2000  factory lvls 15  lines 2  built L1:7 L2:15  enemy lines 2  bled 280/550  launches at you 3
+  seed    99  WIN  day  46  end 197.2%  original army  33.3%  eq  2750/ 2125  factory lvls 15  lines 2  built L1:7 L2:15  enemy lines 2  bled 260/530  launches at you 2
+  seed  1234  WIN  day  46  end   175%  original army  33.3%  eq  2675/ 1830  factory lvls 15  lines 2  built L1:7 L2:15  enemy lines 3  bled 300/525  launches at you 2
+  seed   555  WIN  day  46  end 191.7%  original army  33.3%  eq  2415/ 1910  factory lvls 13  lines 2  built L1:7 L2:15  enemy lines 3  bled 270/525  launches at you 2
+  seed  2024  WIN  day  25  end 177.8%  original army  33.3%  eq  1700/  605  factory lvls 19  lines 3 (L3 day 7)  built L1:4 L2:8 L3:3  enemy lines 2  bled 190/395  launches at you 1
+  seed 31337  WIN  day  46  end 138.9%  original army  33.3%  eq  2535/ 2075  factory lvls 15  lines 2  built L1:7 L2:15  enemy lines 3  bled 365/625  launches at you 7
+  air defense fired at you on 8 days in 8 campaigns; 0 of those attacks failed, and on 0 of the failed ones you still bled less steel that day than the Dominion
+
+reckless direct march (Vector step 4 script): 0 of 8 won. Ruling check PASS (must lose).
+  seed     1  LOSS day  31  end 131.9%  original army  12.5%  eq  1935/ 1240  factory lvls  7  lines 2  built L1:5 L2:10  enemy lines 4  bled 243/85
+  seed     7  LOSS day  31  end 131.9%  original army  12.5%  eq   720/  545  factory lvls  2  lines 2  built L1:5 L2:10  enemy lines 3  bled 243/90
+  seed    42  LOSS day  31  end 131.9%  original army  12.5%  eq  1195/  885  factory lvls  3  lines 2  built L1:5 L2:10  enemy lines 3  bled 243/98
+  seed    99  LOSS day  31  end 131.9%  original army  12.5%  eq  1585/  730  factory lvls  6  lines 2  built L1:5 L2:10  enemy lines 3  bled 243/80
+  seed  1234  LOSS day  31  end 131.9%  original army  12.5%  eq  1145/  720  factory lvls  3  lines 2  built L1:5 L2:10  enemy lines 3  bled 243/110
+  seed   555  LOSS day  31  end 131.9%  original army  12.5%  eq  1470/  505  factory lvls  5  lines 2  built L1:5 L2:10  enemy lines 3  bled 243/85
+  seed  2024  LOSS day  31  end 131.9%  original army  12.5%  eq  1470/  655  factory lvls  6  lines 2  built L1:5 L2:10  enemy lines 3  bled 243/120
+  seed 31337  LOSS day  31  end 131.9%  original army  12.5%  eq   885/  790  factory lvls  2  lines 2  built L1:5 L2:10  enemy lines 3  bled 243/75
+
+sensible plus factories, every line building drone wings (steel exchange report): 8 of 8 won. Report only, not a ruling path.
+  seed     1  WIN  day  37  end 254.2%  original army  33.3%  eq  2415/ 1820  factory lvls 25  lines 4 (L3 day 2)  built L1:12 L2:12 L3:11 L4:10  enemy lines 3  bled 398/463  launches at you 3
+  seed     7  WIN  day  28  end 147.2%  original army  33.3%  eq  1225/  565  factory lvls 26  lines 4 (L3 day 9)  built L1:9 L2:9 L3:6 L4:4  enemy lines 2  bled 335/475  launches at you 4
+  seed    42  WIN  day  46  end 254.2%  original army  33.3%  eq  2570/ 2020  factory lvls 26  lines 4 (L3 day 6)  built L1:15 L2:15 L3:13 L4:11  enemy lines 2  bled 533/610  launches at you 3
+  seed    99  WIN  day  37  end   250%  original army  33.3%  eq  1955/ 1330  factory lvls 26  lines 4 (L3 day 4)  built L1:12 L2:12 L3:10 L4:9  enemy lines 3  bled 375/448  launches at you 3
+  seed  1234  WIN  day  46  end 236.1%  original army  33.3%  eq  2445/ 1780  factory lvls 26  lines 4 (L3 day 6)  built L1:15 L2:15 L3:13 L4:12  enemy lines 3  bled 580/605  launches at you 3
+  seed   555  WIN  day  40  end   250%  original army  33.3%  eq  1750/ 1295  factory lvls 26  lines 4 (L3 day 4)  built L1:13 L2:13 L3:11 L4:10  enemy lines 3  bled 435/510  launches at you 6
+  seed  2024  WIN  day  37  end 248.6%  original army  33.3%  eq  2715/ 1085  factory lvls 26  lines 4 (L3 day 4)  built L1:12 L2:12 L3:10 L4:9  enemy lines 2  bled 378/450  launches at you 3
+  seed 31337  WIN  day  22  end 136.1%  original army  33.3%  eq   835/  415  factory lvls 26  lines 4 (L3 day 8)  built L1:7 L2:7 L3:4 L4:3  enemy lines 2  bled 250/330
+  air defense fired at you on 7 days in 7 campaigns; 0 of those attacks failed, and on 0 of the failed ones you still bled less steel that day than the Dominion
+
+Overall: every ruling check passes.
