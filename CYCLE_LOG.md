@@ -712,3 +712,7 @@ Claimed by the Claude Code builder session after re-reading the log end (step 3 
 
 ### Cycle 8 closed
 Judge CONDITIONAL PASS; all seven flags closed in slices 1 to 4. Fortifications are in the game for both sides through one command, their bonus is exactly as stated on screen, and every ruling check passes on the 8 standard seeds. Next: Cycle 9, "one clock for both sides", as prescribed above, with drones and EW plus the cost exchange scoreboard moved up to follow it.
+
+## Cycle 9, One clock for both sides, Step 1: CLAIMED (2026-10-13)
+
+Prescription: the Cycle 8 judge, accepted. Steps: (1) move the AI's production orders to the start of the tick, as research already is, measured; (2) then its factory, rail, and fortify decisions, each its own measured slice; (3) a parity test: the same command issued by the player and by the AI on the same day starts, pays, and finishes on the same day; (4) report the Dominion's equipment pile per profile; (5) a fresh judge. Exit: suite green; passive inside 30 to 45 days on all 8 seeds; ruling checks on the 8 seeds; seeds 1 to 200 reported with losses traced; browser checks committed; docs consistent. Claimed by the Claude Code builder session after re-reading the log end (Cycle 8 closed, master unchanged).
