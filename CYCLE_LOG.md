@@ -474,3 +474,11 @@ Vector's step 5 (commit 08435ad, 18:25) landed on master while this branch's jud
 - Equivalence proof before removing Vector's file: on the 8 standard seeds the ported passive, rationed, and direct profiles give the same winner, end day, and end strength as `tools/balance-rationed.js all` on all 24 runs. The file is then removed; its history is commit 08435ad on master.
 - Suite: 43 pass, 0 fail. `node tools/balance.js` (all six profiles, standard seeds): passive, factories, rationed PASS; reckless and direct lose 8 of 8 (PASS); the no factory script stays report only (7 of 8). Every ruling check passes.
 - Wider sample, seeds 1 to 200: rationed wins 198 (loses seeds 51 and 91 on days 48 to 51); direct loses all 200. The two rationed losses sit outside the standard seed set, so they do not fail the ruling, but they are the first ruling path losses seen on any seed and are recorded for the next balance slice.
+
+### Round 2, slice 2: the browser check runs in any container
+- `tools/browser-check.js` (Vector's, from 08435ad): the Chromium path was hardcoded to /opt/meta-chromium/chrome, which does not exist here. It now uses CHROME if set, else the first of /opt/meta-chromium/chrome and /opt/pw-browsers/chromium that exists, and fails with a plain message if neither does. The unlock thresholds are read from js/sim.js CFG instead of a copied array, so the check cannot drift from the sim. Nothing else changed.
+- Run on the merged code: `node tools/browser-check.js` reports 6 of 6 gating checks passing (day 4, 6 factory levels: 2 live rows with buttons, 2 locked rows with zero buttons, exact condition text for lines 3 and 4 against the live total, the nothing to click note). Exit 0.
+- Suite: 43 pass, 0 fail. `node tools/balance.js` exits 0, unchanged.
+
+### Cycle 6 closed
+Both judge passes are recorded and every fix-now flag from both is closed, except landing on master (this session has no permission to push there; PR jashshah854-a11y/ashes-game#1 is a clean fast forward). Tools in the repo: tools/balance.js (six profiles, the ruling check, seed ranges) and tools/browser-check.js (the locked slot render check). Next: Cycle 7, the lore seed, under the lore rule (loop written, flagged for Jash's rewrite or veto, no stall).
