@@ -178,9 +178,28 @@ was invented by the loop, not by you:
 
 20. Should an all drone army be the fastest way to win? Today a script
     that builds only drone wings wins every seed tried, median day 38,
-    against day 52 for the same script building both. Cycle 11 adds
-    jamming and aims to bring the drone path within 5 days of mixed
-    production unless you rule that drones should lead.
+    against day 52 for the same script building both. Cycle 11 added
+    jamming, but jamming alone cannot close it: per steel a Gen 2 drone
+    wing has 2.5 times infantry's attack, 1.5 times its defense, and the
+    same strength, and it arrives on day 20, long before any jamming that
+    reaches it. Measured over 200 seeds (drone median against mixed
+    median, the target being 5 days or less):
+    - Today (drone attack 3 / 5 / 7 by generation): 38 against 52.
+    - A Dominion that researches jamming first when your army is mostly
+      drones: 32 against 41 (it delays its own Gen 2 and gets weaker).
+    - Cheaper jamming (30 and 60 points): 38 against 52; with the
+      reactive rule, 32 against 49, or 37 against 62 at 30 and 40.
+    - Infantry attack 5: 38 against 52.
+    - Drone attack 2 / 3 / 4: 49 against 58. Attack 2 / 4 / 6: 49 against
+      58. Attack 2 / 3 / 4 with defense 1 / 2 / 3: 43 against 52. Gen 2 and
+      Gen 3 adding attack only (2 / 3 / 4, defense 2 / 2 / 3): 44 against 57.
+    - Massing by strength instead of unit count (a harness change, to
+      test whether cheap fast units only win by count): drones 22 against
+      50, so the edge is real power, not a counting artifact.
+    None reaches 5 days without reshaping the whole game. The builder has
+    not changed the drone numbers: whether drones are meant to be the
+    strongest unit is yours. If they should not lead, drone attack 2 / 3 / 4
+    is the smallest measured step (9 days instead of 14).
 
 21. Before intel exists, should the attack preview say how many
     interceptors the Dominion can pay for? It does today, which tells you

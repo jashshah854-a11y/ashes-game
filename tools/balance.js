@@ -15,7 +15,7 @@
 //   node tools/balance.js --seeds 1-500        a seed range (mass testing)
 //   node tools/balance.js --seeds 1,7,42       a seed list
 //   node tools/balance.js --profile sensible   one profile (repeatable): passive,
-//                     sensible, factories, fortress, reckless, rationed, direct, drones
+//                     sensible, factories, fortress, reckless, rationed, direct, drones, jamming
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -50,13 +50,13 @@ function feedLines(Sim, s) {
 // points, so both sides research on one clock. Drone Gen 2 comes first, on
 // the same day as before. Older sims without the research table buy Drone
 // Gen 2 only.
-function researchWhenReady(Sim, s) {
+function researchWhenReady(Sim, s, order) {
   const n = s.nations.player;
   if (!Sim.research) {
     if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
     return;
   }
-  const next = Sim.CFG.aiResearchOrder.filter(id => !Sim.hasResearched(s, 'player', id))[0];
+  const next = (order || Sim.CFG.aiResearchOrder).filter(id => !Sim.hasResearched(s, 'player', id))[0];
   if (next && n.researchPoints >= Sim.CFG.research[next].cost) Sim.research(s, 'player', next);
 }
 
@@ -150,11 +150,11 @@ function passive() {}
 // garrison, masses every other unit at the easternmost capital row
 // province, and attacks only eastward along that row with 5 or more units
 // massed and a 1.5x stackPower edge.
-function makeSensible(withFactories, withForts, droneLines) {
+function makeSensible(withFactories, withForts, droneLines, researchOrder) {
   return function sensible(Sim, s) {
     const n = s.nations.player;
     const row = s.provinces[n.capitalId].y;
-    researchWhenReady(Sim, s);
+    researchWhenReady(Sim, s, researchOrder);
     // Drone heavy: every open line builds drone wings (retooling is free
     // while a line is idle, and a line keeps its template once set).
     if (droneLines) (n.productionLines || []).forEach(line => { if (line.template !== 'drone') Sim.assignLineTemplate(s, 'player', line.id, 'drone'); });
@@ -323,7 +323,10 @@ const PROFILES = {
   direct: { play: recklessDirect, ruling: 'lose', label: 'reckless direct march (Vector step 4 script)' },
   // Cycle 10: the steel exchange report. Same as factories, but every line
   // builds drone wings, so its attacks meet the Dominion's air defense.
-  drones: { play: makeSensible(true, false, true), ruling: 'report', label: 'sensible plus factories, every line building drone wings (steel exchange report)' }
+  drones: { play: makeSensible(true, false, true), ruling: 'report', label: 'sensible plus factories, every line building drone wings (steel exchange report)' },
+  // Cycle 11: the jamming report. Same as factories, but it researches both
+  // jamming generations before Drone Gen 2 and Gen 3.
+  jamming: { play: makeSensible(true, false, false, ['jamming1', 'jamming2', 'droneGen2', 'droneGen3']), ruling: 'report', label: 'sensible plus factories, jamming researched first (jamming report)' }
 };
 
 // ---------- One campaign ----------
