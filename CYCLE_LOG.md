@@ -69,3 +69,12 @@ Rail is supply, legible on the map:
 
 ### Sequencing note
 Risk 2 (unit production over time and money costs) and the simultaneous-resolution half of risk 3 are real but come after Cycle 3. The shared odds function half of risk 3 rides along with Cycle 3 because supply modifiers must be visible to both sides.
+
+## Cycle 4, Opus 5.5 judge pass on Cycle 3 (2026-10-13)
+
+Verdict: PASS. All four prescribed items shipped and each closes the risk it targeted. The judge called the balance regression "good news" (it proved the old gate was hiding broken math) and the fixes the right kind: legible rules instead of hidden fudge.
+
+- Rail conversion: KEEPER, in the judge's words, because it came out of balance pressure rather than wish-listing and directly expresses "rail is supply." Two conditions: keep it to one tunable number (it is: railConvertDays), and surface it in the attack preview (done in this cycle, below).
+- Small flags, all fixed in this cycle: the inspector now shows hops as "N of 8 hops" against the limit; the attack preview warns how many rail edges a capture will start converting and that units beyond will be unsupplied; the Dominion's doctrine (1.5x superiority, never attacks out of supply, 10-day mobilization) is printed in its panel so its caution reads as rules, not randomness.
+- Standing caveat: risk 3 is half closed. Odds are shared, but battles still resolve sequentially within a tick, so resolution order can matter. The judge's rider for a future cycle: compute all battle results from start-of-tick state, then apply.
+- Next cycle prescribed: production lines and unit costs (risk 2). Lines assigned a template, steel cost per unit, build time in days, deployment at the capital, identical budgets for the AI, production panel with queue and steel drain, unit cost on the unit card, tests for budget parity, queue timing, and the rail-versus-units steel tradeoff. Exit criteria: passive falls in about 30 to 45 days, sensible survives 8 of 8. Deferred by the judge: fortifications, efficiency ramps, manpower, drones and EW, lore seed (lore waits until there are priced units and a real economy for it to describe).

@@ -173,7 +173,7 @@
     var sup = Sim.computeSupply(state, p.owner)[p.id];
     var supplyLine = 'Supply: ';
     if (sup && sup.supplied) {
-      supplyLine += 'fed by rail, ' + sup.hops + (sup.hops === 1 ? ' hop' : ' hops') + ' from the capital';
+      supplyLine += 'fed by rail, ' + sup.hops + ' of ' + Sim.CFG.supplyMaxHops + ' hops from the capital';
     } else if (sup) {
       supplyLine += 'NOT supplied (' + sup.reason + '). Units here weaken daily.';
     } else {
@@ -246,6 +246,17 @@
       if (!defs.length) return;
       preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included).';
+      // If taking this province would start rail conversions, say so
+      // before the player commits, never as a surprise after the fact.
+      var converting = Sim.neighborEdges(state, np).filter(function (ne) {
+        return ne.edge.rail && ne.edge.rail.daysLeft === 0 && !ne.edge.rail.converting &&
+          ne.edge.rail.owner === 'enemy' && ne.province.owner === 'player';
+      }).length;
+      if (converting > 0) {
+        preview += '<br>Taking ' + np.name + ' starts converting ' + converting +
+          (converting === 1 ? ' rail edge' : ' rail edges') + ' to your net for ' +
+          Sim.CFG.railConvertDays + ' days. Units pushing beyond it will be out of supply.';
+      }
     });
     el.unitDetails.innerHTML =
       base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
