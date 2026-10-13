@@ -1205,7 +1205,7 @@ test('fortify: the AI walls its capital and its river Spine province through the
   assert.ok(river.fortBuild && river.fortBuild.toLevel === 1, 'next it walls the Spine province facing the river');
   // Below the threshold it builds nothing new.
   const p = Sim.createGame(42);
-  // The threshold is checked after the day's income, so start well below it.
+  // The threshold is checked at the start of the tick, before the day's income; start well below it anyway.
   p.nations.enemy.equipment = 0;
   Sim.tick(p);
   assert.ok(p.nations.enemy.equipment < Sim.CFG.aiFortifyEquipment);
@@ -1310,15 +1310,25 @@ test('one clock: the same order from the player and the AI on the same day start
   // player builds the same level; both count it in that day's output.
   const f = Sim.createGame(42);
   while (f.day % 3 !== 0) Sim.tick(f);
-  [f.nations.player, f.nations.enemy].forEach(n => { n.steel = 1000; n.equipment = 1000; });
+  // 200 equipment: enough for the Dominion's factory rule (140), not for
+  // its wall rule (300); steel to spare so every factory level runs.
+  [f.nations.player, f.nations.enemy].forEach(n => { n.steel = 1000; n.equipment = 200; });
   const before = { player: Sim.factoryLevels(f, 'player'), enemy: Sim.factoryLevels(f, 'enemy') };
+  const levelsBefore = {}; Object.values(f.provinces).forEach(q => { levelsBefore[q.id] = q.factoryLevel; });
+  const eqBefore = { player: 200, enemy: 200 };
   const target = Object.values(f.provinces).find(q => q.owner === 'player' && q.factoryLevel === 0);
   assert.strictEqual(Sim.buildFactory(f, 'player', target.id).ok, true);
+  eqBefore.player = 200; // measure from before the click: the cost is part of the day
   const fday = f.day;
   Sim.tick(f);
   ['player', 'enemy'].forEach(nat => {
     assert.strictEqual(Sim.factoryLevels(f, nat), before[nat] + 1, nat + ' gained one level on day ' + fday);
     assert.ok(f.log.some(e => e.day === fday && new RegExp('^' + f.nations[nat].short + ' raise a factory').test(e.msg)), nat + ' logged it on day ' + fday);
+    const raised = Object.values(f.provinces).find(q => q.owner === nat && q.factoryLevel === levelsBefore[q.id] + 1);
+    const cost = Sim.CFG.factoryCostPerLevel * raised.factoryLevel;
+    const output = Sim.CFG.equipPerFactoryLevel * Sim.factoryLevels(f, nat);
+    assert.strictEqual(f.nations[nat].equipment - eqBefore[nat], output - cost,
+      nat + ': the new level already produces on the day it is built');
   });
   // Rail: on a day the Dominion's rule fires (every fourth day), the
   // player lays one edge too; both finish on the same day.
