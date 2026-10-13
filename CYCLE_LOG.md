@@ -1023,3 +1023,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - Tests: one new (suite 84 pass, 0 fail): a Dominion queue line is hidden from you while its capital is unseen and public once recon lights it, your own queue line is hidden from the Dominion, research stays public. `tools/fog-check.js` (18 checks): on seed 7 the four Dominion production lines of days 6 to 8 are absent from the page's log and no "Khessite line N completes" line shows.
 - Known limit, kept and recorded in BACKLOG: the steel exchange still counts every Dominion loss, including attrition in fog.
 - Balance byte identical to tools/baseline-cycle12-step1.txt; all six browser checks pass.
+
+### Step 0 (c): tests for the three surviving mutants
+- One new test (suite 85 pass, 0 fail): a province lit by Gen 2 recon is seen today and tomorrow and unseen the day after (read through canSee, not the stored day); the Dominion's view is unchanged by your recon; Gen 3 recon lights exactly the provinces within 4 hops (p8_3 in, p9_3 out). Each of the judge's three surviving mutants now fails this test: the read side keeping a province a day longer, Gen 3 range 3, and your recon lighting the Dominion's view. Test only; balance unchanged.

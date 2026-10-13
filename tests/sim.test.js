@@ -1867,3 +1867,26 @@ test('fog: log lines about units in a province you cannot see are hidden from yo
   Sim.research(s, 'enemy', 'droneGen2');
   assert.strictEqual(s.log[s.log.length - 1].hiddenFrom, undefined);
 });
+
+test('recon: a lit province is unseen again two days on, Gen 3 reaches 4 hops, and your recon never lights the Dominion view', () => {
+  const s = Sim.createGame(7);
+  const wing = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'drone');
+  // p7_3 is three hops from p4_3 and next to nothing the player owns, so only Gen 2 recon (3 hops) lights it.
+  s.nations.player.droneGen2 = true;
+  const enemyBefore = JSON.stringify(Sim.visibleProvinces(s, 'enemy'));
+  Sim.reconFlight(s, 'player', wing.id);
+  assert.strictEqual(JSON.stringify(Sim.visibleProvinces(s, 'enemy')), enemyBefore, 'the Dominion sees nothing new');
+  const day = s.day;
+  assert.strictEqual(Sim.canSee(s, 'player', 'p7_3'), true, 'lit today');
+  s.day = day + 1;
+  assert.strictEqual(Sim.canSee(s, 'player', 'p7_3'), true, 'still lit tomorrow');
+  s.day = day + 2;
+  assert.strictEqual(Sim.canSee(s, 'player', 'p7_3'), false, 'unseen the day after');
+  // Gen 3 reaches exactly 4 hops.
+  const g = Sim.createGame(7);
+  g.nations.player.droneGen2 = true; g.nations.player.droneGen3 = true;
+  const w3 = Sim.unitsIn(g, 'p4_3').find(u => u.type === 'drone');
+  const lit = Sim.reconFlight(g, 'player', w3.id).lit;
+  assert.deepStrictEqual(lit, Sim.provincesWithin(g, 'p4_3', 4));
+  assert.ok(lit.indexOf('p8_3') !== -1 && lit.indexOf('p9_3') === -1, 'p8_3 is 4 hops, p9_3 is 5');
+});
