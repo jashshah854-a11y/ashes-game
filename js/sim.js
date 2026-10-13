@@ -756,9 +756,24 @@
     // - A group sitting out of supply does not attack at all. Offensives
     //   stall at the railhead until the AI's own rail building catches
     //   up, which is the bible's supply logic turned back on the attacker.
+    // A capital garrison of three units holds at home and never takes orders.
+    // Capital garrison: the first 3 idle units standing on the Dominion
+    // capital hold there and get no orders, so they never join a group.
+    // Without this the AI marched its own garrison west on day 1, and a
+    // capital the AI itself abandons falls to a lone walker (found in a
+    // headless balance run: a reckless player sending one unit at a time
+    // won 5 of 8 seeds). Units at the capital beyond the first 3 join the
+    // origins below as before, so reinforcements still advance to the front.
+    var aiCapitalId = state.nations[ai].capitalId;
+    var garrisonHeld = 0;
     var origins = {};
     unitsOf(state, ai).forEach(function (u) {
-      if (!u.order) (origins[u.provinceId] = origins[u.provinceId] || []).push(u);
+      if (u.order) return;
+      if (u.provinceId === aiCapitalId && garrisonHeld < 3) {
+        garrisonHeld += 1;
+        return;
+      }
+      (origins[u.provinceId] = origins[u.provinceId] || []).push(u);
     });
     Object.keys(origins).forEach(function (originId) {
       var group = origins[originId];
