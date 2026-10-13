@@ -1600,3 +1600,70 @@ test('interception: the Dominion attack estimate counts the launches it would fa
   assert.strictEqual(aiAttacks(false), true, 'two wings attack one infantry in the open');
   assert.strictEqual(aiAttacks(true), false, 'the same two hold when the launches would down both');
 });
+
+test('launch reserve: launches are paid from the steel the attacker saw at dawn, through a real tick', () => {
+  // The judge's case: two damaged wings and an infantry into air defense, the
+  // Dominion holding 19 then 39 steel at dawn. Its factories eat the steel
+  // the lines leave during the day, so only a reserve set aside at dawn
+  // makes the battle match the estimate.
+  [19, 39, 0, 200].forEach(steel => {
+    const s = Sim.createGame(5);
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3', 4), mkU(3, 'player', 'drone', 'p4_3', 4),
+      mkU(9, 'enemy', 'infantry', 'p5_3')];
+    s.provinces.p5_3.airDefense = 1;
+    s.nations.enemy.steel = steel;
+    s.nations.enemy.equipment = 0;
+    const stack = s.units.filter(u => u.nation === 'player');
+    const planned = Sim.interceptPlan(s, stack, 'p5_3').length;
+    stack.forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+    Sim.tick(s);
+    assert.strictEqual(s.ledger.enemy.launches, planned, 'dawn steel ' + steel + ': the battle launches what the estimate counted');
+    assert.strictEqual(s.provinces.p5_3.launchReserve, null, 'the reserve is cleared after movement');
+  });
+});
+
+test('launch reserve: steel set aside but not used is refunded the same day', () => {
+  // The wing's attack becomes a meeting on the road, so no launch happens.
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p5_3.airDefense = 1;
+  s.nations.enemy.steel = 100;
+  Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p4_3');
+  Sim.reserveLaunches(s, 'player');
+  assert.strictEqual(s.nations.enemy.steel, 100 - Sim.CFG.interceptorSteel, 'set aside at dawn');
+  assert.strictEqual(s.provinces.p5_3.launchReserve, 1);
+  Sim.movementPhase(s);
+  assert.strictEqual(s.ledger.enemy.launches, 0);
+  assert.strictEqual(s.nations.enemy.steel, 100, 'refunded');
+});
+
+test('launch reserve: air defense finished today fires from tomorrow, and says so', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3', 4), mkU(9, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p5_3.airDefenseBuild = { daysLeft: 1 };
+  s.nations.enemy.steel = 200;
+  const stack = s.units.filter(u => u.nation === 'player');
+  const est = Sim.stackPower(s, stack, 'attack', 'p5_3');
+  assert.strictEqual(est, Sim.stackPower(s, stack, 'attack'), 'nothing stands yet, so the estimate counts no launch');
+  stack.forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+  Sim.tick(s);
+  assert.strictEqual(s.ledger.enemy.launches, 0, 'no launch on the day it is finished');
+  assert.ok(s.log.some(e => /air defense at .* was finished today and fires from tomorrow\. 1 drone wing gets through untouched\./.test(e.msg)));
+});
+
+test('launch reserve: each side reserves on its own decision clock, the same way', () => {
+  // Mirror: Dominion wings into a Vessari province with air defense through a real tick.
+  const s = Sim.createGame(5);
+  s.day = Sim.CFG.aiMobilizationDays + 1;
+  s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3', 4), mkU(3, 'enemy', 'drone', 'p5_3', 4),
+    mkU(4, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p4_3.airDefense = 1;
+  s.nations.player.steel = Sim.CFG.interceptorSteel; // one launch at dawn
+  s.nations.enemy.equipment = 0;
+  Sim.tick(s);
+  // Attack 10, or 7 after the one launch downs a wing, against defense 4: it attacks either way.
+  assert.ok(s.log.some(e => /^Vessari air defense at .* launches 1 interceptor \(20 steel\), downing 1 drone wing\. 1 wing gets through untouched/.test(e.msg)),
+    s.log.slice(-6).map(e => e.msg).join(' / '));
+  assert.strictEqual(s.ledger.player.launches, 1, 'the one launch its dawn steel paid for');
+  assert.ok(s.nations.player.steel >= 0);
+});

@@ -382,6 +382,7 @@
           fortBuild: null,     // { toLevel, daysLeft } while fortifying
           airDefense: 0,       // 1 once air defense is built
           airDefenseBuild: null, // { daysLeft } while building
+          launchReserve: null, // launches set aside for today's attacks (reserveLaunches), null otherwise
           coastal: (y === 0 || y === CFG.mapH - 1) // sea to the north and south, navy comes later
         };
       }
@@ -506,6 +507,32 @@
       if (steel >= CFG.interceptorSteel) { steel -= CFG.interceptorSteel; out.push(u); }
     });
     return out;
+  }
+
+  // Launch steel is set aside at the moment the attacker decides, from the
+  // same steel the attacker's estimate read: the player's attacks at the
+  // very start of the tick (the steel the preview showed), the Dominion's
+  // right after its decisions (the steel its 1.5x estimate read). Each air
+  // defense province standing then, with attackers ordered at it, reserves
+  // the launches interceptPlan names, taken off its owner's steel at once
+  // so the day's lines and factories cannot spend it. Battles launch only
+  // from that reserve; what is left is refunded after movement. Air
+  // defense finished later in the day has no reserve and fires from the
+  // next day. Provinces in id order, attackers by unit id.
+  function reserveLaunches(state, attackerNation) {
+    if (!state.launchReserved) state.launchReserved = {};
+    state.launchReserved[attackerNation] = true;
+    Object.keys(state.provinces).sort(cmpStr).forEach(function (pid) {
+      var p = state.provinces[pid];
+      if (!(p.airDefense > 0) || p.owner === attackerNation) return;
+      var attackers = state.units.filter(function (u) {
+        return u.nation === attackerNation && u.strength > 0 && u.order && u.order.target === pid;
+      });
+      if (!attackers.length) return;
+      var n = interceptPlan(state, attackers, pid).length;
+      state.nations[p.owner].steel -= n * CFG.interceptorSteel;
+      p.launchReserve = (p.launchReserve || 0) + n;
+    });
   }
 
   // Percent defense a unit gets from fortifications where it stands.
@@ -819,6 +846,11 @@
   // post-battle strengths and staying provinces, then captures apply in
   // province id order. Nothing depends on state.units order.
   function movementPhase(state) {
+    // Called on its own (tests), the moment of the call is the dawn for
+    // any side the tick did not reserve launches for.
+    ['player', 'enemy'].forEach(function (n) {
+      if (!state.launchReserved || !state.launchReserved[n]) reserveLaunches(state, n);
+    });
     var living = state.units.filter(function (u) { return u.strength > 0; }).slice().sort(byUnitId);
     var unitById = {};
     var snapPos = {};
@@ -971,9 +1003,13 @@
       if (e.kind === 'clash' && e.defNation !== owner) return;
       var wings = e.aClones.filter(function (c) { return c.type === 'drone' && c.nation !== owner && c.strength > 0; });
       if (!wings.length) return;
-      var hit = interceptPlan(state, e.aClones, e.target);
+      if (prov.launchReserve == null) {
+        launchLog.push({ owner: owner, prov: prov, launched: 0, missed: wings.length, downed: 0, newToday: true });
+        return;
+      }
+      var hit = interceptPlan(state, e.aClones, e.target, prov.launchReserve * CFG.interceptorSteel);
+      prov.launchReserve -= hit.length;
       hit.forEach(function (c) {
-        state.nations[owner].steel -= CFG.interceptorSteel;
         state.ledger[owner].launchSteel += CFG.interceptorSteel;
         state.ledger[owner].launches += 1;
         c.strength = Math.max(0, c.strength - CFG.interceptStrength);
@@ -996,7 +1032,20 @@
         u.strength = c.strength;
       });
     });
+    // Refund launch steel set aside but not used, and clear the day's reserve.
+    Object.keys(state.provinces).forEach(function (pid) {
+      var p = state.provinces[pid];
+      if (p.launchReserve == null) return;
+      state.nations[snapOwner[pid]].steel += p.launchReserve * CFG.interceptorSteel;
+      p.launchReserve = null;
+    });
+    state.launchReserved = {};
     launchLog.forEach(function (l) {
+      if (l.newToday) {
+        logEvent(state, state.nations[l.owner].short + ' air defense at ' + l.prov.name + ' was finished today and fires from tomorrow. ' +
+          l.missed + (l.missed === 1 ? ' drone wing gets' : ' drone wings get') + ' through untouched.');
+        return;
+      }
       if (!l.launched) {
         logEvent(state, state.nations[l.owner].short + ' air defense at ' + l.prov.name + ' cannot launch: ' +
           'an interceptor costs ' + CFG.interceptorSteel + ' steel. ' + l.missed + (l.missed === 1 ? ' drone wing gets' : ' drone wings get') + ' through untouched.');
@@ -1519,6 +1568,7 @@
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
+    reserveLaunches(state, 'player'); // launch steel against your attacks, from the steel your preview read
     aiResearch(state);   // before the economy, like a player's click before the tick
     aiFactories(state);  // factory growth, the same moment
     aiRail(state);       // rail building, the same moment
@@ -1526,6 +1576,7 @@
     aiAirDefense(state); // air defense, after walls
     aiProduction(state); // the same start of day moment for production orders
     aiTakeTurn(state);   // movement orders too: on yesterday's supply, like the player's preview
+    reserveLaunches(state, 'enemy');  // launch steel against its attacks, from the steel its estimate read
     incomePhase(state, 'player');
     incomePhase(state, 'enemy');
     productionPhase(state, 'player');  // lines are paid before factories
@@ -1568,6 +1619,7 @@
     buildFactory: buildFactory,
     buildFortification: buildFortification,
     buildAirDefense: buildAirDefense,
+    reserveLaunches: reserveLaunches,
     interceptPlan: interceptPlan,
     trainUnit: trainUnit,
     productionLine: productionLine,
