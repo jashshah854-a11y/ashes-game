@@ -170,6 +170,7 @@
   // Production panel: one row per line, every number the sim uses shown
   // in plain words (what it builds, how long is left, what it drains).
   function renderProduction() {
+    Sim.syncProductionLines(state, 'player');
     var n = state.nations.player;
     var cap = state.provinces[n.capitalId];
     var capName = cap ? cap.name : 'your capital';
@@ -235,6 +236,24 @@
       row.appendChild(btns);
       el.productionLines.appendChild(row);
     });
+
+    // Locked slots: shown, never silently absent, with the exact unlock condition.
+    var realCount = (n.productionLines || []).length;
+    for (var lineId = realCount + 1; lineId <= Sim.CFG.maxProductionLines; lineId++) {
+      var info = Sim.lineLockInfo(state, 'player', lineId);
+      if (!info) continue;
+      var lockedRow = document.createElement('div');
+      lockedRow.className = 'prod-line locked';
+      lockedRow.appendChild(textDiv('prod-title', 'Line ' + lineId + ': Locked'));
+      lockedRow.appendChild(textDiv('prod-row prod-locked',
+        'Line ' + lineId + ' locked. Build ' + info.missing +
+        (info.missing === 1 ? ' more factory level' : ' more factory levels') +
+        ' anywhere to unlock it (needs ' + info.required + ' total factory levels, you have ' +
+        info.current + ').'));
+      lockedRow.appendChild(textDiv('prod-note',
+        'This line appears here on its own the day your factories reach the total. Nothing to click yet.'));
+      el.productionLines.appendChild(lockedRow);
+    }
   }
 
   function renderProvinceCard() {

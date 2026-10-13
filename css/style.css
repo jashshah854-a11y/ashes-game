@@ -125,3 +125,7 @@ main {
 }
 .prod-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .prod-btns button { flex: 1 1 auto; font-size: 13px; padding: 5px 8px; }
+
+/* Cycle 6: locked production slots, present but unavailable. */
+.prod-line.locked { border: 1px dashed #4a4232; opacity: 0.75; }
+.prod-line .prod-locked { color: #b9b09a; }
