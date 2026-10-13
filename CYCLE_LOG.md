@@ -581,3 +581,7 @@ Claimed by the Claude Code builder session after re-reading the log end (step 3 
 - `tools/lore-check.js`, new (flag 8): a committed real browser check of the lore UI on seed 7, where a player who never acts meets all three turning points, two of them on day 21. Run A: the day 11 card, the codex opened from it and closed (the war must run again), the day 21 pair dismissed in turn (the war must run again), the codex listing five entries and three turning points. Run B: the codex opened from the first day 21 card and closed (the queued second card must appear), then Continue (the war must run again). Every card is checked against js/lore.js, for the why line and the no effect sentence, and for a frozen day counter. Plus a phone width check at 390 px. Exit code 1 on any failure.
 - Before and after: against the previous js/main.js the check fails at "the war runs again after card then codex" and then times out (the war stayed paused); against the fixed file every lore check passes, 27 of 28, the one failure being the phone width (flag 3, next slice). No page errors.
 - Suite: 49 pass, 0 fail. `node tools/balance.js` byte identical to tools/baseline-cycle6.txt.
+
+### Judge flag slice B: the header fits a phone again
+- `css/style.css`: the header controls wrap (flex-wrap), so the Codex button no longer pushes New Game off screen. At a 390 px viewport the page is 390 px wide again, as in Cycle 6 (it was 423).
+- `node tools/lore-check.js`: 28 of 28 pass. `node tools/browser-check.js`: 6 of 6. Suite 49 pass, 0 fail. Balance byte identical to the baseline.

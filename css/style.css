@@ -18,7 +18,7 @@ header {
 }
 h1 { margin: 0; font-size: 24px; letter-spacing: 1px; color: #e8c87a; }
 .subtitle { margin: 2px 0 0; font-size: 13px; color: #b9b09a; }
-.controls { display: flex; gap: 8px; align-items: center; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .day-box {
   background: #101214; border: 1px solid #4a4232; border-radius: 4px;
   padding: 6px 12px; font-size: 15px;
