@@ -205,7 +205,9 @@
         row.appendChild(textDiv('prod-stalled', 'Stalled: not enough steel today. No progress made.'));
       }
       if (line.progressDays > 0) {
-        row.appendChild(textDiv('prod-note', 'Retooling scraps the unit in progress.'));
+        var steelSpent = line.progressDays * Sim.lineSteelPerDay(line.template);
+        row.appendChild(textDiv('prod-note',
+          'Retooling scraps the unit in progress and loses the ' + steelSpent + ' steel already spent on it.'));
       }
 
       var btns = document.createElement('div');
