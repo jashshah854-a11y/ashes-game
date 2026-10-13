@@ -948,3 +948,10 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (c): a test pins how the reserve is shared across provinces
 - New test (suite 80 pass, 0 fail): with Dominion steel for one launch and two of its air defense provinces attacked, p5_3 (the lower id) gets the launch and logs it, and p5_4 logs that it cannot launch. With the reserve's province order reversed in a scratch copy, this test fails (the mutation the Cycle 11 judge found surviving). Test only; balance unchanged.
+
+### Step 0 (d): research timing and the real jammed numbers on screen
+- `js/sim.js`: jamming's rounding is one function, jammedValue, used by unitStats and exported with droneStatLine (base drone stats per generation), so the screen rounds the way combat does. No rule changed.
+- `js/main.js`: the Dominion's next research row now says its points, that it gains 3 a day, and the day it arrives ("day 21, in 20 days"); each of your locked by points projects says in how many days it becomes affordable; each jamming item states the rounded result (a Gen 2 wing: attack 5 to 3, defense 3 to 2) and whether it would reach the Dominion's current wings; jammed drone rows show the real numbers (Gen 1: attack 3 to 2, defense 2 to 1) instead of "-40%"; the research note says the Dominion gains points at your rate.
+- Arrival day checked against the sim: over two 150 day campaigns (seeds 7 and 42, the player's capital propped up so the war runs long), all 111 daily predictions of the Dominion's next research day matched the day it bought it (Drone Gen 2 day 21, Jamming Gen 1 day 38, Drone Gen 3 day 78, Jamming Gen 2 day 111).
+- `tools/research-check.js`: 19 checks (one new: the jamming reach sentence), expectations updated to the new text, all pass.
+- Suite 80 pass, 0 fail. Balance byte identical to tools/baseline-cycle11-step3.txt. browser-check 6, lore-check 29, fort-check 13, ad-check 23, research-check 19.

@@ -473,6 +473,16 @@
 
   function otherNation(id) { return id === 'player' ? 'enemy' : 'player'; }
 
+  // A stat under jamming, rounded the way combat rounds it.
+  function jammedValue(v) { return Math.max(1, Math.round(v * (1 - CFG.jammingPct / 100))); }
+
+  // Base drone wing stats for a generation.
+  function droneStatLine(gen) {
+    if (gen === 3) return { attack: CFG.droneGen3.attack, defense: CFG.droneGen3.defense };
+    if (gen === 2) return { attack: CFG.droneGen2.attack, defense: CFG.droneGen2.defense };
+    return { attack: CFG.unitTypes.drone.attack, defense: CFG.unitTypes.drone.defense };
+  }
+
   // A nation's drone generation: 1, 2 with Drone Gen 2, 3 with Drone Gen 3.
   function droneGeneration(state, nationId) {
     var n = state.nations[nationId];
@@ -507,10 +517,7 @@
     // Jamming: a named modifier on a drone wing whose generation the other
     // side's jamming reaches. Applied after supply, before walls.
     var jam = gen > 0 && state.nations[otherNation(unit.nation)].jamming >= gen ? CFG.jammingPct : 0;
-    if (jam > 0) {
-      atk = Math.max(1, Math.round(atk * (1 - jam / 100)));
-      def = Math.max(1, Math.round(def * (1 - jam / 100)));
-    }
+    if (jam > 0) { atk = jammedValue(atk); def = jammedValue(def); }
     // Fortification: a named modifier on defense only, for a unit standing
     // in a fortified province its own nation holds. Applied after supply.
     var fortBonus = fortBonusFor(state, unit);
@@ -1689,6 +1696,8 @@
     research: research,
     hasResearched: hasResearched,
     droneGeneration: droneGeneration,
+    jammedValue: jammedValue,
+    droneStatLine: droneStatLine,
     unitStats: unitStats,
     stackPower: stackPower,
     unitsIn: unitsIn,

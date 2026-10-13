@@ -185,7 +185,11 @@
     el.statEnemyJam.textContent = jammingText('enemy');
     var aiNext = Sim.CFG.aiResearchOrder.filter(function (id) { return !Sim.hasResearched(state, 'enemy', id); })[0];
     el.statEnemyResearch.textContent = aiNext
-      ? Sim.CFG.research[aiNext].label + ' at ' + Sim.CFG.research[aiNext].cost + ' points (it has ' + e.researchPoints + ')'
+      ? Sim.CFG.research[aiNext].label + ' at ' + Sim.CFG.research[aiNext].cost + ' points (it has ' + e.researchPoints + ', gaining ' +
+        Sim.CFG.researchPerDay + ' a day): ' + (function () {
+          var k = daysToAfford(e.researchPoints, Sim.CFG.research[aiNext].cost);
+          return k === 0 ? 'it buys it at the start of day ' + state.day : 'day ' + (state.day + k) + ', in ' + k + (k === 1 ? ' day' : ' days');
+        })()
       : 'all researched';
     el.aiResearchOrder.textContent = Sim.CFG.aiResearchOrder.map(function (id) { return Sim.CFG.research[id].label; }).join(', then ');
     // The Dominion opens lines by the same factory thresholds you do, so its
@@ -341,8 +345,13 @@
       ' (Gen 1 is attack ' + C.unitTypes.drone.attack + ', defense ' + C.unitTypes.drone.defense + ').';
     if (id === 'droneGen3') return 'Every drone wing fights at attack ' + C.droneGen3.attack + ', defense ' + C.droneGen3.defense +
       ', and no jamming reaches Gen 3.';
-    if (id === 'jamming1') return 'Enemy Gen 1 drone wings fight at -' + C.jammingPct + '% attack and defense.';
-    if (id === 'jamming2') return 'Enemy Gen 1 and Gen 2 drone wings fight at -' + C.jammingPct + '% attack and defense.';
+    if (id === 'jamming1' || id === 'jamming2') {
+      var reach = id === 'jamming1' ? 1 : 2;
+      var theirs = Sim.droneGeneration(state, 'enemy');
+      return 'Enemy drone wings of Gen ' + (reach === 1 ? '1' : '1 and 2') + ' fight at -' + C.jammingPct + '% attack and defense, rounded (' +
+        'a Gen ' + reach + ' wing: ' + jammedChange(reach) + '). ' +
+        (theirs <= reach ? 'Their wings are Gen ' + theirs + ' now: this would jam them.' : 'Their wings are Gen ' + theirs + ' now: this would not reach them.');
+    }
     return '';
   }
   // Is this side's drone generation reached by the other side's jamming?
@@ -350,10 +359,19 @@
     var gen = Sim.droneGeneration(state, id);
     return (state.nations[otherSide(id)].jamming || 0) >= gen;
   }
+  // The real jammed numbers, rounded the way combat rounds them.
+  function jammedChange(gen) {
+    var b = Sim.droneStatLine(gen);
+    return 'attack ' + b.attack + ' to ' + Sim.jammedValue(b.attack) + ', defense ' + b.defense + ' to ' + Sim.jammedValue(b.defense);
+  }
   function droneGenText(id) {
     var gen = Sim.droneGeneration(state, id);
-    return 'Gen ' + gen + (jammedBy(id) ? ' (jammed: -' + Sim.CFG.jammingPct + '% attack and defense)' : '');
+    return 'Gen ' + gen + (jammedBy(id) ? ' (jammed: ' + jammedChange(gen) + ')' : '');
   }
+  // Days until a side holding pts points, gaining researchPerDay a day, can
+  // pay cost. Points arrive in each day's economy, after the day's
+  // decisions, so a project is bought at the start of the day after.
+  function daysToAfford(pts, cost) { return pts >= cost ? 0 : Math.ceil((cost - pts) / Sim.CFG.researchPerDay); }
   function jammingText(id) {
     var lvl = state.nations[id].jamming || 0;
     if (!lvl) return 'none';
@@ -370,13 +388,17 @@
       var label = 'Research (' + p.cost + ' pts)', disabled = false;
       if (done) { label = 'Fielded'; disabled = true; }
       else if (p.requires && !Sim.hasResearched(state, 'player', p.requires)) { label = 'Needs ' + Sim.CFG.research[p.requires].label + ' first'; disabled = true; }
-      else if (n.researchPoints < p.cost) { label = 'Research (' + p.cost + ' pts): need ' + p.cost + ', you have ' + n.researchPoints; disabled = true; }
+      else if (n.researchPoints < p.cost) {
+        var wait = daysToAfford(n.researchPoints, p.cost);
+        label = 'Research (' + p.cost + ' pts): need ' + p.cost + ', you have ' + n.researchPoints + ' (affordable in ' + wait + (wait === 1 ? ' day' : ' days') + ')';
+        disabled = true;
+      }
       html += '<div class="research-item' + (done ? ' done' : '') + '"><div class="research-title">' + p.label + ' <span class="research-cost">' +
         p.cost + ' pts</span></div><div class="research-effect">' + projectEffect(id) + '</div>' +
         '<button type="button" data-project="' + id + '" id="research-' + id + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button></div>';
     });
     el.researchList.innerHTML = html;
-    el.researchExplain.textContent = 'You gain ' + Sim.CFG.researchPerDay + ' research points a day (you have ' + n.researchPoints + '). ' +
+    el.researchExplain.textContent = 'You gain ' + Sim.CFG.researchPerDay + ' research points a day, as the Dominion does (you have ' + n.researchPoints + '). ' +
       'Each project is bought once, one at a time, from the points you have. Jamming of a generation works against enemy drone wings of that ' +
       'generation or lower; the Dominion researches in its stated order, shown on its card.';
   }

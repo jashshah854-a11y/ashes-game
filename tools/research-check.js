@@ -5,8 +5,11 @@
 // rule: Sim.tick and Sim.createGame record the state on window, so the
 // check can compare what the page shows with the sim.
 // Run 1, the unmodified game: every project is listed with its cost and
-// its effect in CFG numbers, and each button says why it is disabled; the
-// Dominion's research order and its next project are on its card.
+// its effect in CFG numbers (jamming with the rounded numbers and whether
+// it reaches the Dominion's current wings), and each button says why it is
+// disabled and in how many days it becomes affordable; the Dominion's
+// research order, its next project, and that project's arrival day are on
+// its card.
 // Run 2, checker edit stated plainly: the player starts with 1000 research
 // points. Projects are bought through the real buttons; points, rows, the
 // jamming row, and the unit card follow.
@@ -64,17 +67,24 @@ const text = (page, sel) => page.textContent(sel);
     check('costs and effects come from CFG',
       rows.some((r) => r.indexOf(CFG.research.droneGen3.label + ' ' + CFG.research.droneGen3.cost + ' pts') === 0 &&
         r.indexOf('attack ' + CFG.droneGen3.attack + ', defense ' + CFG.droneGen3.defense) !== -1) &&
-      rows.some((r) => r.indexOf('Enemy Gen 1 and Gen 2 drone wings fight at -' + CFG.jammingPct + '% attack and defense.') !== -1), rows[1]);
+      rows.some((r) => r.indexOf('Enemy drone wings of Gen 1 and 2 fight at -' + CFG.jammingPct + '% attack and defense, rounded (a Gen 2 wing: attack ' +
+        CFG.droneGen2.attack + ' to ' + Sim.jammedValue(CFG.droneGen2.attack) + ', defense ' + CFG.droneGen2.defense + ' to ' + Sim.jammedValue(CFG.droneGen2.defense) + ').') !== -1), rows[3]);
+    check('each jamming item says whether it reaches their current wings',
+      rows.filter((r) => r.indexOf('Their wings are Gen 1 now: this would jam them.') !== -1).length === 2, rows[2]);
     const pts = await page.evaluate(() => window.__state.nations.player.researchPoints);
     check('the affordable project says how many points you lack',
-      (await text(page, '#research-droneGen2')) === 'Research (' + CFG.research.droneGen2.cost + ' pts): need ' + CFG.research.droneGen2.cost + ', you have ' + pts &&
+      (await text(page, '#research-droneGen2')) === 'Research (' + CFG.research.droneGen2.cost + ' pts): need ' + CFG.research.droneGen2.cost + ', you have ' + pts +
+        ' (affordable in ' + Math.ceil((CFG.research.droneGen2.cost - pts) / CFG.researchPerDay) + ' days)' &&
       (await page.isDisabled('#research-droneGen2')), await text(page, '#research-droneGen2'));
     check('a locked project names its prerequisite',
       (await text(page, '#research-droneGen3')) === 'Needs Drone Gen 2 first' && (await text(page, '#research-jamming2')) === 'Needs Jamming Gen 1 first');
     check('the Dominion research order is in its doctrine text',
       (await text(page, '#ai-research-order')) === CFG.aiResearchOrder.map((id) => CFG.research[id].label).join(', then '), await text(page, '#ai-research-order'));
     const first = CFG.research[CFG.aiResearchOrder[0]];
-    check('the Dominion next research row', (await text(page, '#stat-enemy-research')) === first.label + ' at ' + first.cost + ' points (it has 0)', await text(page, '#stat-enemy-research'));
+    const k = Math.ceil(first.cost / CFG.researchPerDay);
+    check('the Dominion next research row names its arrival day',
+      (await text(page, '#stat-enemy-research')) === first.label + ' at ' + first.cost + ' points (it has 0, gaining ' + CFG.researchPerDay + ' a day): day ' + (1 + k) + ', in ' + k + ' days',
+      await text(page, '#stat-enemy-research'));
     check('no jamming at the start', (await text(page, '#stat-jamming')) === 'none' && (await text(page, '#stat-enemy-jam')) === 'none');
     await page.close();
 
@@ -92,7 +102,7 @@ const text = (page, sel) => page.textContent(sel);
     check('the jamming row names your level and whether it reaches their wings',
       (await text(page, '#stat-jamming')) === 'Gen 2, jamming their Gen 1 wings', await text(page, '#stat-jamming'));
     check('the Dominion drone row says its wings are jammed',
-      (await text(page, '#stat-enemy-gen')) === 'Gen 1 (jammed: -' + CFG.jammingPct + '% attack and defense)', await text(page, '#stat-enemy-gen'));
+      (await text(page, '#stat-enemy-gen')) === 'Gen 1 (jammed: attack ' + CFG.unitTypes.drone.attack + ' to ' + Sim.jammedValue(CFG.unitTypes.drone.attack) + ', defense ' + CFG.unitTypes.drone.defense + ' to ' + Sim.jammedValue(CFG.unitTypes.drone.defense) + ')', await text(page, '#stat-enemy-gen'));
     await page.click('[data-prov="p4_3"]');
     await page.click('[data-prov="p4_3"]'); // the second click picks the drone wing
     check('the unit card shows Gen 2 stats', /^Drone Wing .*Attack 5, Defense 3 \(Drone Gen 2\)/.test(await text(page, '#unit-details')), (await text(page, '#unit-details')).slice(0, 80));
@@ -103,7 +113,7 @@ const text = (page, sel) => page.textContent(sel);
     await serveSim(page, 's.nations.enemy.jamming=2;');
     await page.goto(URL);
     await page.click('#btn-pause');
-    check('your drone row says jammed', (await text(page, '#stat-drone-gen')) === 'Gen 1 (jammed: -' + CFG.jammingPct + '% attack and defense)', await text(page, '#stat-drone-gen'));
+    check('your drone row says jammed', (await text(page, '#stat-drone-gen')) === 'Gen 1 (jammed: attack ' + CFG.unitTypes.drone.attack + ' to ' + Sim.jammedValue(CFG.unitTypes.drone.attack) + ', defense ' + CFG.unitTypes.drone.defense + ' to ' + Sim.jammedValue(CFG.unitTypes.drone.defense) + ')', await text(page, '#stat-drone-gen'));
     check('the Dominion jamming row', (await text(page, '#stat-enemy-jam')) === 'Gen 2, jamming your Gen 1 wings', await text(page, '#stat-enemy-jam'));
     await page.click('[data-prov="p4_3"]');
     await page.click('[data-prov="p4_3"]');
