@@ -45,9 +45,19 @@ function feedLines(Sim, s) {
   });
 }
 
+// Research: since Cycle 11 every script buys the next project in the same
+// order the Dominion follows (CFG.aiResearchOrder), as soon as it has the
+// points, so both sides research on one clock. Drone Gen 2 comes first, on
+// the same day as before. Older sims without the research table buy Drone
+// Gen 2 only.
 function researchWhenReady(Sim, s) {
   const n = s.nations.player;
-  if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+  if (!Sim.research) {
+    if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+    return;
+  }
+  const next = Sim.CFG.aiResearchOrder.filter(id => !Sim.hasResearched(s, 'player', id))[0];
+  if (next && n.researchPoints >= Sim.CFG.research[next].cost) Sim.research(s, 'player', next);
 }
 
 // Lay one rail edge per day from supplied ground into unsupplied owned
@@ -230,7 +240,7 @@ function neighborToward(Sim, s, unit, targetId) {
 // penalty. Otherwise the same mass and push plan as the sensible profile.
 function rationed(Sim, s, mem) {
   const n = s.nations.player;
-  if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+  researchWhenReady(Sim, s);
   if (Sim.factoryLevels(s, 'player') < 16) {
     const income = Sim.steelIncome(s, 'player');
     const upkeepAfter = (Sim.factoryLevels(s, 'player') + 1) * Sim.CFG.steelPerFactoryLevel;
@@ -286,7 +296,7 @@ function rationed(Sim, s, mem) {
 // each day only the first living unit steps toward the enemy capital.
 function recklessDirect(Sim, s) {
   const n = s.nations.player;
-  if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+  researchWhenReady(Sim, s);
   Sim.syncProductionLines(s, 'player');
   n.productionLines.forEach(line => { if (line.queue === 0) Sim.queueProduction(s, 'player', line.id); });
   const capUnits = Sim.unitsIn(s, n.capitalId).filter(u => u.nation === 'player');

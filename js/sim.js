@@ -35,7 +35,6 @@
     steelPerFactoryLevel: 2,      // steel consumed per factory level per day
     equipPerFactoryLevel: 5,      // equipment produced per factory level per day
     researchPerDay: 3,
-    droneGen2Cost: 60,            // research points
     factoryCostPerLevel: 40,      // equipment, multiplied by target level
     maxFactoryLevel: 3,
     infantryCost: 30,
@@ -71,8 +70,22 @@
       infantry: { label: 'Infantry Division', attack: 4, defense: 4, strength: 12, cost: 30, steelCost: 30, buildDays: 6 },
       drone:    { label: 'Drone Wing',        attack: 3, defense: 2, strength: 6,  cost: 15, steelCost: 15, buildDays: 3 }
     },
-    droneGen2: { attack: 5, defense: 3 }  // drone stats once Drone Gen 2 is researched
+    droneGen2: { attack: 5, defense: 3 }, // drone stats once Drone Gen 2 is researched
+    droneGen3: { attack: 7, defense: 4 }, // drone stats once Drone Gen 3 is researched
+    // Research projects, bought one at a time from the research point pool.
+    // Jamming Gen N works against enemy drone wings of generation N or lower.
+    research: {
+      droneGen2: { label: 'Drone Gen 2', cost: 60, requires: null },
+      droneGen3: { label: 'Drone Gen 3', cost: 120, requires: 'droneGen2' },
+      jamming1: { label: 'Jamming Gen 1', cost: 50, requires: null },
+      jamming2: { label: 'Jamming Gen 2', cost: 100, requires: 'jamming1' }
+    },
+    jammingPct: 40,               // percent attack and defense a jammed drone wing loses
+    // The Dominion buys the first project in this list it has not finished,
+    // as soon as it has the points; it never skips ahead.
+    aiResearchOrder: ['droneGen2', 'jamming1', 'droneGen3', 'jamming2']
   };
+  CFG.droneGen2Cost = CFG.research.droneGen2.cost; // kept for older callers
 
   // ---------- Seeded RNG (mulberry32) ----------
   function makeRng(seed) {
@@ -352,13 +365,13 @@
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
           equipment: 60, steel: 20, researchPoints: 0,
-          droneGen2: false, capitalId: provinceId(0, 3),
+          droneGen2: false, droneGen3: false, jamming: 0, capitalId: provinceId(0, 3),
           productionLines: makeProductionLines()
         },
         enemy: {
           id: 'enemy', name: 'The Khessite Dominion', short: 'Khessite',
           equipment: 60, steel: 20, researchPoints: 0,
-          droneGen2: false, capitalId: provinceId(CFG.mapW - 1, 3),
+          droneGen2: false, droneGen3: false, jamming: 0, capitalId: provinceId(CFG.mapW - 1, 3),
           productionLines: makeProductionLines()
         }
       }
@@ -458,6 +471,23 @@
     if (state.log.length > 60) state.log.shift();
   }
 
+  function otherNation(id) { return id === 'player' ? 'enemy' : 'player'; }
+
+  // A nation's drone generation: 1, 2 with Drone Gen 2, 3 with Drone Gen 3.
+  function droneGeneration(state, nationId) {
+    var n = state.nations[nationId];
+    return n.droneGen3 ? 3 : (n.droneGen2 ? 2 : 1);
+  }
+
+  function hasResearched(state, nationId, id) {
+    var n = state.nations[nationId];
+    if (id === 'droneGen2') return !!n.droneGen2;
+    if (id === 'droneGen3') return !!n.droneGen3;
+    if (id === 'jamming1') return (n.jamming || 0) >= 1;
+    if (id === 'jamming2') return (n.jamming || 0) >= 2;
+    return false;
+  }
+
   // Unit combat stats, research aware and supply aware. The supply
   // penalty is a named modifier: it lives on the unit, accrues and
   // recovers in the supply phase, and is applied here so every consumer
@@ -465,20 +495,27 @@
   function unitStats(state, unit) {
     var base = CFG.unitTypes[unit.type];
     var atk = base.attack, def = base.defense;
-    if (unit.type === 'drone' && state.nations[unit.nation].droneGen2) {
-      atk = CFG.droneGen2.attack; def = CFG.droneGen2.defense;
-    }
+    var gen = unit.type === 'drone' ? droneGeneration(state, unit.nation) : 0;
+    if (gen === 3) { atk = CFG.droneGen3.attack; def = CFG.droneGen3.defense; }
+    else if (gen === 2) { atk = CFG.droneGen2.attack; def = CFG.droneGen2.defense; }
     var penalty = unit.supplyPenalty || 0;
     if (penalty > 0) {
       var mult = 1 - penalty / 100;
       atk = Math.max(1, Math.round(atk * mult));
       def = Math.max(1, Math.round(def * mult));
     }
+    // Jamming: a named modifier on a drone wing whose generation the other
+    // side's jamming reaches. Applied after supply, before walls.
+    var jam = gen > 0 && state.nations[otherNation(unit.nation)].jamming >= gen ? CFG.jammingPct : 0;
+    if (jam > 0) {
+      atk = Math.max(1, Math.round(atk * (1 - jam / 100)));
+      def = Math.max(1, Math.round(def * (1 - jam / 100)));
+    }
     // Fortification: a named modifier on defense only, for a unit standing
     // in a fortified province its own nation holds. Applied after supply.
     var fortBonus = fortBonusFor(state, unit);
     var walled = fortBonus > 0 ? Math.round(def * (1 + fortBonus / 100)) : def;
-    var stats = { attack: atk, defense: walled, supplyPenalty: penalty, fortBonus: fortBonus };
+    var stats = { attack: atk, defense: walled, supplyPenalty: penalty, fortBonus: fortBonus, jamming: jam };
     // Kept off the enumerable fields so the stats object stays the one the
     // panels show; stackPower reads it to apply walls once per stack.
     Object.defineProperty(stats, 'defenseBeforeWalls', { value: def, enumerable: false });
@@ -1328,17 +1365,32 @@
     return { ok: false, reason: 'no production line is assigned to that template' };
   }
 
-  function researchDroneGen2(state, nationId) {
+  // Buy one research project from the point pool: the one command for both sides.
+  var RESEARCH_DONE_TEXT = {
+    droneGen2: function () { return 'Drone wings hit harder now.'; },
+    droneGen3: function () { return 'Drone wings now fight at attack ' + CFG.droneGen3.attack + ', defense ' + CFG.droneGen3.defense + ', beyond Jamming Gen 2.'; },
+    jamming1: function () { return 'Enemy Gen 1 drone wings now fight at -' + CFG.jammingPct + '% attack and defense.'; },
+    jamming2: function () { return 'Enemy Gen 1 and Gen 2 drone wings now fight at -' + CFG.jammingPct + '% attack and defense.'; }
+  };
+  function research(state, nationId, id) {
     var n = state.nations[nationId];
-    if (n.droneGen2) return { ok: false, reason: 'already researched' };
-    if (n.researchPoints < CFG.droneGen2Cost) {
-      return { ok: false, reason: 'not enough research points', cost: CFG.droneGen2Cost };
+    var proj = CFG.research[id];
+    if (!proj) return { ok: false, reason: 'no such research project' };
+    if (hasResearched(state, nationId, id)) return { ok: false, reason: 'already researched' };
+    if (proj.requires && !hasResearched(state, nationId, proj.requires)) {
+      return { ok: false, reason: 'needs ' + CFG.research[proj.requires].label + ' first', requires: proj.requires };
     }
-    n.researchPoints -= CFG.droneGen2Cost;
-    n.droneGen2 = true;
-    logEvent(state, state.nations[nationId].short + ' field Drone Gen 2. Drone wings hit harder now.');
-    return { ok: true };
+    if (n.researchPoints < proj.cost) return { ok: false, reason: 'not enough research points', cost: proj.cost };
+    n.researchPoints -= proj.cost;
+    if (id === 'droneGen2') n.droneGen2 = true;
+    else if (id === 'droneGen3') n.droneGen3 = true;
+    else if (id === 'jamming1') n.jamming = Math.max(n.jamming || 0, 1);
+    else if (id === 'jamming2') n.jamming = Math.max(n.jamming || 0, 2);
+    logEvent(state, n.short + ' field ' + proj.label + '. ' + RESEARCH_DONE_TEXT[id]());
+    return { ok: true, cost: proj.cost };
   }
+
+  function researchDroneGen2(state, nationId) { return research(state, nationId, 'droneGen2'); }
 
   // ---------- Enemy AI (minimal, scripted, deliberately weak) ----------
   function aiTakeTurn(state) {
@@ -1457,8 +1509,8 @@
   // with identical points could click (found in the Cycle 6 step 4
   // balance run: seed 31337 was lost to that one day head start).
   function aiResearch(state) {
-    var n = state.nations.enemy;
-    if (!n.droneGen2 && n.researchPoints >= CFG.droneGen2Cost) researchDroneGen2(state, 'enemy');
+    var next = CFG.aiResearchOrder.filter(function (id) { return !hasResearched(state, 'enemy', id); })[0];
+    if (next && state.nations.enemy.researchPoints >= CFG.research[next].cost) research(state, 'enemy', next);
   }
 
   // Keep the production lines fed, up to a modest field army. The AI
@@ -1634,6 +1686,9 @@
     isLineUnlocked: isLineUnlocked,
     lineLockInfo: lineLockInfo,
     researchDroneGen2: researchDroneGen2,
+    research: research,
+    hasResearched: hasResearched,
+    droneGeneration: droneGeneration,
     unitStats: unitStats,
     stackPower: stackPower,
     unitsIn: unitsIn,

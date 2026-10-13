@@ -121,15 +121,15 @@ test('research: Drone Gen 2 changes drone attack and defense stats', () => {
   const s = Sim.createGame(41);
   const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
   const before = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(before, { attack: 3, defense: 2, supplyPenalty: 0, fortBonus: 0 });
+  assert.deepStrictEqual(before, { attack: 3, defense: 2, supplyPenalty: 0, fortBonus: 0, jamming: 0 });
   s.nations.player.researchPoints = Sim.CFG.droneGen2Cost;
   const res = Sim.researchDroneGen2(s, 'player');
   assert.strictEqual(res.ok, true);
   const after = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(after, { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, supplyPenalty: 0, fortBonus: 0 });
+  assert.deepStrictEqual(after, { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, supplyPenalty: 0, fortBonus: 0, jamming: 0 });
   // Infantry is untouched by drone research.
   const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
-  assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0, fortBonus: 0 });
+  assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0, fortBonus: 0, jamming: 0 });
 });
 
 test('win: capturing the enemy capital ends the game for the player', () => {
@@ -1666,4 +1666,100 @@ test('launch reserve: each side reserves on its own decision clock, the same way
     s.log.slice(-6).map(e => e.msg).join(' / '));
   assert.strictEqual(s.ledger.player.launches, 1, 'the one launch its dawn steel paid for');
   assert.ok(s.nations.player.steel >= 0);
+});
+
+// ---------- Cycle 11: research projects and jamming ----------
+test('research: one command for every project, with prerequisites, costs, and refusals', () => {
+  const s = Sim.createGame(7);
+  const n = s.nations.player;
+  assert.strictEqual(Sim.research(s, 'player', 'nope').reason, 'no such research project');
+  n.researchPoints = 1000;
+  const early = Sim.research(s, 'player', 'droneGen3');
+  assert.strictEqual(early.reason, 'needs Drone Gen 2 first');
+  assert.strictEqual(n.researchPoints, 1000, 'a refusal costs nothing');
+  assert.strictEqual(Sim.research(s, 'player', 'jamming2').reason, 'needs Jamming Gen 1 first');
+  n.researchPoints = Sim.CFG.research.jamming1.cost - 1;
+  assert.deepStrictEqual(Sim.research(s, 'player', 'jamming1'), { ok: false, reason: 'not enough research points', cost: Sim.CFG.research.jamming1.cost });
+  n.researchPoints = 1000;
+  ['droneGen2', 'droneGen3', 'jamming1', 'jamming2'].forEach(id => {
+    const before = n.researchPoints;
+    assert.strictEqual(Sim.research(s, 'player', id).ok, true, id);
+    assert.strictEqual(before - n.researchPoints, Sim.CFG.research[id].cost, id + ' costs its stated points');
+    assert.strictEqual(Sim.hasResearched(s, 'player', id), true);
+    assert.strictEqual(Sim.research(s, 'player', id).reason, 'already researched');
+  });
+  assert.strictEqual(Sim.droneGeneration(s, 'player'), 3);
+  assert.strictEqual(n.jamming, 2);
+  const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
+  assert.strictEqual(Sim.unitStats(s, drone).attack, Sim.CFG.droneGen3.attack);
+  assert.ok(s.log.some(e => e.msg === 'Vessari field Jamming Gen 2. Enemy Gen 1 and Gen 2 drone wings now fight at -40% attack and defense.'));
+});
+
+test('jamming: a named modifier in unitStats against drone generations it reaches, and only those', () => {
+  const s = Sim.createGame(7);
+  const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  const pct = Sim.CFG.jammingPct;
+  const jammed = (a, d) => ({ attack: Math.max(1, Math.round(a * (1 - pct / 100))), defense: Math.max(1, Math.round(d * (1 - pct / 100))) });
+  const at = () => { const st = Sim.unitStats(s, drone); return { attack: st.attack, defense: st.defense, jamming: st.jamming }; };
+  s.nations.enemy.jamming = 1; // Gen 1 wing against Jamming Gen 1
+  assert.deepStrictEqual(at(), Object.assign(jammed(3, 2), { jamming: pct }));
+  s.nations.player.droneGen2 = true; // Gen 2 outranges Jamming Gen 1
+  assert.deepStrictEqual(at(), { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, jamming: 0 });
+  s.nations.enemy.jamming = 2;
+  assert.deepStrictEqual(at(), Object.assign(jammed(Sim.CFG.droneGen2.attack, Sim.CFG.droneGen2.defense), { jamming: pct }));
+  s.nations.player.droneGen3 = true; // Gen 3 outranges Jamming Gen 2
+  assert.deepStrictEqual(at(), { attack: Sim.CFG.droneGen3.attack, defense: Sim.CFG.droneGen3.defense, jamming: 0 });
+  s.nations.player.droneGen3 = false;
+  assert.strictEqual(Sim.stackPower(s, [drone], 'attack'), jammed(Sim.CFG.droneGen2.attack, 1).attack, 'stackPower reads the jammed attack');
+  assert.strictEqual(Sim.unitStats(s, inf).jamming, 0, 'jamming never touches infantry');
+  // Your own jamming never touches your own wings.
+  s.nations.enemy.jamming = 0; s.nations.player.jamming = 2;
+  assert.strictEqual(Sim.unitStats(s, drone).jamming, 0);
+});
+
+test('jamming: the same attack with the defender jamming leaves more defenders standing', () => {
+  // Two wings against three infantry: the wings are destroyed either way, so
+  // the strength they took off the defenders measures their attack.
+  const play = (seed, jam) => {
+    const s = Sim.createGame(seed);
+    s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3'),
+      mkU(9, 'enemy', 'infantry', 'p5_3'), mkU(10, 'enemy', 'infantry', 'p5_3'), mkU(11, 'enemy', 'infantry', 'p5_3')];
+    s.nations.enemy.jamming = jam;
+    [1, 2].forEach(id => Sim.issueOrder(s, id, 'p5_3'));
+    Sim.movementPhase(s);
+    return s.units.filter(u => u.nation === 'enemy').reduce((a, u) => a + u.strength, 0);
+  };
+  [1, 5, 7, 42].forEach(seed => assert.ok(play(seed, 1) > play(seed, 0), 'seed ' + seed + ': ' + play(seed, 0) + ' left open, ' + play(seed, 1) + ' left jammed'));
+});
+
+test('AI research: the Dominion buys the first unfinished project in its stated order, never skipping ahead', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.researchPoints = 1000;
+  const bought = [];
+  for (let d = 0; d < 6; d++) {
+    Sim.tick(s);
+    Sim.CFG.aiResearchOrder.forEach(id => { if (Sim.hasResearched(s, 'enemy', id) && bought.indexOf(id) === -1) bought.push(id); });
+  }
+  assert.deepStrictEqual(bought, Sim.CFG.aiResearchOrder, 'one project per day, in order');
+  const t = Sim.createGame(42);
+  t.nations.enemy.droneGen2 = true;
+  t.nations.enemy.researchPoints = Sim.CFG.research.droneGen3.cost; // enough for Gen 3, but Jamming Gen 1 is next
+  Sim.tick(t);
+  assert.strictEqual(t.nations.enemy.jamming, 1);
+  assert.strictEqual(t.nations.enemy.droneGen3, false);
+  // Gen 3 is next and costs 120; with 100 points it waits, though Jamming Gen 2 (100) is affordable.
+  const w = Sim.createGame(42);
+  w.nations.enemy.droneGen2 = true; w.nations.enemy.jamming = 1;
+  w.nations.enemy.researchPoints = Sim.CFG.research.jamming2.cost;
+  Sim.tick(w);
+  assert.strictEqual(w.nations.enemy.jamming, 1, 'it saves for Drone Gen 3 instead of skipping ahead');
+  assert.strictEqual(w.nations.enemy.researchPoints, Sim.CFG.research.jamming2.cost + Sim.CFG.researchPerDay);
+  // Same points, same project, same day for both sides: the player's click before the tick, the AI at its start.
+  const u = Sim.createGame(42);
+  ['player', 'enemy'].forEach(id => { u.nations[id].droneGen2 = true; u.nations[id].researchPoints = Sim.CFG.research.jamming1.cost; });
+  Sim.research(u, 'player', 'jamming1');
+  Sim.tick(u);
+  assert.strictEqual(u.nations.player.jamming, u.nations.enemy.jamming);
+  assert.strictEqual(u.nations.player.researchPoints, u.nations.enemy.researchPoints);
 });
