@@ -10,14 +10,17 @@ specific; everything else keeps moving.
    feel right to you for a do-nothing commander, or do you want the
    skeleton gentler while you learn it?
 
-2. Next build. Production lines shipped (Cycle 5, judge PASS). The judge
-   now prescribes Cycle 6, "Close the loop, fix the clock": factories gate
-   production line count (locked slots shown with their unlock condition),
-   plus simultaneous battle resolution. Lore is reserved as Cycle 7, in
-   the judge's words not to be bumped again (written backstories, a codex
-   panel, 3 event cards; tone and content will come to you for approval).
-   The loop will follow the judge unless you say otherwise. Your call
-   only if you feel strongly.
+2. Next build. Cycle 6, "Close the loop, fix the clock", is complete
+   (judge verdict PASS WITH FIX-NOW FLAGS, all flags closed in the step 5
+   commit): factories gate production line count with locked slots shown
+   with their unlock condition, and battles resolve simultaneously from a
+   start of tick snapshot. Cycle 7 is the lore seed, reserved by the
+   Cycle 5 judge and confirmed by the Cycle 6 judge, not to be bumped
+   again: written backstories for both nations, a codex panel, and 3
+   event cards. Per the lore rule, the loop writes the lore itself and
+   flags it here prominently as loop written and open for your rewrite or
+   veto; the loop does not stall waiting for approval. Your call only if
+   you feel strongly about the direction before it starts.
 
 3. Rail conversion. It emerged from balance work and the judge voted
    keeper. It is in the game now: captured rail takes 4 days to convert
@@ -41,11 +44,12 @@ specific; everything else keeps moving.
    exist, and if so with a full refund, a partial refund, or none? Parked
    until your call; nothing is blocked by it.
 
-7. Locked production lines (Cycle 6, judge ruled). Factories will gate how
-   many production lines a nation can run, with locked slots visible in
-   the panel and the unlock condition written out. The thresholds are
-   loop tuning, but whether a locked slot feels good or frustrating is
-   taste. Flag it when you play Cycle 6 if it feels wrong.
+7. Locked production lines (Cycle 6, shipped and judge passed).
+   Factories now gate how many production lines a nation can run (line 3
+   at 16 total factory levels, line 4 at 24, hard cap 4), with locked
+   slots visible in the panel and the unlock condition written out. The
+   thresholds are loop tuning, but whether a locked slot feels good or
+   frustrating is taste. Flag it when you play Cycle 6 if it feels wrong.
 
-Nothing here blocks tonight. The production lines cycle is complete and
-the build loop is stopped; Cycle 6 runs when you say so.
+Nothing here blocks the loop. Cycle 6 is complete; Cycle 7 (the lore
+seed) is next and runs without waiting on any item above.
