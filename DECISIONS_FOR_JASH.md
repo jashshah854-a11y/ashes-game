@@ -147,8 +147,9 @@ was invented by the loop, not by you:
     your own walls before you retreat?
 
 17. Seeing the enemy's walls. The enemy card shows the Dominion's exact
-    walls today. Once fog of war exists, should walls become something
-    you only see with intel?
+    walls today. Fog of war exists since Cycle 12 and treats walls and
+    air defense as public structures, so you still see them deep in the
+    fog. Should they become something you only see with recon?
 
 18. The Dominion's rail priority on screen. Since Cycle 9 the Dominion
     lays rail on its Spine first. Its doctrine text says only "Starve its
@@ -208,9 +209,10 @@ was invented by the loop, not by you:
     strongest unit is yours. If they should not lead, drone attack 2 / 3 / 4
     is the smallest measured step (9 days instead of 14).
 
-21. Before intel exists, should the attack preview say how many
-    interceptors the Dominion can pay for? It does today, which tells you
-    roughly how much steel it holds, something nothing else shows.
+21. Should the attack preview say how many interceptors the Dominion can
+    pay for? It does today, which tells you roughly how much steel it
+    holds, something nothing else shows, even under the fog of war that
+    Cycle 12 added (the target is always a seen neighbour).
 
 22. Should the Dominion read your army and adapt its research? Today it
     never changes its order, and that predictability is what lets you plan
@@ -232,9 +234,24 @@ was invented by the loop, not by you:
     Gen 3 in the Dominion's order, or dearer drone generations), and every
     such change moves the rulings: researching both jammings before Gen 3
     loses rationed seed 108. How the drone and jamming race should pace is
-    yours; it ties to items 20 and 22.
+    yours; it ties to items 20 and 22. One more fact from the Cycle 12
+    judge: under a research order where blinding does happen (4,331 of
+    15,323 recon flights blinded over 200 seeds) no result changed,
+    because nothing yet acts on what recon sees (item 27). Changing the
+    clock alone will not make jamming matter.
 
-Nothing here blocks the loop. Cycle 9 ("one clock for both sides") is
-closed; Cycle 10 (interception and the steel exchange) passed its judge
-with conditions, which Cycle 11 step 0 closes; nothing waits on any item
-above.
+25. Should recon cost something (steel, the wing's defense that day, or
+    a cooldown)? Today any drone wing can fly every day for free, so one
+    Gen 2 wing at the front lifts the fog three provinces deep every day.
+
+26. Should the war log show the Dominion's production at all? Since
+    Cycle 13 it hides production lines from provinces you cannot see;
+    the Dominion's capital is always one of those until you reach it.
+
+27. Should the Dominion fly recon and act on what it sees? Today it sees
+    only its neighbours and flies none; no decision on either side reads
+    beyond its neighbours, so fog changes what you see, not the war.
+
+Nothing here blocks the loop. Cycles 9 to 12 passed their judges (10, 11,
+and 12 with conditions, each closed in the next cycle's step 0); nothing
+waits on any item above.
