@@ -172,7 +172,7 @@ function makeSensible(withFactories, withForts) {
     if (massed.length >= 5 && sx + 1 < s.mapW) {
       const target = pid(Sim, sx + 1, row);
       const defs = Sim.unitsIn(s, target).filter(d => d.nation === 'enemy');
-      const mine = Sim.stackPower(s, massed, 'attack');
+      const mine = Sim.stackPower(s, massed, 'attack', target);
       if (!defs.length || mine >= 1.5 * Sim.stackPower(s, defs, 'defense')) {
         massed.forEach(u => Sim.issueOrder(s, u.id, target));
       }
@@ -268,7 +268,7 @@ function rationed(Sim, s, mem) {
     const east = s.provinces[Sim.provinceId(staging.x + 1, 3)];
     if (east && east.owner === 'enemy') {
       const defs = Sim.unitsIn(s, east.id).filter(u => u.nation === 'enemy');
-      if (!defs.length || Sim.stackPower(s, atStaging, 'attack') >= Sim.stackPower(s, defs, 'defense') * 1.5) attackTarget = east.id;
+      if (!defs.length || Sim.stackPower(s, atStaging, 'attack', east.id) >= Sim.stackPower(s, defs, 'defense') * 1.5) attackTarget = east.id;
     }
   }
   Sim.unitsOf(s, 'player').forEach(u => {

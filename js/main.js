@@ -22,7 +22,7 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
    'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
    'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
@@ -187,6 +187,7 @@
     var enemyNext = Sim.lineLockInfo(state, 'enemy', enemyLines + 1);
     el.statEnemyFactories.textContent = Sim.factoryLevels(state, 'enemy');
     el.aiFortEq.textContent = Sim.CFG.aiFortifyEquipment;
+    el.aiAdEq.textContent = Sim.CFG.aiAirDefenseEquipment;
     var forts = Object.keys(state.provinces).map(function (k) { return state.provinces[k]; })
       .filter(function (p) { return p.owner === 'enemy' && (p.fortLevel > 0 || p.fortBuild); })
       .map(function (p) { return p.name + ' ' + (p.fortLevel || 0) + (p.fortBuild ? ' (to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd)' : ''); });
@@ -427,9 +428,22 @@
       if (np.owner !== 'enemy') return;
       var defs = Sim.unitsIn(state, np.id).filter(function (d) { return d.nation === 'enemy'; });
       if (!defs.length) return;
-      preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
+      // Air defense there strikes your drone wings before the fight; the
+      // power below is what is left after the launches it can pay for.
+      var hit = Sim.interceptPlan(state, stack, np.id);
+      var vsHere = Sim.stackPower(state, stack, 'attack', np.id);
+      var adText = '';
+      if (np.airDefense > 0) {
+        var wings = stack.filter(function (x) { return x.type === 'drone'; }).length;
+        var downed = hit.filter(function (x) { return x.strength <= Sim.CFG.interceptStrength; }).length;
+        adText = ' Their air defense there launches one interceptor per drone wing (' + Sim.CFG.interceptorSteel +
+          ' steel each, -' + Sim.CFG.interceptStrength + ' strength) while their steel lasts: ' + hit.length + ' of your ' +
+          wings + (wings === 1 ? ' wing' : ' wings') + ' would be hit' + (downed ? ', ' + downed + ' downed before the fight' : '') + '.';
+      }
+      preview += '<br>Attack ' + np.name + ': your stack power ' + vsHere +
+        (vsHere !== myPower ? ' (' + myPower + ' before interception)' : '') +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
-        (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').';
+        (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').' + adText;
       preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
         ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
       // If taking this province would start rail conversions, say so

@@ -1363,3 +1363,128 @@ test('one clock: a new Dominion unit waits a tick before it moves, like a new pl
   }
   assert.ok(fresh >= 5, 'the Dominion built units in this window');
 });
+
+// ---------- Cycle 10: air defense, interception, and the steel ledger ----------
+const mkU = (id, nation, type, provinceId, strength) => {
+  const t = Sim.CFG.unitTypes[type];
+  return { id, nation, type, provinceId, strength: strength == null ? t.strength : strength, maxStrength: t.strength,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 };
+};
+
+test('air defense: refusals, equipment paid up front, it stands after the build days, capture loses it', () => {
+  const s = Sim.createGame(7);
+  const n = s.nations.player;
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p9_3').reason, 'not your province');
+  n.equipment = Sim.CFG.airDefenseCost - 1;
+  const poor = Sim.buildAirDefense(s, 'player', 'p1_3');
+  assert.strictEqual(poor.reason, 'not enough equipment');
+  assert.strictEqual(poor.cost, Sim.CFG.airDefenseCost);
+  n.equipment = 1000;
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p1_3').ok, true);
+  assert.strictEqual(n.equipment, 1000 - Sim.CFG.airDefenseCost);
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p1_3').reason, 'air defense already under construction');
+  for (let d = 1; d < Sim.CFG.airDefenseBuildDays; d++) { Sim.tick(s); assert.strictEqual(s.provinces.p1_3.airDefense, 0, 'not yet on day ' + d); }
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p1_3.airDefense, 1);
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p1_3').reason, 'air defense already built');
+  // Capture loses it, and any work in progress.
+  const c = Sim.createGame(5);
+  c.units = [mkU(1, 'player', 'infantry', 'p4_3')];
+  c.provinces.p5_3.airDefense = 1;
+  Sim.issueOrder(c, 1, 'p5_3');
+  Sim.movementPhase(c);
+  assert.strictEqual(c.provinces.p5_3.owner, 'player');
+  assert.strictEqual(c.provinces.p5_3.airDefense, 0);
+});
+
+// Two infantry and two drone wings attack one infantry in p5_3.
+function interceptScenario(opts) {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'), mkU(9, 'enemy', 'infantry', 'p5_3')];
+  if (opts.wings) opts.wings.forEach((str, i) => s.units.push(mkU(3 + i, 'player', 'drone', 'p4_3', str)));
+  s.provinces.p5_3.airDefense = opts.ad ? 1 : 0;
+  s.nations.enemy.steel = opts.steel == null ? 1000 : opts.steel;
+  s.units.filter(u => u.nation === 'player').forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+  const stack = s.units.filter(u => u.nation === 'player');
+  const est = Sim.stackPower(s, stack, 'attack', 'p5_3');
+  const steelBefore = s.nations.enemy.steel;
+  Sim.movementPhase(s);
+  const str = id => { const u = s.units.find(x => x.id === id); return u ? u.strength : 0; };
+  return { s, est, spent: steelBefore - s.nations.enemy.steel, inf: [str(1), str(2), str(9)], wings: [str(3), str(4)] };
+}
+
+test('interception: one launch per wing before the fight, 20 steel each, downed wings fight as if absent', () => {
+  const none = interceptScenario({});
+  const hit = interceptScenario({ wings: [4, 4], ad: true });
+  assert.strictEqual(hit.spent, 2 * Sim.CFG.interceptorSteel);
+  assert.deepStrictEqual(hit.wings, [0, 0], 'two damaged wings of 4 are downed');
+  // Same engagement key, same rolls: the battle is exactly the one without the wings.
+  assert.deepStrictEqual(hit.inf, none.inf);
+  assert.strictEqual(hit.est, none.est, 'stackPower with the target counts the downed wings as nothing');
+  assert.strictEqual(hit.s.ledger.enemy.launchSteel, 2 * Sim.CFG.interceptorSteel);
+  assert.strictEqual(hit.s.ledger.enemy.launches, 2);
+  assert.ok(hit.s.log.some(e => e.msg === 'Khessite air defense at ' + hit.s.provinces.p5_3.name +
+    ' launches 2 interceptors (40 steel), downing 2 drone wings.'), 'the launch is logged with its cost');
+  // Without air defense the same wings fight.
+  const open = interceptScenario({ wings: [4, 4] });
+  assert.strictEqual(open.spent, 0);
+  assert.ok(open.est > none.est);
+});
+
+test('interception: a full wing survives one launch at 2, and launches stop when the steel runs out', () => {
+  const full = interceptScenario({ wings: [6, 6], ad: true, steel: Sim.CFG.interceptorSteel + 5 });
+  assert.strictEqual(full.spent, Sim.CFG.interceptorSteel, 'steel for one launch only');
+  assert.strictEqual(full.s.ledger.enemy.launches, 1);
+  assert.ok(full.s.log.some(e => /launches 1 interceptor \(20 steel\)\. 1 wing gets through untouched: not enough steel to launch\./.test(e.msg)));
+  // Nobody is downed by a launch on a full wing, so the estimate is the plain attack.
+  const plain = Sim.stackPower(full.s, [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'),
+    mkU(3, 'player', 'drone', 'p4_3'), mkU(4, 'player', 'drone', 'p4_3')], 'attack');
+  assert.strictEqual(full.est, plain);
+  const broke = interceptScenario({ wings: [4, 4], ad: true, steel: 0 });
+  assert.strictEqual(broke.spent, 0);
+  assert.ok(broke.s.log.some(e => /air defense at .* cannot launch: an interceptor costs 20 steel\. 2 drone wings get through untouched\./.test(e.msg)));
+  assert.strictEqual(broke.est, interceptScenario({ wings: [4, 4] }).est, 'no steel, no launches in the estimate either');
+});
+
+test('interception: a launch on a full wing strips exactly interceptStrength before the fight', () => {
+  const s = Sim.createGame(5);
+  const wing = mkU(3, 'player', 'drone', 'p4_3');
+  s.provinces.p5_3.airDefense = 1;
+  s.nations.enemy.steel = 1000;
+  const plan = Sim.interceptPlan(s, [wing, mkU(1, 'player', 'infantry', 'p4_3')], 'p5_3');
+  assert.deepStrictEqual(plan.map(u => u.id), [3], 'only drone wings are targeted');
+  assert.strictEqual(Sim.CFG.unitTypes.drone.strength - Sim.CFG.interceptStrength, 2);
+  // Its own wings over its own province are never targeted.
+  assert.deepStrictEqual(Sim.interceptPlan(s, [mkU(5, 'enemy', 'drone', 'p5_3')], 'p5_3'), []);
+});
+
+test('ledger: every strength point lost is priced at its unit steel cost, in battle and to attrition', () => {
+  const r = interceptScenario({ wings: [6, 6] });
+  const price = (type, lost) => lost * Sim.CFG.unitTypes[type].steelCost / Sim.CFG.unitTypes[type].strength;
+  const playerLost = price('infantry', 24 - r.inf[0] - r.inf[1]) + price('drone', 12 - r.wings[0] - r.wings[1]);
+  assert.ok(Math.abs(r.s.ledger.player.lostSteel - playerLost) < 1e-9, r.s.ledger.player.lostSteel + ' vs ' + playerLost);
+  assert.ok(Math.abs(r.s.ledger.enemy.lostSteel - price('infantry', 12 - r.inf[2])) < 1e-9);
+  // Attrition counts too: a unit cut off long enough loses strength, and the ledger sees it.
+  const s = Sim.createGame(7);
+  const corner = Sim.provinceId(0, 0);
+  s.units = [mkU(1, 'player', 'infantry', corner)];
+  s.edgeList.forEach(e => { if (e.a === corner || e.b === corner) e.rail = null; });
+  for (let d = 0; d < 20; d++) Sim.supplyPhase(s);
+  const lost = 12 - s.units[0].strength;
+  assert.ok(lost > 0, 'attrition took strength');
+  assert.ok(Math.abs(s.ledger.player.lostSteel - price('infantry', lost)) < 1e-9);
+});
+
+test('air defense: the Dominion builds it at its capital through the same command, after walls, above its threshold', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = Sim.CFG.aiAirDefenseEquipment + 2 * Sim.CFG.fortCostPerLevel;
+  Sim.tick(s);
+  const cap = s.provinces[s.nations.enemy.capitalId];
+  assert.ok(cap.fortBuild, 'walls first');
+  assert.deepStrictEqual(cap.airDefenseBuild, { daysLeft: Sim.CFG.airDefenseBuildDays - 1 });
+  assert.ok(s.log.some(e => /^Khessite begin building air defense at Khessograd \(120 equipment, 4 days\)\./.test(e.msg)));
+  const p = Sim.createGame(42);
+  p.nations.enemy.equipment = Sim.CFG.aiAirDefenseEquipment - 1;
+  Sim.tick(p);
+  assert.ok(!p.provinces[p.nations.enemy.capitalId].airDefenseBuild, 'nothing below the threshold');
+});

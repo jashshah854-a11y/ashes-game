@@ -59,6 +59,11 @@
     fortBuildDays: 5,             // days of construction per level
     fortDefensePctPerLevel: 25,   // percent defense for units defending their own fortified province
     aiFortifyEquipment: 300,      // the Dominion fortifies only while holding at least this much equipment
+    airDefenseCost: 120,          // equipment for a province's air defense (one level), paid when work starts
+    airDefenseBuildDays: 4,       // days of construction
+    interceptorSteel: 20,         // steel per interceptor launch (a drone wing costs 15)
+    interceptStrength: 4,         // drone strength one launch strips before the battle
+    aiAirDefenseEquipment: 400,   // the Dominion builds air defense only while holding at least this much equipment
     unitTypes: {
       // cost is the steel cost per unit, paid as a daily drain over
       // buildDays while the line works (steelPerDay = cost / buildDays,
@@ -336,6 +341,13 @@
       endReason: null,
       log: [],
       beats: {},           // campaign turning points, recorded once each (beatPhase)
+      // The cost exchange scoreboard: the steel value each side has lost
+      // (strength lost, priced at its unit's steel cost) and the steel it
+      // has spent on interceptor launches. Who bleeds steel faster.
+      ledger: {
+        player: { lostSteel: 0, launchSteel: 0, launches: 0 },
+        enemy: { lostSteel: 0, launchSteel: 0, launches: 0 }
+      },
       nations: {
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
@@ -368,6 +380,8 @@
           isCapital: isCapital,
           fortLevel: 0,        // capitals start unwalled until Jash rules otherwise
           fortBuild: null,     // { toLevel, daysLeft } while fortifying
+          airDefense: 0,       // 1 once air defense is built
+          airDefenseBuild: null, // { daysLeft } while building
           coastal: (y === 0 || y === CFG.mapH - 1) // sea to the north and south, navy comes later
         };
       }
@@ -470,6 +484,30 @@
     return stats;
   }
 
+  // Steel value of strength a unit has lost, added to its nation's ledger.
+  function recordLoss(state, unit, amount) {
+    if (!(amount > 0) || !state.ledger) return;
+    var t = CFG.unitTypes[unit.type];
+    state.ledger[unit.nation].lostSteel += amount * t.steelCost / unit.maxStrength;
+  }
+
+  // Interceptor launches a province's air defense would make against these
+  // attackers: one per attacking drone wing, by unit id, while the owner's
+  // steel lasts. Returns the wings it would strike, in order.
+  function interceptPlan(state, attackers, targetId, steelAvailable) {
+    var prov = state.provinces[targetId];
+    if (!prov || !(prov.airDefense > 0)) return [];
+    var owner = prov.owner;
+    var steel = steelAvailable == null ? state.nations[owner].steel : steelAvailable;
+    var wings = attackers.filter(function (u) { return u.strength > 0 && u.type === 'drone' && u.nation !== owner; })
+      .slice().sort(function (a, b) { return a.id - b.id; });
+    var out = [];
+    wings.forEach(function (u) {
+      if (steel >= CFG.interceptorSteel) { steel -= CFG.interceptorSteel; out.push(u); }
+    });
+    return out;
+  }
+
   // Percent defense a unit gets from fortifications where it stands.
   function fortBonusFor(state, unit) {
     var prov = state.provinces[unit.provinceId];
@@ -480,10 +518,20 @@
   // The one shared power estimate. Combat resolution, the AI's attack
   // decisions, and the player's attack preview all call this, so a
   // number the player sees is the number the war is fought with.
-  function stackPower(state, units, mode) {
+  // With a target province, attack power counts the interceptions that
+  // province's air defense would make first: a drone wing the launches
+  // would down adds nothing, so combat, the AI's estimate, and the
+  // player's preview count the same launches.
+  function stackPower(state, units, mode, targetId) {
     if (mode !== 'defense') {
+      var downed = {};
+      if (targetId) {
+        interceptPlan(state, units, targetId).forEach(function (u) {
+          if (u.strength <= CFG.interceptStrength) downed[u.id] = true;
+        });
+      }
       return units.reduce(function (s, u) {
-        return u.strength > 0 ? s + unitStats(state, u).attack : s;
+        return u.strength > 0 && !downed[u.id] ? s + unitStats(state, u).attack : s;
       }, 0);
     }
     // Defense: walls multiply the summed defense of the units sharing a
@@ -584,6 +632,7 @@
           var dmg = Math.floor(u.attritionCarry);
           if (dmg > 0) {
             u.attritionCarry -= dmg;
+            recordLoss(state, u, Math.min(dmg, u.strength));
             u.strength -= dmg;
             if (u.nation === 'player') {
               logEvent(state, CFG.unitTypes[u.type].label + ' in ' +
@@ -619,6 +668,15 @@
   function constructionPhase(state) {
     Object.keys(state.provinces).forEach(function (pid) {
       var prov = state.provinces[pid];
+      if (prov.airDefenseBuild) {
+        prov.airDefenseBuild.daysLeft -= 1;
+        if (prov.airDefenseBuild.daysLeft <= 0) {
+          prov.airDefense = 1;
+          prov.airDefenseBuild = null;
+          logEvent(state, state.nations[prov.owner].short + ' finish air defense at ' + prov.name +
+            '. It launches one interceptor per attacking drone wing, ' + CFG.interceptorSteel + ' steel each.');
+        }
+      }
       if (!prov.fortBuild) return;
       prov.fortBuild.daysLeft -= 1;
       if (prov.fortBuild.daysLeft <= 0) {
@@ -659,6 +717,9 @@
     // in progress on it is lost with the equipment spent.
     if (prov.fortLevel > 0) prov.fortLevel -= 1;
     prov.fortBuild = null;
+    // Air defense is lost with the province, and so is work on it.
+    prov.airDefense = 0;
+    prov.airDefenseBuild = null;
     neighborEdges(state, prov).forEach(function (ne) {
       var e = ne.edge;
       if (!e.rail || e.rail.daysLeft > 0 || e.rail.converting) return;
@@ -896,6 +957,30 @@
       engagements.push({ kind: 'move', group: g, target: g.target, cands: [] });
     });
 
+    // Interception: before a province battle or a clash for a province with
+    // air defense, its owner launches at the attacking drone wings, paying
+    // steel, in canonical engagement order (by province), while steel lasts.
+    var launchLog = [];
+    engagements.forEach(function (e) {
+      if (e.kind !== 'battle' && e.kind !== 'clash') return;
+      var prov = state.provinces[e.target];
+      if (!(prov.airDefense > 0)) return;
+      var owner = snapOwner[e.target];
+      if (e.kind === 'battle' && e.nation === owner) return;
+      if (e.kind === 'clash' && e.defNation !== owner) return;
+      var wings = e.aClones.filter(function (c) { return c.type === 'drone' && c.nation !== owner && c.strength > 0; });
+      if (!wings.length) return;
+      var hit = interceptPlan(state, e.aClones, e.target);
+      hit.forEach(function (c) {
+        state.nations[owner].steel -= CFG.interceptorSteel;
+        state.ledger[owner].launchSteel += CFG.interceptorSteel;
+        state.ledger[owner].launches += 1;
+        c.strength = Math.max(0, c.strength - CFG.interceptStrength);
+      });
+      launchLog.push({ owner: owner, prov: prov, launched: hit.length, missed: wings.length - hit.length,
+        downed: hit.filter(function (c) { return c.strength <= 0; }).length });
+    });
+
     // Compute every battle on clones, then write strengths back by id.
     engagements.forEach(function (e) {
       if (e.kind === 'move') return;
@@ -904,7 +989,23 @@
     });
     engagements.forEach(function (e) {
       if (e.kind === 'move') return;
-      e.aClones.concat(e.bClones).forEach(function (c) { unitById[c.id].strength = c.strength; });
+      e.aClones.concat(e.bClones).forEach(function (c) {
+        var u = unitById[c.id];
+        recordLoss(state, u, u.strength - c.strength);
+        u.strength = c.strength;
+      });
+    });
+    launchLog.forEach(function (l) {
+      if (!l.launched) {
+        logEvent(state, state.nations[l.owner].short + ' air defense at ' + l.prov.name + ' cannot launch: ' +
+          'an interceptor costs ' + CFG.interceptorSteel + ' steel. ' + l.missed + (l.missed === 1 ? ' drone wing gets' : ' drone wings get') + ' through untouched.');
+        return;
+      }
+      var msg = state.nations[l.owner].short + ' air defense at ' + l.prov.name + ' launches ' + l.launched +
+        (l.launched === 1 ? ' interceptor' : ' interceptors') + ' (' + (l.launched * CFG.interceptorSteel) + ' steel)' +
+        (l.downed ? ', downing ' + l.downed + (l.downed === 1 ? ' drone wing' : ' drone wings') : '') + '.';
+      if (l.missed) msg += ' ' + l.missed + (l.missed === 1 ? ' wing gets' : ' wings get') + ' through untouched: not enough steel to launch.';
+      logEvent(state, msg);
     });
 
     // Arrival candidates from post-battle strengths.
@@ -1142,6 +1243,23 @@
     return { ok: true, cost: cost, level: level + 1, days: CFG.fortBuildDays };
   }
 
+  // Build air defense in a province you hold: equipment paid up front, the
+  // work takes CFG.airDefenseBuildDays, one level per province.
+  function buildAirDefense(state, nationId, provId) {
+    var prov = state.provinces[provId];
+    var n = state.nations[nationId];
+    if (!prov || prov.owner !== nationId) return { ok: false, reason: 'not your province' };
+    if (prov.airDefense > 0) return { ok: false, reason: 'air defense already built' };
+    if (prov.airDefenseBuild) return { ok: false, reason: 'air defense already under construction' };
+    var cost = CFG.airDefenseCost;
+    if (n.equipment < cost) return { ok: false, reason: 'not enough equipment', cost: cost };
+    n.equipment -= cost;
+    prov.airDefenseBuild = { daysLeft: CFG.airDefenseBuildDays };
+    logEvent(state, n.short + ' begin building air defense at ' + prov.name + ' (' + cost + ' equipment, ' +
+      CFG.airDefenseBuildDays + ' days).');
+    return { ok: true, cost: cost, days: CFG.airDefenseBuildDays };
+  }
+
   // Backward compatible entry point, kept until the UI cycle replaces
   // the old train buttons with the production panel: ordering a unit
   // type now queues it on the first line assigned to that template.
@@ -1224,7 +1342,7 @@
           var t = options[i];
           if (t.owner === ai) continue;
           var defenders = unitsIn(state, t.id).filter(function (d) { return d.nation !== ai; });
-          var myPower = stackPower(state, group, 'attack');
+          var myPower = stackPower(state, group, 'attack', t.id);
           var theirPower = stackPower(state, defenders, 'defense');
           if (defenders.length === 0 || myPower >= theirPower * 1.5) {
             group.forEach(function (u) { u.order = { target: t.id }; });
@@ -1383,6 +1501,20 @@
     }
   }
 
+  // Air defense, paid in equipment, after walls: the capital only, while
+  // its equipment is at least CFG.aiAirDefenseEquipment. Decided at the
+  // start of the tick. (Cycle 10: air defense on the river Spine province
+  // too tipped a long seesaw game, rationed seed 104, from a day 70 win to
+  // a day 118 loss; widening it is its own later slice.)
+  function aiAirDefense(state) {
+    var ai = 'enemy';
+    var n = state.nations[ai];
+    if (n.equipment < CFG.aiAirDefenseEquipment) return;
+    var capProv = state.provinces[n.capitalId];
+    if (capProv.owner !== ai || capProv.airDefense > 0 || capProv.airDefenseBuild) return;
+    buildAirDefense(state, ai, capProv.id);
+  }
+
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
@@ -1390,6 +1522,7 @@
     aiFactories(state);  // factory growth, the same moment
     aiRail(state);       // rail building, the same moment
     aiFortify(state);    // fortification, the same moment
+    aiAirDefense(state); // air defense, after walls
     aiProduction(state); // the same start of day moment for production orders
     aiTakeTurn(state);   // movement orders too: on yesterday's supply, like the player's preview
     incomePhase(state, 'player');
@@ -1433,6 +1566,8 @@
     BEAT_IDS: BEAT_IDS,
     buildFactory: buildFactory,
     buildFortification: buildFortification,
+    buildAirDefense: buildAirDefense,
+    interceptPlan: interceptPlan,
     trainUnit: trainUnit,
     productionLine: productionLine,
     queueProduction: queueProduction,
