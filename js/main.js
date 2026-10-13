@@ -343,7 +343,11 @@
     var st = Sim.unitStats(state, u);
     var base = Sim.CFG.unitTypes[u.type];
     var orderText = 'Holding position.';
-    if (u.order) orderText = 'Marching to ' + state.provinces[u.order.target].name + ' at dawn.';
+    if (u.order) {
+      orderText = 'Marching to ' + state.provinces[u.order.target].name + ' at dawn. ' +
+        'If an enemy column marches on ' + state.provinces[u.provinceId].name +
+        ' the same day, this unit stays to defend it and the order is cancelled.';
+    }
     var supplyText = 'In supply. The rail net feeds this unit.';
     if ((u.daysOut || 0) > 0) {
       supplyText = 'OUT OF SUPPLY for ' + u.daysOut + (u.daysOut === 1 ? ' day' : ' days') +
