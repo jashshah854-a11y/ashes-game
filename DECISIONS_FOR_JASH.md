@@ -17,13 +17,18 @@ specific; everything else keeps moving.
    does day 36 feel right for a do-nothing commander, and does building
    up feel like it pays off enough, or too surely?
 
-2. Next build. Cycle 6 ("Close the loop, fix the clock") passed its
-   judge on condition of small fixes, now closed. Cycle 7 is the lore
-   seed, in two judges' words not to be bumped again: a written backstory
-   for each nation, a shared history of the river line, a codex panel,
-   and 3 event cards. Tone and content will come to you as a draft for
-   approval before they ship as final. The loop follows the judge unless
-   you say otherwise.
+2. Next build. Cycle 6, "Close the loop, fix the clock", passed two
+   independent judges, both with fix-now flags, now closed (see
+   CYCLE_LOG): factories gate production line count with locked slots
+   shown with their unlock condition, battles resolve simultaneously from
+   a snapshot taken at the start of the movement phase, and production
+   lines are paid before factories. Cycle 7 is the lore seed, reserved by
+   the Cycle 5 judge and confirmed by both Cycle 6 judges, not to be
+   bumped again: written backstories for both nations, a codex panel, and
+   3 event cards. Per the lore rule, the loop writes the lore itself and
+   flags it here prominently as loop written and open for your rewrite or
+   veto; the loop does not stall waiting for approval. Your call only if
+   you feel strongly about the direction before it starts.
 
 3. Rail conversion. It emerged from balance work and the judge voted
    keeper. It is in the game now: captured rail takes 4 days to convert
@@ -82,6 +87,5 @@ specific; everything else keeps moving.
     5000 once every line is open. The plan is fortifications paid in
     equipment (Cycle 8). Your call if you want something else.
 
-Nothing here blocks the build. Cycle 6 steps 1 to 4 are done and
-reconciled on one branch; the judge pass is next, then Cycle 7 (lore).
-Every item above routes around your answer until you give it.
+Nothing here blocks the loop. Cycle 6 is complete; Cycle 7 (the lore
+seed) is next and runs without waiting on any item above.
