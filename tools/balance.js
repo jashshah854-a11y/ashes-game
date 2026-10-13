@@ -15,7 +15,7 @@
 //   node tools/balance.js --seeds 1-500        a seed range (mass testing)
 //   node tools/balance.js --seeds 1,7,42       a seed list
 //   node tools/balance.js --profile sensible   one profile (repeatable): passive,
-//                     sensible, factories, reckless, rationed, direct
+//                     sensible, factories, fortress, reckless, rationed, direct
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -94,6 +94,19 @@ function factoriesTowardNextLine(Sim, s) {
   }
 }
 
+// Spend spare equipment on walls, one start per day: the capital first,
+// then the staging province where the army masses. Runs after the factory
+// builds, so lines still unlock first; walls get what equipment is left.
+function fortifyHome(Sim, s, staging) {
+  if (!Sim.buildFortification) return; // sims before Cycle 8 have no walls
+  const targets = [s.nations.player.capitalId, staging];
+  for (const id of targets) {
+    const p = s.provinces[id];
+    if (!p || p.owner !== 'player' || p.fortBuild || (p.fortLevel || 0) >= Sim.CFG.fortMaxLevel) continue;
+    if (Sim.buildFortification(s, 'player', id).ok) return;
+  }
+}
+
 // One step from `from` toward `to` through player owned provinces (BFS on
 // the real graph). Returns the next province id, or null if unreachable.
 function stepToward(Sim, s, from, to) {
@@ -127,7 +140,7 @@ function passive() {}
 // garrison, masses every other unit at the easternmost capital row
 // province, and attacks only eastward along that row with 5 or more units
 // massed and a 1.5x stackPower edge.
-function makeSensible(withFactories) {
+function makeSensible(withFactories, withForts) {
   return function sensible(Sim, s) {
     const n = s.nations.player;
     const row = s.provinces[n.capitalId].y;
@@ -144,6 +157,7 @@ function makeSensible(withFactories) {
     let sx = -1;
     for (let x = 0; x < s.mapW; x++) if (s.provinces[pid(Sim, x, row)].owner === 'player') sx = x;
     const staging = pid(Sim, sx, row);
+    if (withForts) fortifyHome(Sim, s, staging);
 
     // Orders are cleared by every movement phase, so a unit given no
     // order today simply holds; nothing here edits unit state directly.
@@ -290,6 +304,7 @@ const PROFILES = {
   passive: { play: passive, ruling: 'lose', label: 'passive (never acts)' },
   sensible: { play: makeSensible(false), ruling: 'report', label: 'sensible without factories (Cycle 5 definition, rebuilt)' },
   factories: { play: makeSensible(true), ruling: 'win', label: 'sensible plus factories toward the next line' },
+  fortress: { play: makeSensible(true, true), ruling: 'win', label: 'sensible plus factories, then walls at home and at the staging province' },
   reckless: { play: reckless, ruling: 'lose', label: 'reckless (open capital, piecemeal, no rail)' },
   rationed: { play: rationed, ruling: 'win', label: 'sensible with rationed factory builds (Vector step 4 script)' },
   direct: { play: recklessDirect, ruling: 'lose', label: 'reckless direct march (Vector step 4 script)' }
@@ -345,6 +360,8 @@ function runGame(Sim, seed, profileName, opts) {
     originalLeft,
     originalPercent: Math.round(1000 * originalLeft / startStrength) / 10,
     factoryLevels: Sim.factoryLevels(s, 'player'),
+    endEquipment: s.nations.player.equipment,
+    enemyEquipment: s.nations.enemy.equipment,
     lines: (s.nations.player.productionLines || []).length,
     enemyLines: (s.nations.enemy.productionLines || []).length,
     builtByLine, lineOpenDay,
@@ -433,6 +450,7 @@ function main(argv) {
         console.log('  seed ' + String(r.seed).padStart(5) + '  ' + (r.winner === 'player' ? 'WIN ' : 'LOSS') +
           ' day ' + String(r.day).padStart(3) +
           '  end ' + String(r.endPercent).padStart(5) + '%  original army ' + String(r.originalPercent).padStart(5) + '%' +
+          '  eq ' + String(r.endEquipment).padStart(5) + '/' + String(r.enemyEquipment).padStart(5) +
           '  factory lvls ' + String(r.factoryLevels).padStart(2) + '  lines ' + r.lines +
           (r.lineOpenDay['3'] != null ? ' (L3 day ' + r.lineOpenDay['3'] + ')' : '') +
           '  built ' + (lines || 'none') + '  enemy lines ' + r.enemyLines);
@@ -442,6 +460,7 @@ function main(argv) {
       console.log('  win days: ' + summarize(wins.map(r => r.day)));
       console.log('  loss days: ' + summarize(losses.map(r => r.day)));
       console.log('  end strength % on wins: ' + summarize(wins.map(r => r.endPercent)));
+      console.log('  end equipment, yours: ' + summarize(results.map(r => r.endEquipment)) + '; Dominion: ' + summarize(results.map(r => r.enemyEquipment)));
     }
     if (verdict.missed.length) {
       console.log('  ' + (verdict.pass ? 'seeds short of a floor win: ' : 'failing seeds: ') +

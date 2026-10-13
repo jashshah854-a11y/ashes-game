@@ -1,0 +1,72 @@
+
+passive (never acts): 0 of 8 won. Ruling check PASS (must lose).
+  seed     1  LOSS day  36  end  12.5%  original army  12.5%  eq  2310/ 1840  factory lvls  9  lines 2  built none  enemy lines 4
+  seed     7  LOSS day  36  end  12.5%  original army  12.5%  eq   725/ 1150  factory lvls  1  lines 2  built none  enemy lines 3
+  seed    42  LOSS day  36  end  12.5%  original army  12.5%  eq  1240/ 1540  factory lvls  3  lines 2  built none  enemy lines 3
+  seed    99  LOSS day  36  end  12.5%  original army  12.5%  eq  1965/ 1175  factory lvls  8  lines 2  built none  enemy lines 3
+  seed  1234  LOSS day  36  end  12.5%  original army  12.5%  eq  1280/ 1335  factory lvls  4  lines 2  built none  enemy lines 3
+  seed   555  LOSS day  36  end  12.5%  original army  12.5%  eq  1680/ 1070  factory lvls  6  lines 2  built none  enemy lines 3
+  seed  2024  LOSS day  36  end  12.5%  original army  12.5%  eq  1620/ 1305  factory lvls  5  lines 2  built none  enemy lines 3
+  seed 31337  LOSS day  36  end  12.5%  original army  12.5%  eq  1080/ 1320  factory lvls  3  lines 2  built none  enemy lines 3
+
+sensible without factories (Cycle 5 definition, rebuilt): 8 of 8 won. Report only, not a ruling path.
+  seed     1  WIN  day  46  end   175%  original army  33.3%  eq  3190/ 2990  factory lvls 15  lines 2  built L1:7 L2:15  enemy lines 3
+  seed     7  WIN  day  46  end 230.6%  original army  33.3%  eq  1185/ 2140  factory lvls  7  lines 2  built L1:7 L2:15  enemy lines 3
+  seed    42  WIN  day  49  end 254.2%  original army  33.3%  eq  1980/ 2165  factory lvls 10  lines 2  built L1:8 L2:16  enemy lines 3
+  seed    99  WIN  day  46  end 227.8%  original army  33.3%  eq  2535/ 2165  factory lvls 13  lines 2  built L1:7 L2:15  enemy lines 3
+  seed  1234  WIN  day  46  end 204.2%  original army  33.3%  eq  2245/ 1910  factory lvls 12  lines 2  built L1:7 L2:15  enemy lines 3
+  seed   555  WIN  day  46  end 222.2%  original army  33.3%  eq  2310/ 2095  factory lvls 12  lines 2  built L1:7 L2:15  enemy lines 3
+  seed  2024  WIN  day  46  end 229.2%  original army  33.3%  eq  2500/ 1785  factory lvls 13  lines 2  built L1:7 L2:15  enemy lines 3
+  seed 31337  WIN  day  46  end 177.8%  original army  33.3%  eq  1595/ 2255  factory lvls  9  lines 2  built L1:7 L2:15  enemy lines 3
+
+sensible plus factories toward the next line: 8 of 8 won. Ruling check PASS (must win with 20% strength left).
+  seed     1  WIN  day  88  end 262.5%  original army  33.3%  eq  6060/ 6125  factory lvls 26  lines 4 (L3 day 2)  built L1:14 L2:29 L3:14 L4:27  enemy lines 3
+  seed     7  WIN  day  35  end 261.1%  original army  33.3%  eq  1735/ 1150  factory lvls 26  lines 4 (L3 day 9)  built L1:5 L2:11 L3:4 L4:7  enemy lines 3
+  seed    42  WIN  day  64  end 326.4%  original army  33.3%  eq  3735/ 2955  factory lvls 26  lines 4 (L3 day 6)  built L1:10 L2:21 L3:9 L4:17  enemy lines 3
+  seed    99  WIN  day  49  end 329.2%  original army  33.3%  eq  2710/ 2340  factory lvls 26  lines 4 (L3 day 4)  built L1:8 L2:16 L3:7 L4:13  enemy lines 3
+  seed  1234  WIN  day  61  end 304.2%  original army  33.3%  eq  3415/ 3085  factory lvls 26  lines 4 (L3 day 6)  built L1:10 L2:20 L3:9 L4:17  enemy lines 3
+  seed   555  WIN  day  58  end 316.7%  original army  33.3%  eq  2735/ 3035  factory lvls 26  lines 4 (L3 day 4)  built L1:9 L2:19 L3:8 L4:16  enemy lines 3
+  seed  2024  WIN  day  70  end 345.8%  original army  33.3%  eq  5550/ 3250  factory lvls 26  lines 4 (L3 day 4)  built L1:11 L2:23 L3:10 L4:20  enemy lines 2
+  seed 31337  WIN  day  34  end 247.2%  original army  33.3%  eq  1615/ 1265  factory lvls 26  lines 4 (L3 day 8)  built L1:5 L2:11 L3:4 L4:7  enemy lines 3
+
+sensible plus factories, then walls at home and at the staging province: 8 of 8 won. Ruling check PASS (must win with 20% strength left).
+  seed     1  WIN  day  48  end 319.4%  original army  33.3%  eq  2525/ 3210  factory lvls 25  lines 4 (L3 day 2)  built L1:7 L2:15 L3:7 L4:14  enemy lines 3
+  seed     7  WIN  day  35  end 261.1%  original army  33.3%  eq  1135/ 1150  factory lvls 26  lines 4 (L3 day 9)  built L1:5 L2:11 L3:4 L4:7  enemy lines 3
+  seed    42  WIN  day  64  end 343.1%  original army  33.3%  eq  2535/ 2990  factory lvls 26  lines 4 (L3 day 6)  built L1:10 L2:21 L3:9 L4:17  enemy lines 3
+  seed    99  WIN  day  49  end 329.2%  original army  33.3%  eq  2110/ 2340  factory lvls 26  lines 4 (L3 day 4)  built L1:8 L2:16 L3:7 L4:13  enemy lines 3
+  seed  1234  WIN  day  49  end 313.9%  original army  33.3%  eq  2065/ 2210  factory lvls 26  lines 4 (L3 day 6)  built L1:8 L2:16 L3:7 L4:13  enemy lines 3
+  seed   555  WIN  day  49  end 333.3%  original army  33.3%  eq  1635/ 2395  factory lvls 26  lines 4 (L3 day 4)  built L1:8 L2:16 L3:7 L4:13  enemy lines 3
+  seed  2024  WIN  day  48  end 313.9%  original army  33.3%  eq  3060/ 1945  factory lvls 26  lines 4 (L3 day 4)  built L1:7 L2:15 L3:7 L4:13  enemy lines 3
+  seed 31337  WIN  day  34  end 247.2%  original army  33.3%  eq  1015/ 1265  factory lvls 26  lines 4 (L3 day 8)  built L1:5 L2:11 L3:4 L4:7  enemy lines 3
+
+reckless (open capital, piecemeal, no rail): 0 of 8 won. Ruling check PASS (must lose).
+  seed     1  LOSS day  36  end 161.1%  original army  20.8%  eq  2410/ 1740  factory lvls 11  lines 2  built L1:5 L2:11  enemy lines 3
+  seed     7  LOSS day  36  end   125%  original army  11.1%  eq   815/ 1060  factory lvls  2  lines 2  built L1:5 L2:11  enemy lines 3
+  seed    42  LOSS day  36  end 138.9%  original army   4.2%  eq  1395/ 1385  factory lvls  2  lines 2  built L1:5 L2:11  enemy lines 3
+  seed    99  LOSS day  36  end   125%  original army  11.1%  eq  1915/ 1225  factory lvls  8  lines 2  built L1:5 L2:11  enemy lines 3
+  seed  1234  LOSS day  36  end 138.9%  original army   4.2%  eq  1340/ 1275  factory lvls  3  lines 2  built L1:5 L2:11  enemy lines 3
+  seed   555  LOSS day  36  end   125%  original army  11.1%  eq  1700/ 1050  factory lvls  6  lines 2  built L1:5 L2:11  enemy lines 3
+  seed  2024  LOSS day  36  end 102.8%  original army   4.2%  eq  1715/ 1210  factory lvls  6  lines 2  built L1:5 L2:11  enemy lines 3
+  seed 31337  LOSS day  36  end   125%  original army  11.1%  eq  1040/ 1360  factory lvls  2  lines 2  built L1:5 L2:11  enemy lines 3
+
+sensible with rationed factory builds (Vector step 4 script): 8 of 8 won. Ruling check PASS (must win with 20% strength left).
+  seed     1  WIN  day  49  end 179.2%  original army  33.3%  eq  3540/ 3220  factory lvls 17  lines 2  built L1:8 L2:16  enemy lines 3
+  seed     7  WIN  day  49  end 248.6%  original army  33.3%  eq  2800/ 2325  factory lvls 16  lines 2  built L1:8 L2:16  enemy lines 3
+  seed    42  WIN  day  49  end 241.7%  original army  33.3%  eq  2865/ 2270  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 2
+  seed    99  WIN  day  49  end 234.7%  original army  33.3%  eq  2945/ 2540  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 2
+  seed  1234  WIN  day  49  end 213.9%  original army  33.3%  eq  2870/ 2240  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 3
+  seed   555  WIN  day  49  end 233.3%  original army  33.3%  eq  2580/ 2375  factory lvls 13  lines 2  built L1:8 L2:16  enemy lines 3
+  seed  2024  WIN  day  25  end 208.3%  original army  33.3%  eq  1700/  730  factory lvls 19  lines 3 (L3 day 7)  built L1:4 L2:8 L3:3  enemy lines 2
+  seed 31337  WIN  day  49  end 215.3%  original army  33.3%  eq  2730/ 2560  factory lvls 15  lines 2  built L1:8 L2:16  enemy lines 4
+
+reckless direct march (Vector step 4 script): 0 of 8 won. Ruling check PASS (must lose).
+  seed     1  LOSS day  37  end 147.2%  original army  11.1%  eq  2300/ 1990  factory lvls  8  lines 2  built L1:6 L2:12  enemy lines 4
+  seed     7  LOSS day  37  end 147.2%  original army  11.1%  eq   840/ 1110  factory lvls  2  lines 2  built L1:6 L2:12  enemy lines 3
+  seed    42  LOSS day  37  end 147.2%  original army  11.1%  eq  1445/ 1390  factory lvls  5  lines 2  built L1:6 L2:12  enemy lines 3
+  seed    99  LOSS day  37  end 147.2%  original army  11.1%  eq  1900/ 1310  factory lvls  7  lines 2  built L1:6 L2:12  enemy lines 3
+  seed  1234  LOSS day  37  end 147.2%  original army  11.1%  eq  1410/ 1260  factory lvls  5  lines 2  built L1:6 L2:12  enemy lines 3
+  seed   555  LOSS day  37  end 147.2%  original army  11.1%  eq  1765/ 1045  factory lvls  6  lines 2  built L1:6 L2:12  enemy lines 3
+  seed  2024  LOSS day  37  end 147.2%  original army  11.1%  eq  1765/ 1225  factory lvls  6  lines 2  built L1:6 L2:12  enemy lines 3
+  seed 31337  LOSS day  37  end 147.2%  original army  11.1%  eq  1055/ 1395  factory lvls  2  lines 2  built L1:6 L2:12  enemy lines 3
+
+Overall: every ruling check passes.
