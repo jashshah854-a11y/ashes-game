@@ -150,3 +150,13 @@ Prescription: Cycle 4 judge verdict (risk 2), step 3 of this cycle. Tests author
 ### Lessons
 - The first draft of the orchestrator's sensible player got only 5 of 8, because it attacked opportunistically from whatever province a group stood in and lost units piecemeal, which is exactly the failure step 1's log already recorded. Enforcing the mass first rule (no attack until at least 5 units are massed at the staging province, then only eastward with a clear power edge) restored 8 of 8 with no sim change. The balance did not regress; the script had.
 - Testing productionPhase directly, in isolation from the tick, is what makes the parity and timing numbers exact: on full ticks, economy income and the AI's own orders blur who spent what. Opus chose that isolation unprompted and it is the right call for this layer of tests.
+
+## IRIS handover, lessons from the old PC loop (2026-10-13)
+
+The old Ashes loop (Claude Code plus Hermes on Jash's PC, repo Ashes-Semantic-Zoom) is PAUSED by Jash's decision as of 2026-10-13 08:12: STOP file set, both scheduled tasks disabled, cycle 96 stopped mid-run with no commit. Head is cycle 95 (546b9ce), tests 233/233. This cloud build is the live Ashes work now. One dirty file on the PC branch (planning/gate-receipt.json) belongs to that repo, not this one. To resume the PC loop later, the STOP file comes out and the tasks re-enable; its Gate 3 spectator work and the old RTS demo design do not transfer as specs. The process lessons below do, and the loop treats them as binding.
+
+- Jash's balance ruling (2026-10-11): both intended play paths must WIN through the public command path with at least 20 percent of starting friendly health left; a passive or reckless path must still lose. The old mission once "won" by 2.3 to 3.75 HP only because it was accidentally balanced around a bug (misplaced Fortify cover helping the player). Verify wins come from intended mechanics, never from a defect, and say so in the log if one does.
+- Rebalance in small slices. A one-shot big rebalance regressed the old suite and was reverted; the fix was three small separately committed slices.
+- Determinism and saves: the old sim produced a mission freeze at 3599.9s, time drift from per-frame rounding, and saves that soft-locked or failed to load. When save/load arrives in this build, it comes with save integrity and time-step determinism tests.
+- Validate any scoring or judging metric before tuning against it. The old loop tuned cues against an unvalidated score and moved nothing.
+- Commit discipline: commit every cycle that does not make tests worse; a cycle attempts the next slice instead of quitting.
