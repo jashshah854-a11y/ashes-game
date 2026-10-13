@@ -189,10 +189,13 @@ function reckless(Sim, s, mem) {
 }
 
 // ruling: 'win' must win above the floor, 'lose' must lose, 'report' is
-// measured and printed but gates nothing.
+// measured and printed but gates nothing. Since Cycle 6 step 4 (Jash's
+// call: lines are paid before factories) building factories for more
+// lines is the intended path, and the Cycle 5 sensible script, which
+// never builds a factory, is kept as a report so its trend stays visible.
 const PROFILES = {
   passive: { play: passive, ruling: 'lose', label: 'passive (never acts)' },
-  sensible: { play: makeSensible(false), ruling: 'win', label: 'sensible without factories (Cycle 5 definition, rebuilt)' },
+  sensible: { play: makeSensible(false), ruling: 'report', label: 'sensible without factories (Cycle 5 definition, rebuilt)' },
   factories: { play: makeSensible(true), ruling: 'win', label: 'sensible plus factories toward the next line' },
   reckless: { play: reckless, ruling: 'lose', label: 'reckless (open capital, piecemeal, no rail)' }
 };

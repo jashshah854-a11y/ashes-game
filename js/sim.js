@@ -1004,9 +1004,29 @@
   // One day of economy for one nation. Resources gate production: if the
   // steel stockpile plus today's income cannot feed every factory level,
   // only some levels run and equipment output drops proportionally.
+  // The tick splits the economy around production: income first, then the
+  // production lines are paid, then factories run on the steel that is
+  // left. Factories feed production, so they never starve it. (Cycle 6
+  // step 4: with factories paid first, upkeep at 24 levels outran income
+  // and every line stalled, so building factories for more lines was a
+  // trap. Jash ruled lines first.) economyTick runs a whole economy day
+  // without production, for callers that want just that.
   function economyTick(state, nationId) {
+    incomePhase(state, nationId);
+    return factoryPhase(state, nationId);
+  }
+
+  function incomePhase(state, nationId) {
     var n = state.nations[nationId];
     n.steel += steelIncome(state, nationId);
+    n.researchPoints += CFG.researchPerDay;
+  }
+
+  // Factory levels each eat steel and make equipment. A level the
+  // stockpile cannot feed sits idle today; the count is kept on the
+  // nation so the panel can say how many and why.
+  function factoryPhase(state, nationId) {
+    var n = state.nations[nationId];
     var levels = factoryLevels(state, nationId);
     var steelWanted = levels * CFG.steelPerFactoryLevel;
     var steelUsed = Math.min(n.steel, steelWanted);
@@ -1014,7 +1034,7 @@
       ? Math.floor(steelUsed / CFG.steelPerFactoryLevel) : levels;
     n.steel -= levelsRunning * CFG.steelPerFactoryLevel;
     n.equipment += levelsRunning * CFG.equipPerFactoryLevel;
-    n.researchPoints += CFG.researchPerDay;
+    n.factoryLevelsIdle = levels - levelsRunning;
     return { levelsRunning: levelsRunning, levelsIdle: levels - levelsRunning };
   }
 
@@ -1189,10 +1209,12 @@
   function tick(state) {
     if (state.gameOver) return state;
     aiResearch(state); // before the economy, like a player's click before the tick
-    economyTick(state, 'player');
-    economyTick(state, 'enemy');
-    productionPhase(state, 'player');
+    incomePhase(state, 'player');
+    incomePhase(state, 'enemy');
+    productionPhase(state, 'player');  // lines are paid before factories
     productionPhase(state, 'enemy');
+    factoryPhase(state, 'player');
+    factoryPhase(state, 'enemy');
     constructionPhase(state);
     supplyPhase(state);
     aiTakeTurn(state);
@@ -1219,6 +1241,8 @@
     createGame: createGame,
     tick: tick,
     economyTick: economyTick,
+    incomePhase: incomePhase,
+    factoryPhase: factoryPhase,
     issueOrder: issueOrder,
     resolveBattle: resolveBattle,
     movementPhase: movementPhase,
