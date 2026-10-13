@@ -3,6 +3,12 @@
 // Loadable in the browser (window.AshesSim) and in node (module.exports)
 // so the same code that runs the game is the code the tests exercise.
 //
+// Cycle 6 step 2 note: battles resolve simultaneously from a start of
+// tick snapshot. Units crossing the same edge in opposite directions meet
+// in battle on the road. No nation's groups resolve first: every
+// engagement gets its own seeded rng and is computed on copies, then all
+// results are applied together.
+//
 // Cycle 6 note: factories gate how many production lines a nation runs.
 // Every nation starts with 2 lines. More lines open when the nation's
 // total factory levels reach the thresholds in CFG.lineUnlockFactoryLevels.
@@ -625,22 +631,30 @@
   }
 
   // ---------- Combat ----------
-  // One engagement: attacking units (already grouped by caller) hit the
-  // defenders of a province. Simultaneous rounds until one side is gone
-  // or 12 rounds pass. Returns true if the attackers cleared the province.
-  function resolveBattle(state, attackers, defenders, rng) {
+  function aliveList(list) { return list.filter(function (u) { return u.strength > 0; }); }
+
+  // The shared round math. Side A deals damage from its modeA power,
+  // side B from its modeB power. Simultaneous rounds until one side is
+  // gone or 12 rounds pass. A's roll is drawn before B's every round.
+  function fightRounds(state, sideA, sideB, modeA, modeB, rng) {
     var round = 0;
-    function alive(list) { return list.filter(function (u) { return u.strength > 0; }); }
-    while (alive(attackers).length > 0 && alive(defenders).length > 0 && round < 12) {
+    while (aliveList(sideA).length > 0 && aliveList(sideB).length > 0 && round < 12) {
       round++;
-      var atkPower = stackPower(state, alive(attackers), 'attack');
-      var defPower = stackPower(state, alive(defenders), 'defense');
-      var dmgToDef = Math.max(1, Math.round(atkPower * (0.7 + rng() * 0.6)));
-      var dmgToAtk = Math.max(1, Math.round(defPower * (0.7 + rng() * 0.6)));
-      applyDamage(defenders, dmgToDef);
-      applyDamage(attackers, dmgToAtk);
+      var powA = stackPower(state, aliveList(sideA), modeA);
+      var powB = stackPower(state, aliveList(sideB), modeB);
+      var dmgToB = Math.max(1, Math.round(powA * (0.7 + rng() * 0.6)));
+      var dmgToA = Math.max(1, Math.round(powB * (0.7 + rng() * 0.6)));
+      applyDamage(sideB, dmgToB);
+      applyDamage(sideA, dmgToA);
     }
-    return alive(defenders).length === 0 && alive(attackers).length > 0;
+    return { aAlive: aliveList(sideA).length, bAlive: aliveList(sideB).length };
+  }
+
+  // One engagement: attacking units hit the defenders of a province.
+  // Returns true if the attackers cleared the province.
+  function resolveBattle(state, attackers, defenders, rng) {
+    var r = fightRounds(state, attackers, defenders, 'attack', 'defense', rng);
+    return r.bAlive === 0 && r.aAlive > 0;
   }
 
   // Damage soaks into the first living unit, overflow spills to the next.
@@ -656,43 +670,310 @@
     }
   }
 
-  // Execute one attack group: friendly units from the same origin province
-  // ordered into the same target fight as one battle group, then survivors
-  // march in together. (Iteration 1 lesson: single units attacking a pooled
-  // stack one at a time was guaranteed suicide, for the player and the AI.)
-  function executeGroup(state, group, rng) {
-    if (!group.length) return;
-    var lead = group[0];
-    var target = state.provinces[lead.order.target];
-    group.forEach(function (u) { u.order = null; });
-    if (!target) return;
-    var attackers = group.filter(function (u) { return u.strength > 0; });
-    if (!attackers.length) return;
+  // ---------- Simultaneous movement and combat ----------
+  function hashString(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
 
-    var defenders = unitsIn(state, target.id).filter(function (u) { return u.nation !== lead.nation; });
-    if (defenders.length === 0) {
-      attackers.forEach(function (u) { u.provinceId = target.id; });
-      if (target.owner !== lead.nation) {
-        target.owner = lead.nation;
-        onProvinceCaptured(state, target, lead.nation);
-        logEvent(state, state.nations[lead.nation].short + ' take ' + target.name + ' unopposed.');
-        checkCapital(state, target);
+  // Each engagement gets its own rng, independent of every other engagement.
+  function engagementRng(state, key) {
+    return makeRng(hashString(state.seed + '|' + state.tickCount + '|' + key));
+  }
+
+  function battleClone(u) {
+    return {
+      id: u.id, nation: u.nation, type: u.type, strength: u.strength,
+      maxStrength: u.maxStrength, supplyPenalty: u.supplyPenalty || 0, provinceId: u.provinceId
+    };
+  }
+
+  function byUnitId(a, b) { return a.id - b.id; }
+  function byNum(a, b) { return a - b; }
+  function cmpStr(a, b) { return a < b ? -1 : (a > b ? 1 : 0); }
+
+  // The whole movement and combat phase, computed from a start of phase
+  // snapshot. Groups are nation|origin|target. Each unit fights at most
+  // one battle, assigned in this priority: meeting battles on a shared
+  // edge, province battles (in canonical group order), incoming clashes
+  // over an empty province, then unopposed moves. Battles run on clones;
+  // strengths are written back afterwards, then moves are decided from
+  // post-battle strengths and staying provinces, then captures apply in
+  // province id order. Nothing depends on state.units order.
+  function movementPhase(state) {
+    var living = state.units.filter(function (u) { return u.strength > 0; }).slice().sort(byUnitId);
+    var unitById = {};
+    var snapPos = {};
+    var atProv = {};
+    living.forEach(function (u) {
+      unitById[u.id] = u;
+      snapPos[u.id] = u.provinceId;
+      (atProv[u.provinceId] = atProv[u.provinceId] || []).push(u.id);
+    });
+    var snapOwner = {};
+    Object.keys(state.provinces).forEach(function (pid) { snapOwner[pid] = state.provinces[pid].owner; });
+
+    var hadOrder = [];
+    var groupMap = {};
+    var groups = [];
+    living.forEach(function (u) {
+      if (!u.order) return;
+      hadOrder.push(u.id);
+      var target = u.order.target;
+      if (!state.provinces[target] || target === u.provinceId) return;
+      var key = u.nation + '|' + u.provinceId + '|' + target;
+      if (!groupMap[key]) {
+        groupMap[key] = { key: key, nation: u.nation, origin: u.provinceId, target: target, ids: [], used: false };
+        groups.push(groupMap[key]);
       }
-      return;
+      groupMap[key].ids.push(u.id);
+    });
+    groups.sort(function (g1, g2) {
+      return cmpStr(g1.origin, g2.origin) || cmpStr(g1.target, g2.target) || cmpStr(g1.nation, g2.nation);
+    });
+
+    var assigned = {};
+    var drawn = {};
+    var engagements = [];
+    function clonesOf(ids) {
+      return ids.map(function (id) { return battleClone(unitById[id]); }).sort(byUnitId);
     }
-    var cleared = resolveBattle(state, attackers, defenders, rng);
-    var survivors = attackers.filter(function (u) { return u.strength > 0; });
-    if (cleared && survivors.length) {
-      survivors.forEach(function (u) { u.provinceId = target.id; });
-      target.owner = lead.nation;
-      onProvinceCaptured(state, target, lead.nation);
-      logEvent(state, state.nations[lead.nation].short + ' capture ' + target.name + ' after a hard fight.');
-      checkCapital(state, target);
-    } else if (!survivors.length) {
-      logEvent(state, 'A ' + state.nations[lead.nation].short + ' attack group is destroyed at ' + target.name + '.');
-    } else {
-      logEvent(state, state.nations[lead.nation].short + ' attack on ' + target.name + ' is repelled.');
+    function mark(ids) { ids.forEach(function (id) { assigned[id] = true; }); }
+    function survivors(ids) { return ids.filter(function (id) { return unitById[id].strength > 0; }); }
+
+    // a. Meeting battles: opposite directions over the same edge.
+    groups.forEach(function (g) {
+      if (g.used) return;
+      for (var i = 0; i < groups.length; i++) {
+        var h = groups[i];
+        if (h === g || h.used || h.nation === g.nation) continue;
+        if (h.origin === g.target && h.target === g.origin) {
+          g.used = true; h.used = true;
+          mark(g.ids); mark(h.ids);
+          engagements.push({
+            kind: 'meeting', key: [g.origin, g.target].sort().join('|'), a: g, b: h,
+            aClones: clonesOf(g.ids), bClones: clonesOf(h.ids), cands: []
+          });
+          return;
+        }
+      }
+    });
+
+    // b. Province battles: every unassigned enemy at the target defends,
+    // and all groups of the attacking nation into that target fight as one.
+    groups.forEach(function (g) {
+      if (g.used || !g.ids.length) return;
+      var defIds = (atProv[g.target] || []).filter(function (id) {
+        return unitById[id].nation !== g.nation && !assigned[id];
+      });
+      if (!defIds.length) return;
+      var atkGroups = groups.filter(function (h) {
+        return !h.used && h.ids.length && h.nation === g.nation && h.target === g.target;
+      });
+      var atkIds = [];
+      atkGroups.forEach(function (h) { h.used = true; atkIds = atkIds.concat(h.ids); });
+      atkIds.sort(byNum);
+      defIds.forEach(function (id) { drawn[id] = true; });
+      groups.forEach(function (h) {
+        if (!h.used) h.ids = h.ids.filter(function (id) { return !drawn[id]; });
+      });
+      mark(atkIds); mark(defIds);
+      engagements.push({
+        kind: 'battle', key: g.target, nation: g.nation, target: g.target,
+        atkIds: atkIds, defIds: defIds, aClones: clonesOf(atkIds), bClones: clonesOf(defIds), cands: []
+      });
+    });
+
+    // c. Incoming clashes over a province that was empty at snapshot.
+    var byTarget = {};
+    var clashTargets = [];
+    groups.forEach(function (g) {
+      if (g.used || !g.ids.length) return;
+      if ((atProv[g.target] || []).length) return;
+      if (!byTarget[g.target]) { byTarget[g.target] = []; clashTargets.push(g.target); }
+      byTarget[g.target].push(g);
+    });
+    clashTargets.sort(cmpStr);
+    clashTargets.forEach(function (t) {
+      var list = byTarget[t];
+      var nations = {};
+      list.forEach(function (g) { nations[g.nation] = true; });
+      if (Object.keys(nations).length < 2) return;
+      var defNation = nations[snapOwner[t]] ? snapOwner[t] : list[0].nation;
+      var atkIds = [], defIds = [];
+      list.forEach(function (g) {
+        g.used = true;
+        if (g.nation === defNation) defIds = defIds.concat(g.ids);
+        else atkIds = atkIds.concat(g.ids);
+      });
+      atkIds.sort(byNum); defIds.sort(byNum);
+      mark(atkIds); mark(defIds);
+      engagements.push({
+        kind: 'clash', key: 'clash:' + t, target: t, defNation: defNation,
+        atkIds: atkIds, defIds: defIds, aClones: clonesOf(atkIds), bClones: clonesOf(defIds), cands: []
+      });
+    });
+
+    // d. Unopposed moves.
+    groups.forEach(function (g) {
+      if (g.used || !g.ids.length) return;
+      g.used = true;
+      engagements.push({ kind: 'move', group: g, target: g.target, cands: [] });
+    });
+
+    // Compute every battle on clones, then write strengths back by id.
+    engagements.forEach(function (e) {
+      if (e.kind === 'move') return;
+      var rng = engagementRng(state, e.key);
+      e.result = fightRounds(state, e.aClones, e.bClones, 'attack', e.kind === 'meeting' ? 'attack' : 'defense', rng);
+    });
+    engagements.forEach(function (e) {
+      if (e.kind === 'move') return;
+      e.aClones.concat(e.bClones).forEach(function (c) { unitById[c.id].strength = c.strength; });
+    });
+
+    // Arrival candidates from post-battle strengths.
+    function candsByNation(ids, target, e) {
+      var map = {}, order = [];
+      ids.forEach(function (id) {
+        var n = unitById[id].nation;
+        if (!map[n]) { map[n] = []; order.push(n); }
+        map[n].push(id);
+      });
+      order.sort(cmpStr);
+      return order.map(function (n) { return { nation: n, target: target, ids: map[n], eng: e, ok: true }; });
     }
+    engagements.forEach(function (e) {
+      if (e.kind === 'battle') {
+        e.atkAlive = survivors(e.atkIds);
+        if (e.result.bAlive === 0 && e.atkAlive.length) e.cands = candsByNation(e.atkAlive, e.target, e);
+      } else if (e.kind === 'meeting') {
+        var aS = survivors(e.a.ids), bS = survivors(e.b.ids);
+        e.bothDead = !aS.length && !bS.length;
+        if (e.result.bAlive === 0 && aS.length) e.winner = e.a;
+        else if (e.result.aAlive === 0 && bS.length) e.winner = e.b;
+        if (e.winner) e.cands = candsByNation(e.winner === e.a ? aS : bS, e.winner.target, e);
+      } else if (e.kind === 'clash') {
+        var atkS = survivors(e.atkIds), defS = survivors(e.defIds);
+        if (e.result.bAlive === 0 && atkS.length) e.cands = candsByNation(atkS, e.target, e);
+        else if (e.result.aAlive === 0 && defS.length) e.cands = candsByNation(defS, e.target, e);
+      } else {
+        e.cands = candsByNation(survivors(e.group.ids), e.target, e);
+      }
+    });
+    var cands = [];
+    engagements.forEach(function (e) { cands = cands.concat(e.cands); });
+
+    // Opposing nations arriving at the same province contest it: none move in.
+    var natsAt = {};
+    cands.forEach(function (c) { (natsAt[c.target] = natsAt[c.target] || {})[c.nation] = true; });
+    cands.forEach(function (c) {
+      if (Object.keys(natsAt[c.target]).length > 1) { c.ok = false; c.contested = true; }
+    });
+
+    // Blocking: a living enemy staying at the target stops the arrival.
+    // Evaluated for all candidates at once and repeated until stable.
+    var changed = true;
+    while (changed) {
+      changed = false;
+      var movingTo = {};
+      cands.forEach(function (c) { if (c.ok) c.ids.forEach(function (id) { movingTo[id] = c.target; }); });
+      var blockedNow = cands.filter(function (c) {
+        return c.ok && living.some(function (u) {
+          return u.strength > 0 && u.nation !== c.nation && movingTo[u.id] == null && snapPos[u.id] === c.target;
+        });
+      });
+      blockedNow.forEach(function (c) { c.ok = false; c.blocked = true; changed = true; });
+    }
+
+    // Apply all moves, then clear orders.
+    cands.forEach(function (c) {
+      if (c.ok) c.ids.forEach(function (id) { unitById[id].provinceId = c.target; });
+    });
+    hadOrder.forEach(function (id) { unitById[id].order = null; });
+    Object.keys(drawn).forEach(function (id) { unitById[id].order = null; });
+
+    function nm(pid) { return state.provinces[pid].name; }
+    function sh(nat) { return state.nations[nat].short; }
+    function anyOk(e) { return e.cands.some(function (c) { return c.ok; }); }
+
+    // Outcome lines in canonical engagement order (captures log below).
+    engagements.forEach(function (e) {
+      if (e.kind === 'battle') {
+        if (anyOk(e)) return;
+        if (e.cands.length) {
+          logEvent(state, sh(e.nation) + ' clear ' + nm(e.target) + ' but cannot advance. Enemy troops still hold the ground.');
+        } else if (!e.atkAlive.length) {
+          logEvent(state, 'A ' + sh(e.nation) + ' attack group is destroyed at ' + nm(e.target) + '.');
+        } else {
+          logEvent(state, sh(e.nation) + ' attack on ' + nm(e.target) + ' is repelled.');
+        }
+      } else if (e.kind === 'meeting') {
+        var msg = sh(e.a.nation) + ' and ' + sh(e.b.nation) + ' columns meet on the road between ' +
+          nm(e.a.origin) + ' and ' + nm(e.a.target) + '.';
+        if (e.winner) {
+          msg += ' The ' + sh(e.winner.nation) + ' win' + (anyOk(e)
+            ? ' and march on to ' + nm(e.winner.target) + '.'
+            : ' but cannot advance into ' + nm(e.winner.target) + '. Enemy troops hold it.');
+        } else if (e.bothDead) {
+          msg += ' Both columns are destroyed.';
+        } else {
+          msg += ' Neither side breaks, and both fall back.';
+        }
+        logEvent(state, msg);
+      } else if (e.kind === 'clash') {
+        if (anyOk(e)) return;
+        if (e.cands.length) {
+          logEvent(state, sh(e.cands[0].nation) + ' win the clash for ' + nm(e.target) + ' but cannot move in.');
+        } else {
+          logEvent(state, 'Columns clash at ' + nm(e.target) + '. Neither side takes it.');
+        }
+      } else {
+        e.cands.forEach(function (c) {
+          if (!c.ok) logEvent(state, sh(c.nation) + ' march to ' + nm(c.target) + ' is halted. Enemy troops hold it.');
+        });
+      }
+    });
+
+    // Captures in canonical province id order.
+    var wins = cands.filter(function (c) { return c.ok; }).sort(function (c1, c2) {
+      return cmpStr(c1.target, c2.target) || cmpStr(c1.nation, c2.nation);
+    });
+    wins.forEach(function (c) {
+      var prov = state.provinces[c.target];
+      var kind = c.eng.kind;
+      if (kind === 'battle') {
+        prov.owner = c.nation;
+        onProvinceCaptured(state, prov, c.nation);
+        logEvent(state, sh(c.nation) + ' capture ' + prov.name + ' after a hard fight.');
+        checkCapital(state, prov);
+      } else if (kind === 'meeting') {
+        if (prov.owner !== c.nation) {
+          prov.owner = c.nation;
+          onProvinceCaptured(state, prov, c.nation);
+          checkCapital(state, prov);
+        }
+      } else if (kind === 'clash') {
+        if (prov.owner !== c.nation) {
+          prov.owner = c.nation;
+          onProvinceCaptured(state, prov, c.nation);
+          logEvent(state, sh(c.nation) + ' win the clash for ' + prov.name + ' and take it.');
+          checkCapital(state, prov);
+        } else {
+          logEvent(state, sh(c.nation) + ' win the clash for ' + prov.name + ' and hold it.');
+        }
+      } else if (prov.owner !== c.nation) {
+        prov.owner = c.nation;
+        onProvinceCaptured(state, prov, c.nation);
+        logEvent(state, sh(c.nation) + ' take ' + prov.name + ' unopposed.');
+        checkCapital(state, prov);
+      }
+    });
+    return { engagements: engagements.length };
   }
 
   function checkCapital(state, prov) {
@@ -898,7 +1179,6 @@
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
-    var rng = makeRng(state.seed + state.tickCount * 7919);
     economyTick(state, 'player');
     economyTick(state, 'enemy');
     productionPhase(state, 'player');
@@ -907,21 +1187,9 @@
     supplyPhase(state);
     aiTakeTurn(state);
     // Movement and combat: units sharing a nation, an origin province, and
-    // a target form one attack group. Player groups resolve first in the
-    // skeleton; honest ordering note in BACKLOG.
-    var movers = state.units.filter(function (u) { return u.order && u.strength > 0; });
-    var groupMap = {};
-    var groups = [];
-    movers.forEach(function (u) {
-      var key = u.nation + '|' + u.provinceId + '|' + u.order.target;
-      if (!groupMap[key]) { groupMap[key] = []; groups.push(groupMap[key]); }
-      groupMap[key].push(u);
-    });
-    groups.sort(function (g1, g2) {
-      if (g1[0].nation === g2[0].nation) return 0;
-      return g1[0].nation === 'player' ? -1 : 1;
-    });
-    groups.forEach(function (g) { executeGroup(state, g, rng); });
+    // a target form one group. All groups resolve simultaneously from a
+    // start of phase snapshot; no nation resolves first.
+    movementPhase(state);
     // Remove the dead.
     state.units = state.units.filter(function (u) { return u.strength > 0; });
     state.day += 1;
@@ -943,6 +1211,7 @@
     economyTick: economyTick,
     issueOrder: issueOrder,
     resolveBattle: resolveBattle,
+    movementPhase: movementPhase,
     buildFactory: buildFactory,
     trainUnit: trainUnit,
     productionLine: productionLine,

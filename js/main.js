@@ -324,6 +324,8 @@
       if (!defs.length) return;
       preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included).';
+      preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
+        ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
       // If taking this province would start rail conversions, say so
       // before the player commits, never as a surprise after the fact.
       var converting = Sim.neighborEdges(state, np).filter(function (ne) {
