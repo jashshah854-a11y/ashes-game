@@ -17,6 +17,7 @@
     <button id="btn-pause" type="button">Pause</button>
     <button id="btn-speed1" type="button" class="speed active">Speed 1x</button>
     <button id="btn-speed2" type="button" class="speed">Speed 2x</button>
+    <button id="btn-codex" type="button">Codex</button>
     <button id="btn-new" type="button">New Game</button>
   </div>
 </header>
@@ -92,7 +93,41 @@
   </aside>
 </main>
 
+<div id="event-overlay" class="overlay hidden">
+  <div class="event-card" role="dialog" aria-modal="true" aria-labelledby="event-title">
+    <div class="event-head"><span id="event-kicker" class="kicker"></span><span class="kicker">The game is paused</span></div>
+    <h2 id="event-title"></h2>
+    <div class="rule"></div>
+    <p id="event-body" class="event-body"></p>
+    <div class="event-why">
+      <div id="event-why"></div>
+      <div id="event-noeffect" class="noeffect"></div>
+    </div>
+    <div class="event-actions">
+      <button id="btn-event-codex" type="button" class="linkish">Read the history in the codex</button>
+      <button id="btn-event-continue" type="button" class="primary">Continue the war</button>
+    </div>
+  </div>
+</div>
+
+<div id="codex-overlay" class="overlay hidden">
+  <div class="codex" role="dialog" aria-modal="true" aria-labelledby="codex-title">
+    <div class="codex-head">
+      <div>
+        <h2 id="codex-title">Codex</h2>
+        <div class="codex-sub">The world before the war, and the turning points of this one. The game is paused while you read.</div>
+      </div>
+      <button id="btn-codex-close" type="button">Back to the war</button>
+    </div>
+    <div class="codex-body">
+      <nav id="codex-nav" class="codex-nav" aria-label="Codex entries"></nav>
+      <article id="codex-article" class="codex-article"></article>
+    </div>
+  </div>
+</div>
+
 <script src="js/sim.js"></script>
+<script src="js/lore.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
