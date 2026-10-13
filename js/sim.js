@@ -1178,8 +1178,10 @@
     var n = state.nations[ai];
     // Research, factories, rail, walls, and production orders are decided
     // at the start of the tick (aiResearch, aiFactories, aiRail, aiFortify,
-    // aiProduction). Only the movement orders below are still decided here,
-    // after the supply phase; see BACKLOG's tick order line for the gap.
+    // aiProduction); since Cycle 10 this turn, with its movement orders,
+    // runs at the start of the tick too, on the same start of day state a
+    // player sees: yesterday's supply penalties, walls finished by
+    // yesterday, and units that were standing there at dawn.
     // Orders, decided per origin province so the AI thinks in the same
     // battle groups the combat code fights with. (Cycle 3 lesson: judging
     // a single unit's stats against a whole stack's defense let lone
@@ -1389,6 +1391,7 @@
     aiRail(state);       // rail building, the same moment
     aiFortify(state);    // fortification, the same moment
     aiProduction(state); // the same start of day moment for production orders
+    aiTakeTurn(state);   // movement orders too: on yesterday's supply, like the player's preview
     incomePhase(state, 'player');
     incomePhase(state, 'enemy');
     productionPhase(state, 'player');  // lines are paid before factories
@@ -1397,7 +1400,6 @@
     factoryPhase(state, 'enemy');
     constructionPhase(state);
     supplyPhase(state);
-    aiTakeTurn(state);
     // Movement and combat: units sharing a nation, an origin province, and
     // a target form one group. All groups resolve simultaneously from a
     // start of phase snapshot; no nation resolves first.

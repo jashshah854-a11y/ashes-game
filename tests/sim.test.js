@@ -1346,3 +1346,20 @@ test('one clock: the same order from the player and the AI on the same day start
   while (bare.rail.daysLeft > 0) Sim.tick(r);
   assert.strictEqual(theirs.rail.daysLeft, 0, 'and finish on the same day');
 });
+
+test('one clock: a new Dominion unit waits a tick before it moves, like a new player unit', () => {
+  const s = Sim.createGame(42);
+  const known = new Set(s.units.map(u => u.id));
+  let fresh = 0;
+  while (!s.gameOver && s.day < 40) {
+    Sim.tick(s);
+    Sim.unitsOf(s, 'enemy').forEach(u => {
+      if (known.has(u.id)) return;
+      known.add(u.id);
+      fresh += 1;
+      assert.strictEqual(u.provinceId, s.nations.enemy.capitalId, 'unit ' + u.id + ' built on day ' + (s.day - 1) + ' is still at the capital that night');
+    });
+    s.units.forEach(u => known.add(u.id));
+  }
+  assert.ok(fresh >= 5, 'the Dominion built units in this window');
+});
