@@ -1,4 +1,4 @@
-// Ashes of Empires, browser glue for Iteration 1.
+// Ashes of Empires, browser glue.
 // All rules live in js/sim.js. This file only draws and listens.
 (function () {
   'use strict';
@@ -15,8 +15,9 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-train-inf', 'btn-train-drone', 'prov-explain', 'unit-details',
-   'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions'
+   'btn-factory', 'prov-explain', 'unit-details',
+   'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
+   'prod-summary', 'production-lines'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -153,17 +154,94 @@
     el.statEnemyUnits.textContent = Sim.unitsOf(state, 'enemy').length;
     el.statEnemyGen.textContent = e.droneGen2 ? 'Gen 2' : 'Gen 1';
 
+    renderProduction();
     renderProvinceCard();
     renderUnitCard();
   }
 
+  // Small helper: a div with a class and plain text content.
+  function textDiv(cls, text) {
+    var d = document.createElement('div');
+    d.className = cls;
+    d.textContent = text;
+    return d;
+  }
+
+  // Production panel: one row per line, every number the sim uses shown
+  // in plain words (what it builds, how long is left, what it drains).
+  function renderProduction() {
+    var n = state.nations.player;
+    var cap = state.provinces[n.capitalId];
+    var capName = cap ? cap.name : 'your capital';
+    el.prodSummary.textContent =
+      'Production drain: ' + Sim.productionDrain(state, 'player') + ' steel per day. ' +
+      Sim.queuedUnits(state, 'player') + ' units in queues. ' +
+      'Finished units deploy at ' + capName + '.';
+
+    el.productionLines.innerHTML = '';
+    (n.productionLines || []).forEach(function (line) {
+      var t = Sim.CFG.unitTypes[line.template];
+      var otherTemplate = line.template === 'infantry' ? 'drone' : 'infantry';
+      var other = Sim.CFG.unitTypes[otherTemplate];
+
+      var row = document.createElement('div');
+      row.className = 'prod-line';
+
+      row.appendChild(textDiv('prod-title', 'Line ' + line.id + ': ' + t.label));
+      row.appendChild(textDiv('prod-row', t.steelCost + ' steel over ' + t.buildDays + ' days'));
+      row.appendChild(textDiv('prod-row', line.queue + ' in queue (max ' + Sim.CFG.maxQueuePerLine + ')'));
+
+      if (line.queue <= 0) {
+        row.appendChild(textDiv('prod-row prod-idle', 'Idle. Queue a unit to start building.'));
+      } else {
+        var daysLeft = t.buildDays - line.progressDays;
+        row.appendChild(textDiv('prod-row',
+          line.progressDays + ' of ' + t.buildDays + ' days paid, ' + daysLeft + ' days left'));
+        row.appendChild(textDiv('prod-row',
+          Sim.lineSteelPerDay(line.template) + ' steel per day while working'));
+      }
+
+      if (line.stalled) {
+        row.appendChild(textDiv('prod-stalled', 'Stalled: not enough steel today. No progress made.'));
+      }
+      if (line.progressDays > 0) {
+        row.appendChild(textDiv('prod-note', 'Retooling scraps the unit in progress.'));
+      }
+
+      var btns = document.createElement('div');
+      btns.className = 'prod-btns';
+
+      var qBtn = document.createElement('button');
+      qBtn.type = 'button';
+      qBtn.textContent = 'Queue ' + t.label + ' (+1)';
+      qBtn.disabled = line.queue >= Sim.CFG.maxQueuePerLine;
+      qBtn.addEventListener('click', function () {
+        Sim.queueProduction(state, 'player', line.id);
+        render();
+      });
+      btns.appendChild(qBtn);
+
+      var rBtn = document.createElement('button');
+      rBtn.type = 'button';
+      rBtn.textContent = 'Retool to ' + other.label;
+      rBtn.addEventListener('click', function () {
+        Sim.assignLineTemplate(state, 'player', line.id, otherTemplate);
+        render();
+      });
+      btns.appendChild(rBtn);
+
+      row.appendChild(btns);
+      el.productionLines.appendChild(row);
+    });
+  }
+
   function renderProvinceCard() {
     var p = selectedProvinceId ? state.provinces[selectedProvinceId] : null;
-    var btnF = el.btnFactory, btnI = el.btnTrainInf, btnD = el.btnTrainDrone;
+    var btnF = el.btnFactory;
     if (!p) {
       el.provName.textContent = 'No province selected';
       el.provDetails.textContent = 'Click any province to inspect it.';
-      btnF.disabled = btnI.disabled = btnD.disabled = true;
+      btnF.disabled = true;
       el.provExplain.textContent = '';
       el.railActions.innerHTML = '';
       return;
@@ -192,8 +270,6 @@
     btnF.textContent = p.factoryLevel >= Sim.CFG.maxFactoryLevel
       ? 'Factory at max level'
       : 'Build / Upgrade Factory (' + cost + ' eq)';
-    btnI.disabled = !(mine && p.factoryLevel >= 1 && state.nations.player.equipment >= Sim.CFG.infantryCost);
-    btnD.disabled = !(mine && p.factoryLevel >= 1 && state.nations.player.equipment >= Sim.CFG.droneCost);
     el.provExplain.textContent = mine
       ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more.'
       : 'Enemy province. March a unit in to take it.';
@@ -262,6 +338,7 @@
       base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
       'Attack ' + st.attack + ', Defense ' + st.defense +
       (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
+      'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days on a production line.<br>' +
       supplyText + '<br>' +
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
   }
@@ -317,12 +394,6 @@
   });
   el.btnFactory.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildFactory(state, 'player', selectedProvinceId); render(); }
-  });
-  el.btnTrainInf.addEventListener('click', function () {
-    if (selectedProvinceId) { Sim.trainUnit(state, 'player', 'infantry', selectedProvinceId); render(); }
-  });
-  el.btnTrainDrone.addEventListener('click', function () {
-    if (selectedProvinceId) { Sim.trainUnit(state, 'player', 'drone', selectedProvinceId); render(); }
   });
 
   newGame();

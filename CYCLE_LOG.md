@@ -103,3 +103,26 @@ Prescription: Cycle 4 judge verdict (risk 2). This run did step 1 only, the simu
 - The first version of this step failed passively on 3 of 8 seeds (the player survived by doing nothing). Cause: the old AI grew a factory almost every day, each level adds daily steel demand, and with lines now also draining steel the Dominion's stockpile was pinned at zero by about day 25. Rail never got funded, its lead group starved at 50 percent penalty one province from the capital, and the AI's own rule against attacking while out of supply froze it there. Under instant purchases the AI won on day 36 before the spiral mattered. Pacing and steel-gating its factory growth (above) restored day 36 on all 8 seeds. The old instant-buy economy was hiding a factory steel spiral; production exposed it.
 - A sensible player who leaves the starting units scattered in three provinces loses them piecemeal to the AI stack, production or not. Massing at one staging province is what survives; that matches the mission text for the step 3 script (trains, researches, rails unsupplied units, masses at the front).
 - Equipment is now a factory-building currency only (see BACKLOG). Whether factories should also gate line count or build speed is flagged for the step 4 judge, not decided here.
+
+## Cycle 5, production lines and unit costs, Step 2 of 4: production panel UI (2026-10-13)
+
+Prescription: Cycle 4 judge verdict (risk 2), step 2 of this cycle. Built by Claude Opus 5.5 through the direct Anthropic line, per Jash's division of labor (Opus builds, Vector orchestrates: brief, apply, test, verify, commit). Step 1 (sim) shipped in commit 8c40c9a. Steps 3 (tests and balance) and 4 (judge) remain.
+
+### What Opus built
+- `index.html`: a new Production card between the nation card and the province card, with a summary div (id prod-summary), a lines container (id production-lines), and a static explain paragraph stating the rules in plain words: one unit at a time per line, steel drained daily, a day the stockpile cannot pay is a stalled day with no progress, finished units deploy at the capital, retooling scraps the unit in progress and its spent steel. The two old train buttons (btn-train-inf, btn-train-drone) are removed from the province card; the factory button stays.
+- `js/main.js`: renderProduction(), called on every render. One row per player line showing the template label, full cost and build days (30 steel over 6 days infantry, 15 over 3 drone), queue count against the cap of 9, days paid and days left on the unit in progress, and the 5 steel per day drain while working. An idle line says so; a stalled line shows "Stalled: not enough steel today. No progress made." in a highlighted style; a line with work in progress carries the note "Retooling scraps the unit in progress." Per line buttons: Queue (+1), disabled at the cap, calling queueProduction; and Retool to the other template, calling assignLineTemplate. The summary line shows total production drain (productionDrain), total queued units, and the capital name finished units deploy at. The selected unit card now shows "Cost to build: N steel over M days on a production line." The train button handlers and all province card train gating are gone; nothing in the UI calls the trainUnit alias anymore. Map, supply, rail, research, attack preview, and log rendering are unchanged (verified by diff: the only main.js changes are the ones listed here).
+- `css/style.css`: production panel styles in the existing palette, with the stalled note in the same red treatment as the supply penalty tag.
+
+### Opus usage
+- Build call: [usage: in=12614, out=12825]. One call, no fix rounds needed.
+
+### Test and verification results (run by the orchestrator)
+- `node --check js/main.js` and `node --check js/sim.js`: both pass.
+- `node --test tests/sim.test.js`: 20 pass, 0 fail (suite unchanged this step; formal production tests are step 3).
+- Id sync check: every id in the main.js element list exists in index.html; the only HTML ids not in the JS list are the structural card ids, same as before this step.
+- Em dash scan of the Opus output: zero.
+- Headless DOM smoke test (orchestrator glue, a stub DOM in node running the real sim.js and main.js): the panel renders 2 rows with correct costs and idle text; the summary starts at 0 drain and names Vesskar City; clicking Queue on line 1 rebuilds the row to "1 in queue, 0 of 6 days paid, 6 days left, 5 steel per day" and the summary drain becomes 5; clicking Retool switches line 1 to Drone Wing at 15 steel over 3 days with the queue carried over. PASS.
+
+### Lessons
+- The diff discipline paid off: because the brief demanded complete replacement files plus an exact API list, the returned files changed only what the step specified, and the whole step verified in one pass with no fix round.
+- A stub DOM smoke test is cheap and catches panel wiring (ids, listeners, re-render after clicks) without a browser. Worth keeping for step 3's harness work.

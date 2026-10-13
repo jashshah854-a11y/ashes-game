@@ -47,13 +47,21 @@
       <p class="explain" id="research-explain">Gen 2 raises every drone wing to attack 5, defense 3.</p>
     </div>
 
+    <div class="card" id="production-card">
+      <h2>Production</h2>
+      <div id="prod-summary" class="prod-summary"></div>
+      <div id="production-lines" class="production-lines"></div>
+      <p class="explain" id="prod-explain">Lines build one unit at a time and drain steel every day
+      while they work. If the steel stockpile cannot pay a line for a day, that line stalls and
+      makes no progress. A finished unit deploys at your capital. Retooling a line to the other
+      template scraps the unit in progress, and the steel already spent on it is lost.</p>
+    </div>
+
     <div class="card" id="province-card">
       <h2 id="prov-name">No province selected</h2>
       <div id="prov-details" class="prov-details">Click any province to inspect it.</div>
       <div class="btn-col">
         <button id="btn-factory" type="button" disabled>Build / Upgrade Factory</button>
-        <button id="btn-train-inf" type="button" disabled>Train Infantry Division (30 eq)</button>
-        <button id="btn-train-drone" type="button" disabled>Train Drone Wing (15 eq)</button>
       </div>
       <div class="btn-col" id="rail-actions"></div>
       <p class="explain" id="prov-explain"></p>
