@@ -10,18 +10,20 @@ specific; everything else keeps moving.
    (200 of 200), median day 34, often ending with about twice its starting
    strength. Sensible play that never builds a factory still wins most
    seeds (193 of 200) but can lose a long war to a Dominion running 4
-   lines. Questions: does day 36 feel right for a do-nothing commander,
-   and is the factory path now too strong (an easy win once you find it),
-   or is that the payoff you want for building up?
+   lines. Correction from the Cycle 6 judge: the factory path is not a
+   faster win. It wins later than the no factory script on most seeds
+   (median day 34 against 22) and wins more surely (200 of 200 against
+   193), because it trades rail for production (see item 8). Questions:
+   does day 36 feel right for a do-nothing commander, and does building
+   up feel like it pays off enough, or too surely?
 
-2. Next build. Production lines shipped (Cycle 5, judge PASS). The judge
-   now prescribes Cycle 6, "Close the loop, fix the clock": factories gate
-   production line count (locked slots shown with their unlock condition),
-   plus simultaneous battle resolution. Lore is reserved as Cycle 7, in
-   the judge's words not to be bumped again (written backstories, a codex
-   panel, 3 event cards; tone and content will come to you for approval).
-   The loop will follow the judge unless you say otherwise. Your call
-   only if you feel strongly.
+2. Next build. Cycle 6 ("Close the loop, fix the clock") passed its
+   judge on condition of small fixes, now closed. Cycle 7 is the lore
+   seed, in two judges' words not to be bumped again: a written backstory
+   for each nation, a shared history of the river line, a codex panel,
+   and 3 event cards. Tone and content will come to you as a draft for
+   approval before they ship as final. The loop follows the judge unless
+   you say otherwise.
 
 3. Rail conversion. It emerged from balance work and the judge voted
    keeper. It is in the game now: captured rail takes 4 days to convert
@@ -56,6 +58,29 @@ specific; everything else keeps moving.
    you play if it feels wrong. Decided by you on 2026-10-13: production
    lines are paid before factories each day, so building for more lines
    pays off instead of starving every line.
+
+8. Rail against factories. When you chose "lines first" the rail cost was
+   not in front of you. With lines paid first, factories eat every steel
+   the lines leave and cannot be paused, so a player who builds toward
+   more lines almost never saves the 15 steel a rail edge costs: 0 to 7
+   rail edges per campaign and 8 to 43 days at empty steel, against 12 to
+   39 edges and no dry days for a player who skips factories. It still
+   wins every seed. Options: leave it (factories and rail are a real
+   trade), pay rail before factories, let the player pause factories, or
+   let the player set a steel reserve that factories cannot touch.
+
+9. Defending against an attack. A stack whose province is attacked on the
+   same day stays home and fights, and its own order is cancelled; the
+   unit card now says so. The alternative is that it carries out its own
+   attack and gives the ground up. The first is the rule today.
+
+10. Both capitals fall on the same day. Today the Dominion wins, by
+    province order, not by design (it has never happened in a test run).
+    Draw, loss, or win?
+
+11. What equipment buys. Today it buys factories only, and piles up past
+    5000 once every line is open. The plan is fortifications paid in
+    equipment (Cycle 8). Your call if you want something else.
 
 Nothing here blocks the build. Cycle 6 steps 1 to 4 are done and
 reconciled on one branch; the judge pass is next, then Cycle 7 (lore).
