@@ -3,6 +3,10 @@
 // Loadable in the browser (window.AshesSim) and in node (module.exports)
 // so the same code that runs the game is the code the tests exercise.
 //
+// Cycle 5 note: units are built, not bought. Production lines (below)
+// replaced instant whole-unit purchases: steel drains over build days,
+// finished units deploy at the capital, and the AI pays the same.
+//
 // Cycle 3 note: the map is an explicit graph. Provinces are nodes, edges
 // are typed (land, river) and can carry rail. Every adjacency, movement,
 // and supply question goes through the graph. Coordinates exist only so
@@ -33,9 +37,14 @@
     supplyPenaltyMax: 50,         // effectiveness floor: never worse than -50 percent
     supplyGraceDays: 3,           // days out of supply before attrition starts
     supplyAttritionRate: 0.02,    // strength fraction lost per day after the grace days
+    productionLinesPerNation: 2,  // lines each nation starts with, identical for player and AI
+    maxQueuePerLine: 9,           // orders one line can hold, current unit included
     unitTypes: {
-      infantry: { label: 'Infantry Division', attack: 4, defense: 4, strength: 12, cost: 30 },
-      drone:    { label: 'Drone Wing',        attack: 3, defense: 2, strength: 6,  cost: 15 }
+      // cost is the steel cost per unit, paid as a daily drain over
+      // buildDays while the line works (steelPerDay = cost / buildDays,
+      // kept a whole number for both templates so every number is visible).
+      infantry: { label: 'Infantry Division', attack: 4, defense: 4, strength: 12, cost: 30, steelCost: 30, buildDays: 6 },
+      drone:    { label: 'Drone Wing',        attack: 3, defense: 2, strength: 6,  cost: 15, steelCost: 15, buildDays: 3 }
     },
     droneGen2: { attack: 5, defense: 3 }  // drone stats once Drone Gen 2 is researched
   };
@@ -104,6 +113,114 @@
     ['p6_2', 'p6_3'], ['p6_3', 'p6_4'], ['p5_2', 'p5_3'], ['p5_3', 'p5_4']
   ];
 
+  // ---------- Production lines ----------
+  // Each nation owns the same number of lines. A line is assigned one
+  // unit template, holds a queue of orders, and builds one unit at a
+  // time. While it works it drains steel every day (steelCost spread
+  // evenly over buildDays); a day the stockpile cannot pay for is a
+  // stalled day and no progress is made, which is how rail building
+  // (steel paid up front) and unit production compete for the same
+  // steel. A finished unit deploys at the nation's capital. The player
+  // and the AI use these exact lines, costs, and days: no discounts.
+  function makeProductionLines() {
+    var templates = ['infantry', 'drone'];
+    var lines = [];
+    for (var i = 0; i < CFG.productionLinesPerNation; i++) {
+      lines.push({
+        id: i + 1,
+        template: templates[i % templates.length],
+        queue: 0,          // orders waiting, the unit in production included
+        progressDays: 0,   // paid days of work on the current unit
+        stalled: false     // true when the last production day went unpaid
+      });
+    }
+    return lines;
+  }
+
+  function productionLine(state, nationId, lineId) {
+    var lines = state.nations[nationId].productionLines || [];
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].id === lineId) return lines[i];
+    }
+    return null;
+  }
+
+  function lineSteelPerDay(template) {
+    var t = CFG.unitTypes[template];
+    return t.steelCost / t.buildDays;
+  }
+
+  // Steel per day all of a nation's working lines want right now.
+  function productionDrain(state, nationId) {
+    return (state.nations[nationId].productionLines || []).reduce(function (s, line) {
+      return s + (line.queue > 0 ? lineSteelPerDay(line.template) : 0);
+    }, 0);
+  }
+
+  function queuedUnits(state, nationId) {
+    return (state.nations[nationId].productionLines || []).reduce(function (s, line) {
+      return s + line.queue;
+    }, 0);
+  }
+
+  // Order one more unit from a line. Nothing is paid up front and no
+  // unit appears today: the cost lands as the daily drain while the
+  // line builds it. This replaces the old instant whole-unit purchase.
+  function queueProduction(state, nationId, lineId) {
+    var line = productionLine(state, nationId, lineId);
+    if (!line) return { ok: false, reason: 'no such production line' };
+    if (line.queue >= CFG.maxQueuePerLine) return { ok: false, reason: 'queue is full' };
+    line.queue += 1;
+    var t = CFG.unitTypes[line.template];
+    logEvent(state, state.nations[nationId].short + ' queue a ' + t.label +
+      ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + t.buildDays + ' days).');
+    return { ok: true, line: line, template: line.template, cost: t.steelCost, buildDays: t.buildDays };
+  }
+
+  // Retool a line to a different template. Work already done on the
+  // unit in production is scrapped (the steel drained into it is gone);
+  // the queue count carries over and now builds the new template.
+  function assignLineTemplate(state, nationId, lineId, template) {
+    var line = productionLine(state, nationId, lineId);
+    if (!line) return { ok: false, reason: 'no such production line' };
+    if (!CFG.unitTypes[template]) return { ok: false, reason: 'no such unit template' };
+    if (line.template === template) return { ok: true, line: line, template: template, retooled: false };
+    line.template = template;
+    line.progressDays = 0;
+    line.stalled = false;
+    logEvent(state, state.nations[nationId].short + ' retool line ' + line.id +
+      ' to ' + CFG.unitTypes[template].label + '. Work in progress is scrapped.');
+    return { ok: true, line: line, template: template, retooled: true };
+  }
+
+  // One day of production for one nation. Lines are paid in id order
+  // from the steel stockpile the economy phase left behind. A line
+  // that cannot be paid stalls for the day instead of going into debt.
+  function productionPhase(state, nationId) {
+    var n = state.nations[nationId];
+    var completed = [];
+    var steelSpent = 0;
+    (n.productionLines || []).forEach(function (line) {
+      line.stalled = false;
+      if (line.queue <= 0) return;
+      var drain = lineSteelPerDay(line.template);
+      if (n.steel < drain) { line.stalled = true; return; }
+      n.steel -= drain;
+      steelSpent += drain;
+      line.progressDays += 1;
+      var t = CFG.unitTypes[line.template];
+      if (line.progressDays >= t.buildDays) {
+        line.queue -= 1;
+        line.progressDays = 0;
+        var u = addUnit(state, nationId, line.template, n.capitalId);
+        completed.push(u);
+        logEvent(state, n.short + ' line ' + line.id + ' completes a ' + t.label +
+          '. It deploys at ' + state.provinces[n.capitalId].name + '.');
+      }
+    });
+    return { completed: completed, steelSpent: steelSpent };
+  }
+
   // ---------- Game creation ----------
   function createGame(seed) {
     var rng = makeRng(seed == null ? 1234 : seed);
@@ -126,12 +243,14 @@
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
           equipment: 60, steel: 20, researchPoints: 0,
-          droneGen2: false, capitalId: provinceId(0, 3)
+          droneGen2: false, capitalId: provinceId(0, 3),
+          productionLines: makeProductionLines()
         },
         enemy: {
           id: 'enemy', name: 'The Khessite Dominion', short: 'Khessite',
           equipment: 60, steel: 20, researchPoints: 0,
-          droneGen2: false, capitalId: provinceId(CFG.mapW - 1, 3)
+          droneGen2: false, capitalId: provinceId(CFG.mapW - 1, 3),
+          productionLines: makeProductionLines()
         }
       }
     };
@@ -548,17 +667,22 @@
     return { ok: true, cost: cost, level: prov.factoryLevel };
   }
 
-  function trainUnit(state, nationId, type, provId) {
-    var prov = state.provinces[provId];
-    var n = state.nations[nationId];
-    if (!prov || prov.owner !== nationId) return { ok: false, reason: 'not your province' };
-    if (prov.factoryLevel < 1) return { ok: false, reason: 'needs a factory' };
-    var cost = CFG.unitTypes[type].cost;
-    if (n.equipment < cost) return { ok: false, reason: 'not enough equipment', cost: cost };
-    n.equipment -= cost;
-    var u = addUnit(state, nationId, type, provId);
-    logEvent(state, state.nations[nationId].short + ' deploy a ' + CFG.unitTypes[type].label + ' in ' + prov.name + '.');
-    return { ok: true, unit: u, cost: cost };
+  // Backward compatible entry point, kept until the UI cycle replaces
+  // the old train buttons with the production panel: ordering a unit
+  // type now queues it on the first line assigned to that template.
+  // Nothing deploys instantly and nothing is charged to equipment;
+  // the steel cost is drained while the line builds (queueProduction).
+  function trainUnit(state, nationId, type) {
+    if (!CFG.unitTypes[type]) return { ok: false, reason: 'no such unit template' };
+    var lines = state.nations[nationId].productionLines || [];
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].template === type) {
+        var res = queueProduction(state, nationId, lines[i].id);
+        if (!res.ok) return res;
+        return { ok: true, queued: true, line: lines[i], cost: res.cost, buildDays: res.buildDays };
+      }
+    }
+    return { ok: false, reason: 'no production line is assigned to that template' };
   }
 
   function researchDroneGen2(state, nationId) {
@@ -579,8 +703,12 @@
     var n = state.nations[ai];
     // Research as soon as it can afford it.
     if (!n.droneGen2 && n.researchPoints >= CFG.droneGen2Cost) researchDroneGen2(state, ai);
-    // Grow one factory near home when rich.
-    if (n.equipment >= 140) {
+    // Grow one factory near home when rich, paced and gated on a steel
+    // surplus: every factory level eats steel every day, and an AI that
+    // grows factories daily bankrupts the steel its rail and production
+    // lines need (found in the Cycle 5 balance run: steel pinned at
+    // zero by day 25, rail went unfunded, the lead group starved in place).
+    if (n.equipment >= 140 && n.steel >= 60 && state.day % 3 === 0) {
       var home = nationProvinces(state, ai).filter(function (p) { return p.factoryLevel < 2; });
       home.sort(function (a, b) { return b.x - a.x; }); // closest to its own heartland first
       if (home.length) buildFactory(state, ai, home[0].id);
@@ -603,10 +731,19 @@
       });
       if (candidates.length) buildRail(state, ai, candidates[0].a, candidates[0].b);
     }
-    // Train at the capital when it has a surplus, up to a modest field army.
+    // Keep the production lines fed, up to a modest field army. The AI
+    // orders through the same lines, steel costs, and build days as
+    // the player, and finished units deploy at its capital just like
+    // the player's do. It keeps at most one order per line at a time,
+    // which paces its reinforcements the way the old every-3-days
+    // instant training did.
     // (The cap exists because the first smoke test ended with a 51 unit pile-up.)
-    if (n.equipment >= 90 && state.day % 3 === 0 && unitsOf(state, ai).length < 14) {
-      trainUnit(state, ai, state.day % 2 === 0 ? 'infantry' : 'drone', n.capitalId);
+    if (unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
+      (n.productionLines || []).forEach(function (line) {
+        if (line.queue === 0 && unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
+          queueProduction(state, ai, line.id);
+        }
+      });
     }
     // Orders, decided per origin province so the AI thinks in the same
     // battle groups the combat code fights with. (Cycle 3 lesson: judging
@@ -662,6 +799,8 @@
     var rng = makeRng(state.seed + state.tickCount * 7919);
     economyTick(state, 'player');
     economyTick(state, 'enemy');
+    productionPhase(state, 'player');
+    productionPhase(state, 'enemy');
     constructionPhase(state);
     supplyPhase(state);
     aiTakeTurn(state);
@@ -704,6 +843,13 @@
     resolveBattle: resolveBattle,
     buildFactory: buildFactory,
     trainUnit: trainUnit,
+    productionLine: productionLine,
+    queueProduction: queueProduction,
+    assignLineTemplate: assignLineTemplate,
+    productionPhase: productionPhase,
+    productionDrain: productionDrain,
+    queuedUnits: queuedUnits,
+    lineSteelPerDay: lineSteelPerDay,
     researchDroneGen2: researchDroneGen2,
     unitStats: unitStats,
     stackPower: stackPower,
