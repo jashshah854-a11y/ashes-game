@@ -507,3 +507,7 @@ Built by the Claude Code builder session.
 ### Lessons
 - Lore written against the mechanics does work the UI cannot: the gauge war explains rail conversion, and the Reckoning explains the Dominion's 1.5x rule and garrison in a sentence a player remembers.
 - The hook must observe end of tick state, not diff the tick's start and end, because a line opened by the panel's render sync while paused is already open when the next tick starts.
+
+## Cycle 7, The lore seed, Step 2 of 4: CLAIMED (2026-10-13)
+
+Claimed by the Claude Code builder session. Scope: the codex panel (the five entries from js/lore.js, plus the turning points reached so far) and the event card (pauses the game, states its trigger in plain words with the day, prints the no effect line, dismisses back to the previous pause state). Designed first as a Claude Design mockup at Jash's direction, matched to the existing palette and panel layout, then built into index.html, js/main.js, and css/style.css, then checked in a real browser.
