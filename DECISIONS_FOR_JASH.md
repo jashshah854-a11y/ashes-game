@@ -28,16 +28,16 @@ was invented by the loop, not by you:
 - Passages the Cycle 7 judge flagged because they imply edges the game
   does not have: see item 12.
 
-1. Calibration feel. Measured with the committed harness after Cycle 10
-   step 0 (walls included, and the Dominion deciding everything on the
-   same clock as you): a commander who never acts falls on day 30 on every
-   standard seed, the very edge of the judge's 30 to 45 band (it fell on
-   day 36 before the Dominion's clock was made fair); a reckless one loses every time; sensible play that
-   builds factories toward more lines wins every seed tried (200 of 200),
-   median day 55, often ending with about three times its starting
-   strength, and the same with walls at home wins every seed too (median
-   day 46). Sensible play that never builds a factory wins 196 of 200,
-   median day 46. Questions: does day 30 feel right for a do-nothing commander, and does
+1. Calibration feel. Measured with the committed harness in Cycle 10
+   (walls and capital air defense included, and the Dominion deciding
+   everything on the same clock as you): a commander who never acts falls
+   on day 30 on every standard seed, the very edge of the judge's 30 to 45
+   band (it fell on day 36 before the Dominion's clock was made fair); a
+   reckless one loses every time; sensible play that builds factories
+   toward more lines wins every seed tried (200 of 200), median day 52,
+   often ending with about three times its starting strength, and the
+   same with walls at home wins every seed too (median day 50). Sensible
+   play that never builds a factory wins 198 of 200, median day 43. Questions: does day 30 feel right for a do-nothing commander, and does
    building up feel like it pays off enough, or too surely?
 
 2. Next build. Cycle 6, "Close the loop, fix the clock", passed two
@@ -176,6 +176,17 @@ was invented by the loop, not by you:
       again, but whether the Dominion should defend its front this way is
       a feel question.
 
+20. Should an all drone army be the fastest way to win? Today a script
+    that builds only drone wings wins every seed tried, median day 38,
+    against day 52 for the same script building both. Cycle 11 adds
+    jamming and aims to bring the drone path within 5 days of mixed
+    production unless you rule that drones should lead.
+
+21. Before intel exists, should the attack preview say how many
+    interceptors the Dominion can pay for? It does today, which tells you
+    roughly how much steel it holds, something nothing else shows.
+
 Nothing here blocks the loop. Cycle 9 ("one clock for both sides") is
-closed; Cycle 10 (interception and the steel exchange) is in progress and
-runs without waiting on any item above.
+closed; Cycle 10 (interception and the steel exchange) passed its judge
+with conditions, which Cycle 11 step 0 closes; nothing waits on any item
+above.
