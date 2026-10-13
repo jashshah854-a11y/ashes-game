@@ -832,3 +832,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Step 1 
 - Finding for the judge, not tuned: the drone profile wins faster than factories with both templates (median day 38 against 52). A drone wing gives 3 attack for 15 steel, infantry 4 for 30, and attack does not shrink with strength. Recorded in BACKLOG as a balance slice of its own.
 - Browser checks unchanged and passing: browser-check 6, lore-check 29, fort-check 13, ad-check 23.
 - Lesson: a failed attack that still wins on steel needs the capital's air defense to be met more than once, which the 8 standard seeds never do; the 200 seed report is where this mechanic is visible.
+
+## Cycle 10, Step 4 of 4: the judge, CLAIMED (2026-10-13)
+Claimed by the Claude Code builder session. A fresh read only context with no builder context judges Cycle 10 against DESIGN_BIBLE.md, the hard rules, and the Cycle 9 judge's prescription, reproduces the logged numbers, and prescribes Cycle 11.
