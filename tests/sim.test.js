@@ -1763,3 +1763,20 @@ test('AI research: the Dominion buys the first unfinished project in its stated 
   assert.strictEqual(u.nations.player.jamming, u.nations.enemy.jamming);
   assert.strictEqual(u.nations.player.researchPoints, u.nations.enemy.researchPoints);
 });
+
+test('launch reserve: when steel covers one launch, the lower province id gets it, and the battle there uses it', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_3', 4), mkU(2, 'player', 'drone', 'p4_4', 4),
+    mkU(9, 'enemy', 'infantry', 'p5_3'), mkU(10, 'enemy', 'infantry', 'p5_4')];
+  s.provinces.p5_3.airDefense = 1;
+  s.provinces.p5_4.airDefense = 1;
+  s.nations.enemy.steel = Sim.CFG.interceptorSteel; // one launch for two provinces
+  Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p5_4');
+  Sim.reserveLaunches(s, 'player');
+  assert.strictEqual(s.provinces.p5_3.launchReserve, 1, 'p5_3 sorts first and is served first');
+  assert.strictEqual(s.provinces.p5_4.launchReserve, 0);
+  Sim.movementPhase(s);
+  assert.ok(s.log.some(e => e.msg.indexOf('air defense at ' + s.provinces.p5_3.name + ' launches 1 interceptor') !== -1));
+  assert.ok(s.log.some(e => e.msg.indexOf('air defense at ' + s.provinces.p5_4.name + ' cannot launch') !== -1));
+  assert.strictEqual(s.ledger.enemy.launches, 1);
+});
