@@ -354,7 +354,8 @@
     line.queue += 1;
     var t = CFG.unitTypes[line.template];
     logEvent(state, state.nations[nationId].short + ' queue ' + (/^[AEIOU]/.test(t.label) ? 'an ' : 'a ') + t.label +
-      ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + t.buildDays + ' days).');
+      ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + t.buildDays + ' days).',
+      { nation: nationId, prov: state.nations[nationId].capitalId });
     return { ok: true, line: line, template: line.template, cost: t.steelCost, buildDays: t.buildDays };
   }
 
@@ -371,7 +372,8 @@
     line.progressDays = 0;
     line.stalled = false;
     logEvent(state, state.nations[nationId].short + ' retool line ' + line.id +
-      ' to ' + CFG.unitTypes[template].label + '. Work in progress is scrapped.');
+      ' to ' + CFG.unitTypes[template].label + '. Work in progress is scrapped.',
+      { nation: nationId, prov: state.nations[nationId].capitalId });
     return { ok: true, line: line, template: template, retooled: true };
   }
 
@@ -397,8 +399,8 @@
         line.progressDays = 0;
         var u = addUnit(state, nationId, line.template, n.capitalId);
         completed.push(u);
-        logEvent(state, n.short + ' line ' + line.id + ' completes a ' + t.label +
-          '. It deploys at ' + state.provinces[n.capitalId].name + '.');
+        logEvent(state, n.short + ' line ' + line.id + ' completes ' + (/^[AEIOU]/.test(t.label) ? 'an ' : 'a ') + t.label +
+          '. It deploys at ' + state.provinces[n.capitalId].name + '.', { nation: nationId, prov: n.capitalId });
       }
     });
     return { completed: completed, steelSpent: steelSpent };
@@ -537,8 +539,17 @@
     return u;
   }
 
-  function logEvent(state, msg) {
-    state.log.push({ day: state.day, msg: msg });
+  // A line about a nation's units can carry `about` ({ nation, prov }): the
+  // entry then records which other side could not see that province at
+  // that moment (hiddenFrom), and that side's log leaves it out.
+  // Structures, research, captures, and battles stay public.
+  function logEvent(state, msg, about) {
+    var entry = { day: state.day, msg: msg };
+    if (about && about.prov) {
+      var others = ['player', 'enemy'].filter(function (id) { return id !== about.nation && !canSee(state, id, about.prov); });
+      if (others.length) entry.hiddenFrom = others;
+    }
+    state.log.push(entry);
     if (state.log.length > 60) state.log.shift();
   }
 

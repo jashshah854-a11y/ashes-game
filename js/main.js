@@ -650,7 +650,8 @@
   }
 
   function renderLog() {
-    var items = state.log.slice(-12).reverse();
+    // Your log leaves out lines about Dominion units you could not see.
+    var items = state.log.filter(function (e) { return !(e.hiddenFrom && e.hiddenFrom.indexOf('player') !== -1); }).slice(-12).reverse();
     el.log.innerHTML = items.map(function (entry) {
       return '<li><span class="day-tag">Day ' + entry.day + '</span>' + entry.msg + '</li>';
     }).join('');

@@ -90,6 +90,25 @@ async function fogMatches(page) {
     check('the doctrine says the Dominion sees by the same rule', /decides only on what it sees, and flies no recon/.test(await page.textContent('#enemy-card')));
     await page.close();
 
+    // Run 1b: the war on days 6 to 8 while the Dominion builds in fog.
+    page = await newPage();
+    await serveSim(page);
+    await page.goto(URL);
+    await page.click('#btn-speed2');
+    await page.waitForFunction(() => window.__state && window.__state.day >= 9, null, { timeout: 30000 });
+    await page.click('#btn-pause');
+    const logs = await page.evaluate(() => {
+      const s = window.__state;
+      return {
+        hidden: s.log.filter((e) => e.day >= 6 && e.day <= 8 && e.hiddenFrom && e.hiddenFrom.indexOf('player') !== -1).map((e) => e.msg),
+        shown: document.getElementById('log').textContent
+      };
+    });
+    check('the war log leaves out Dominion production in fog',
+      logs.hidden.length > 0 && logs.hidden.every((m) => logs.shown.indexOf(m) === -1) && !/Khessite line \d completes/.test(logs.shown),
+      logs.hidden.length + ' hidden lines on days 6 to 8');
+    await page.close();
+
     // Run 2: recon through the button.
     page = await newPage();
     await serveSim(page);

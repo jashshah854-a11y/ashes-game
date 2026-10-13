@@ -1848,3 +1848,22 @@ test('recon: jamming at or above the wing generation blinds it, your own jamming
     assert.strictEqual(blinded(v, 0, 1).blinded, false, v + ': its own Jamming Gen 2 never blinds it');
   });
 });
+
+test('fog: log lines about units in a province you cannot see are hidden from you, and only from you', () => {
+  const s = Sim.createGame(7);
+  const line = (nation) => (s.nations[nation].productionLines || [])[0].id;
+  Sim.queueProduction(s, 'enemy', line('enemy'));
+  Sim.queueProduction(s, 'player', line('player'));
+  const theirs = s.log.filter(e => /^Khessite queue/.test(e.msg)).pop();
+  const mine = s.log.filter(e => /^Vessari queue/.test(e.msg)).pop();
+  assert.deepStrictEqual(theirs.hiddenFrom, ['player'], 'their capital is unseen');
+  assert.deepStrictEqual(mine.hiddenFrom, ['enemy'], 'yours is unseen by them too');
+  // Seen by recon, the same line is public.
+  s.recon.player[s.nations.enemy.capitalId] = s.day;
+  Sim.queueProduction(s, 'enemy', line('enemy'));
+  assert.strictEqual(s.log.filter(e => /^Khessite queue/.test(e.msg)).pop().hiddenFrom, undefined);
+  // Structures and research stay public.
+  s.nations.enemy.researchPoints = 100;
+  Sim.research(s, 'enemy', 'droneGen2');
+  assert.strictEqual(s.log[s.log.length - 1].hiddenFrom, undefined);
+});

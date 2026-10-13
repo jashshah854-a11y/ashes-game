@@ -1016,3 +1016,10 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - `js/main.js`: the attack preview's stack leaves out wings that flew recon today (issueOrder refuses them a march) and says so ("1 drone wing here flew recon today and cannot march; the attack numbers below leave it out"); its defenders are read through Sim.seenUnitsIn, the visibility function the AI uses.
 - `tools/fog-check.js`: after recon through the button, the infantry's preview power equals stackPower of the units that can march (4, the judge's figure, instead of 7) and names the held wing. 17 checks, all pass.
 - Suite 83 pass, 0 fail. Balance byte identical to tools/baseline-cycle12-step1.txt. The other five browser checks pass.
+
+### Step 0 (b): the war log stops naming Dominion units in fog
+- `js/sim.js`: logEvent takes an optional { nation, prov }; the entry records which other side could not see that province at that moment (hiddenFrom). Tagged: production queue, retool, and line completion lines (their province is the capital where units deploy). The three supply lines only ever log your own units, so they needed nothing; structures, research, line openings, captures, and battles stay public. The completion line now reads "completes an Infantry Division".
+- `js/main.js`: your war log leaves out entries hidden from you.
+- Tests: one new (suite 84 pass, 0 fail): a Dominion queue line is hidden from you while its capital is unseen and public once recon lights it, your own queue line is hidden from the Dominion, research stays public. `tools/fog-check.js` (18 checks): on seed 7 the four Dominion production lines of days 6 to 8 are absent from the page's log and no "Khessite line N completes" line shows.
+- Known limit, kept and recorded in BACKLOG: the steel exchange still counts every Dominion loss, including attrition in fog.
+- Balance byte identical to tools/baseline-cycle12-step1.txt; all six browser checks pass.
