@@ -669,3 +669,7 @@ Claimed by the Claude Code builder session. Scope: tests (the bonus in unitStats
 
 ## Cycle 8, Fortifications paid in equipment, Step 3 of 4: tests and balance, DONE (2026-10-13)
 - Suite 54 pass, 0 fail. Every ruling check passes on the 8 standard seeds with seven profiles; seeds 1 to 200: every ruling profile wins every seed except rationed 51 and 91 (traced above), and passive and both reckless scripts never survive. The fortification path ends campaigns with at most 4195 equipment (judge's exit met). Browser checks: lore-check 28 of 28, browser-check 6 of 6 (run in step 2, unchanged since).
+
+## Cycle 8, Fortifications paid in equipment, Step 4 of 4: judge, CLAIMED (2026-10-13)
+
+Claimed by the Claude Code builder session after re-reading the log end (step 3 done, master unchanged). A fresh Claude Opus 5.5 context at high reasoning, read only, no builder context.
