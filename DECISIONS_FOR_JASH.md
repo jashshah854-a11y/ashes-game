@@ -28,19 +28,15 @@ was invented by the loop, not by you:
 - Passages the Cycle 7 judge flagged because they imply edges the game
   does not have: see item 12.
 
-1. Calibration feel. Measured with the committed harness after Cycle 6
-   (and your lines first call): a commander who never acts falls on day
-   36 on every standard seed; a reckless one loses every time; sensible
-   play that builds factories toward more lines wins every seed tried
-   (200 of 200), median day 34, often ending with about twice its starting
-   strength. Sensible play that never builds a factory still wins most
-   seeds (193 of 200) but can lose a long war to a Dominion running 4
-   lines. Correction from the Cycle 6 judge: the factory path is not a
-   faster win. It wins later than the no factory script on most seeds
-   (median day 34 against 22) and wins more surely (200 of 200 against
-   193), because it trades rail for production (see item 8). Questions:
-   does day 36 feel right for a do-nothing commander, and does building
-   up feel like it pays off enough, or too surely?
+1. Calibration feel. Measured with the committed harness after Cycle 8
+   (walls included): a commander who never acts falls on day 36 on every
+   standard seed; a reckless one loses every time; sensible play that
+   builds factories toward more lines wins every seed tried (200 of 200),
+   median day 46, often ending with about three times its starting
+   strength, and the same with walls at home wins every seed too. Sensible
+   play that never builds a factory wins 197 of 200, median day 43.
+   Questions: does day 36 feel right for a do-nothing commander, and does
+   building up feel like it pays off enough, or too surely?
 
 2. Next build. Cycle 6, "Close the loop, fix the clock", passed two
    independent judges, both with fix-now flags, now closed (see
@@ -94,9 +90,9 @@ was invented by the loop, not by you:
    more lines almost never saves the 15 steel a rail edge costs: 0 to 7
    rail edges per campaign and 8 to 43 days at empty steel, against 12 to
    39 edges and no dry days for a player who skips factories. It still
-   wins every seed. Remeasured after fortifications (Cycle 8): unchanged,
-   0 to 7 rail edges per campaign on the factory paths, 21 to 83 days at
-   empty steel. Options: leave it (factories and rail are a real
+   wins every seed. Remeasured after fortifications (Cycle 8): still 0 to
+   7 rail edges per campaign on the factory paths, and now 21 to 83 days
+   at empty steel, because walls make the wars longer. Options: leave it (factories and rail are a real
    trade), pay rail before factories, let the player pause factories, or
    let the player set a steel reserve that factories cannot touch.
 
@@ -119,7 +115,9 @@ was invented by the loop, not by you:
 12. Lore against a symmetric game. The lore says the Vessari invent and
     the Khessites out-build and out-wall them, but the game is symmetric:
     equal starting armies, equal research, symmetric steel and factories,
-    and no walls yet. Three passages imply edges the game does not have
+    and walls (since Cycle 8) that either side may build on the same
+    terms, with no city walled at the start. Three passages imply edges
+    the game does not have
     (Khessograd "foundries inside walls inside more walls" against
     Vesskar's "walls are not much"; the Khessite foundries "old and
     enormous"; Vessari steel "never enough"), and the Vessari card for
@@ -136,6 +134,18 @@ was invented by the loop, not by you:
     a later card offer a choice with a real effect, the way EU5 events do,
     and from which cycle?
 
-Nothing here blocks the loop. Cycle 7 is complete; Cycle 8
-(fortifications paid in equipment) is next and runs without waiting on
-any item above.
+15. The siege. Most winning wars now end at a walled Khessograd: twelve
+    units behind level 2 walls defend at 66, and an attack needs 99 to
+    clear the Dominion's own 1.5x rule. Is that the war you want, or
+    should something break walls (drones, a siege unit)?
+
+16. Walls on capture. Today a captured fortification loses one level.
+    Should it be razed entirely instead, and should you be able to slight
+    your own walls before you retreat?
+
+17. Seeing the enemy's walls. The enemy card shows the Dominion's exact
+    walls today. Once fog of war exists, should walls become something
+    you only see with intel?
+
+Nothing here blocks the loop. Cycle 8 is complete; Cycle 9 ("one clock
+for both sides") is next and runs without waiting on any item above.
