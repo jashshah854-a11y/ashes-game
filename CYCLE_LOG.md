@@ -858,3 +858,7 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - DECISIONS: item 1 carries the current numbers; new items 20 (should an all drone army be the fastest way to win) and 21 (should the preview reveal how many launches the Dominion can pay for before intel exists), the judge's two taste questions.
 - CYCLE_LOG: step 1's "240 less" corrected to 120 and its fortress delay list completed, in place, marked as corrected.
 - Docs only: suite and balance unchanged.
+
+### Step 0 (b): tests for the four untested interception rules
+- Four new tests (suite 71 pass, 0 fail): a clash for an empty province with air defense draws its owner's launch; groups meeting on the road draw no launch even with air defense at both ends; with steel for one launch the lowest unit id is hit and reversing the unit array changes nothing (plan, strengths, launches, log); the Dominion attacks one infantry with two damaged wings in the open and holds when the player's air defense would down both.
+- Mutation check, one scratch mutation per rule, each failing exactly its own test: no launches in clashes (fails the clash test), launches allowed in meetings (fails the meeting test), launch order reversed (fails the order test), the AI estimate without its target (fails the AI test). Sim unchanged; balance unchanged.

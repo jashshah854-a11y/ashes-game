@@ -1538,3 +1538,65 @@ test('steel exchange: a drone attack into air defense can lose the fight and sti
     assert.ok(bled('enemy') > bled('player'), 'seed ' + seed + ': the Dominion bled ' + bled('enemy') + ' against ' + bled('player'));
   }
 });
+
+// ---------- Cycle 11 step 0: the interception rules the Cycle 10 judge found untested ----------
+test('interception: a clash for an empty province with air defense draws launches from its owner', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_4', 4), mkU(2, 'enemy', 'infantry', 'p6_4')];
+  s.provinces.p5_4.airDefense = 1; // empty, the Dominion's, and both sides march in
+  s.nations.enemy.steel = 100;
+  Sim.issueOrder(s, 1, 'p5_4'); Sim.issueOrder(s, 2, 'p5_4');
+  Sim.movementPhase(s);
+  assert.strictEqual(s.ledger.enemy.launches, 1, 'the clash defender launches at the incoming wing');
+  assert.strictEqual(s.nations.enemy.steel, 100 - Sim.CFG.interceptorSteel);
+});
+
+test('interception: groups that meet on the road draw no launches, wherever the air defense stands', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p5_3.airDefense = 1;
+  s.provinces.p4_3.airDefense = 1;
+  s.nations.enemy.steel = 100; s.nations.player.steel = 100;
+  Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p4_3');
+  Sim.movementPhase(s);
+  assert.ok(s.log.some(e => /meet on the road|on the road/.test(e.msg)), 'it was a meeting: ' + s.log.slice(-3).map(e => e.msg).join(' / '));
+  assert.strictEqual(s.ledger.enemy.launches + s.ledger.player.launches, 0);
+});
+
+test('interception: when steel is short the lowest unit ids are hit first, whatever the unit array order', () => {
+  const run = (reverse) => {
+    const s = Sim.createGame(5);
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(3, 'player', 'drone', 'p4_3', 4), mkU(4, 'player', 'drone', 'p4_3', 4),
+      mkU(9, 'enemy', 'infantry', 'p5_3')];
+    if (reverse) s.units.reverse();
+    s.provinces.p5_3.airDefense = 1;
+    s.nations.enemy.steel = Sim.CFG.interceptorSteel; // one launch
+    const plan = Sim.interceptPlan(s, s.units.filter(u => u.nation === 'player'), 'p5_3').map(u => u.id);
+    s.units.filter(u => u.nation === 'player').forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+    Sim.movementPhase(s);
+    const wing = id => { const u = s.units.find(x => x.id === id); return u ? u.strength : 0; };
+    return { plan, w3: wing(3), launches: s.ledger.enemy.launches, msgs: s.log.slice(-4).map(e => e.msg).join(' / ') };
+  };
+  const a = run(false), b = run(true);
+  assert.deepStrictEqual(a.plan, [3]);
+  assert.strictEqual(a.launches, 1);
+  assert.deepStrictEqual(a, b, 'reversing the unit array changes nothing');
+  assert.ok(/launches 1 interceptor \(20 steel\), downing 1 drone wing\. 1 wing gets through untouched/.test(a.msgs), a.msgs);
+});
+
+test('interception: the Dominion attack estimate counts the launches it would face', () => {
+  const aiAttacks = (ad) => {
+    const s = Sim.createGame(5);
+    s.day = Sim.CFG.aiMobilizationDays + 1;
+    // Two damaged wings (attack 3 each) against one infantry (defense 4): 6 clears 1.5 x 4 in the open.
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3', 4), mkU(3, 'enemy', 'drone', 'p5_3', 4)];
+    s.provinces.p4_3.airDefense = ad ? 1 : 0;
+    s.nations.player.steel = 1000;
+    s.nations.enemy.equipment = 0;
+    Sim.tick(s);
+    return s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group|air defense at/.test(e.msg)) ||
+      s.units.some(u => u.nation === 'enemy' && u.provinceId === 'p4_3');
+  };
+  assert.strictEqual(aiAttacks(false), true, 'two wings attack one infantry in the open');
+  assert.strictEqual(aiAttacks(true), false, 'the same two hold when the launches would down both');
+});
