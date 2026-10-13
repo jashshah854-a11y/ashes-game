@@ -1045,3 +1045,8 @@ All conditions of the Cycle 12 judge are met: the preview leaves out wings that 
 - Measured: duplicate names on 0 of seeds 1 to 500 (the judge's exit). Balance: 8 standard seeds byte identical to tools/baseline-cycle12-step1.txt; seeds 1 to 200, the full JSON identical to the step 0d run. Some maps' names change where they had repeated (seed 7's p4_3 is now Kharmund).
 - Test, one new (suite 86 pass, 0 fail): names unique on seeds 1 to 300; it fails on the previous sim. All six browser checks pass (they read names from the sim, not hard coded, apart from capitals).
 - BACKLOG's map line records the fix; its recon line now says recon is free and unlimited (DECISIONS item 25), a line step 0e meant to add.
+
+## Cycle 13, Step 2: the AI's choices independent of the unit array order
+- `js/sim.js`: aiTakeTurn walks the Dominion's units by id (the garrison pick and the groups) and its origins in sorted order; supplyPhase walks units by id, which was the last dependence (only the order of its log lines changed with the array reversed). In normal play the array is already in id order, so nothing moves.
+- Test, one new (suite 87 pass, 0 fail): seed 42 for 60 days with the unit array reversed before every tick gives identical units each tick, the same log, and the same result; it fails on the previous sim. A wider check, 30 full campaigns (seeds 1 to 30) reversed every tick: no difference.
+- Balance: 8 standard seeds byte identical to tools/baseline-cycle12-step1.txt; seeds 1 to 200, full JSON identical to the step 1 run. All six browser checks pass.

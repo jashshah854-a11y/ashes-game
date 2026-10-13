@@ -1899,3 +1899,20 @@ test('map: province names are unique on every seed', () => {
     assert.strictEqual(new Set(names).size, names.length, 'seed ' + seed);
   }
 });
+
+test('AI: its orders and a whole campaign do not depend on the order of the unit array', () => {
+  const play = (reverse) => {
+    const s = Sim.createGame(42);
+    const snaps = [];
+    while (!s.gameOver && s.day <= 60) {
+      if (reverse) s.units.reverse();
+      Sim.tick(s);
+      snaps.push(JSON.stringify(s.units.slice().sort((a, b) => a.id - b.id).map(u => [u.id, u.provinceId, u.strength])));
+    }
+    return { snaps, winner: s.winner, day: s.day, log: s.log.map(e => e.msg).join('|') };
+  };
+  const a = play(false), b = play(true);
+  const firstDiff = a.snaps.findIndex((x, i) => x !== b.snaps[i]);
+  assert.strictEqual(firstDiff, -1, 'units diverge on tick ' + (firstDiff + 1));
+  assert.deepStrictEqual([a.winner, a.day, a.log], [b.winner, b.day, b.log]);
+});

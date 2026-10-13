@@ -775,7 +775,8 @@
       player: computeSupply(state, 'player'),
       enemy: computeSupply(state, 'enemy')
     };
-    state.units.forEach(function (u) {
+    // By unit id, so the war log's order never depends on the unit array.
+    state.units.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (u) {
       if (u.strength <= 0) return;
       var info = supplyByNation[u.nation][u.provinceId];
       var supplied = !!(info && info.supplied);
@@ -1528,7 +1529,9 @@
     var aiCapitalId = state.nations[ai].capitalId;
     var garrisonHeld = 0;
     var origins = {};
-    unitsOf(state, ai).forEach(function (u) {
+    // By unit id, so the garrison and the groups never depend on the order
+    // of the unit array (found by the Cycle 10 judge).
+    unitsOf(state, ai).slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (u) {
       if (u.order) return;
       if (u.provinceId === aiCapitalId && garrisonHeld < 3) {
         garrisonHeld += 1;
@@ -1536,7 +1539,7 @@
       }
       (origins[u.provinceId] = origins[u.provinceId] || []).push(u);
     });
-    Object.keys(origins).forEach(function (originId) {
+    Object.keys(origins).sort(cmpStr).forEach(function (originId) {
       var group = origins[originId];
       var here = state.provinces[originId];
       var options = neighborsOf(state, here);
