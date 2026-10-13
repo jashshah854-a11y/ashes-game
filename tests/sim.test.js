@@ -1003,3 +1003,121 @@ test('simultaneous battles: occupants of a province under attack stay to defend 
     assert.ok(!s.log.some(e => /unopposed/.test(e.msg)), 'nobody walked into an empty province');
   }
 });
+
+// ---------- Cycle 7: lore and campaign beats ----------
+
+const Lore = require('../js/lore.js');
+
+// Checker edit used only to set up scenarios: raise a nation's owned
+// factories, lowest levels first, until its total reaches `total`.
+function raiseFactoriesTo(s, nationId, total) {
+  let have = Sim.factoryLevels(s, nationId);
+  while (have < total) {
+    const p = Object.values(s.provinces)
+      .filter(q => q.owner === nationId && q.factoryLevel < Sim.CFG.maxFactoryLevel)
+      .sort((a, b) => a.factoryLevel - b.factoryLevel || (a.id < b.id ? -1 : 1))[0];
+    p.factoryLevel += 1;
+    have += 1;
+  }
+}
+
+test('lore: every codex entry exists, names match the sim, nation histories are 300 to 500 words', () => {
+  const s = Sim.createGame(7);
+  assert.deepStrictEqual(Lore.codexOrder, ['ashwater', 'player', 'enemy', 'vesskar', 'khessograd']);
+  Lore.codexOrder.forEach(id => {
+    const e = Lore.entries[id];
+    assert.ok(e && e.title && e.kind && e.text.length > 0, 'entry ' + id);
+  });
+  assert.strictEqual(Lore.entries.player.title, s.nations.player.name);
+  assert.strictEqual(Lore.entries.enemy.title, s.nations.enemy.name);
+  assert.strictEqual(Lore.entries.vesskar.title, s.provinces[s.nations.player.capitalId].name);
+  assert.strictEqual(Lore.entries.khessograd.title, s.provinces[s.nations.enemy.capitalId].name);
+  for (const id of ['player', 'enemy']) {
+    const words = Lore.entries[id].text.join(' ').split(/\s+/).length;
+    assert.ok(words >= 300 && words <= 500, id + ' history is ' + words + ' words');
+  }
+});
+
+test('lore: every sim beat has a card with all three variants, and no lore copy has an em or en dash', () => {
+  assert.deepStrictEqual(Object.keys(Lore.beats).sort(), Sim.BEAT_IDS.slice().sort());
+  Sim.BEAT_IDS.forEach(id => {
+    const b = Lore.beats[id];
+    assert.ok(b.title && b.trigger, id);
+    ['player', 'enemy', 'both'].forEach(v => assert.ok(b.variants[v] && b.variants[v].length > 40, id + ' ' + v));
+  });
+  assert.ok(/changes nothing in the game/.test(Lore.noEffect));
+  const all = JSON.stringify(Lore);
+  assert.ok(!/[\u2013\u2014]/.test(all), 'no em or en dash anywhere in the lore');
+});
+
+test('beats: a capital row capture is recorded once, on the day it happens, for the side that took it', () => {
+  const s = Sim.createGame(91);
+  assert.deepStrictEqual(s.beats, {});
+  // Clear the first enemy capital row province and march a player infantry in.
+  s.units = s.units.filter(u => u.provinceId !== 'p5_3');
+  const inf = s.units.find(u => u.nation === 'player' && u.provinceId === 'p4_3' && u.type === 'infantry');
+  Sim.tick(s); // day 1: nothing has changed hands yet
+  assert.strictEqual(s.beats.capitalRow, undefined);
+  s.units = s.units.filter(u => u.provinceId !== 'p5_3' || u.nation === 'player');
+  const day = s.day;
+  assert.strictEqual(Sim.issueOrder(s, inf.id, 'p5_3').ok, true);
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p5_3.owner, 'player');
+  assert.deepStrictEqual(s.beats.capitalRow, { day: day, by: 'player' });
+  // Later events never overwrite it.
+  s.provinces.p4_3.owner = 'enemy';
+  Sim.tick(s);
+  assert.deepStrictEqual(s.beats.capitalRow, { day: day, by: 'player' });
+});
+
+test('beats: Drone Gen 2 and line 3 record the first side, or both on the same day', () => {
+  // Drone Gen 2: the player clicks on the day the points arrive, so both field it that tick.
+  const s = Sim.createGame(42);
+  while (!s.beats.droneGen2 && s.day < 40) {
+    if (!s.nations.player.droneGen2 && s.nations.player.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+    Sim.tick(s);
+  }
+  assert.strictEqual(s.beats.droneGen2.by, 'both');
+  // A player who never researches leaves the beat to the Dominion alone.
+  const p = Sim.createGame(42);
+  while (!p.beats.droneGen2 && p.day < 40) Sim.tick(p);
+  assert.strictEqual(p.beats.droneGen2.by, 'enemy');
+  assert.strictEqual(p.beats.droneGen2.day, s.beats.droneGen2.day);
+  // Line 3: whoever reaches 16 factory levels first.
+  const l = Sim.createGame(42);
+  raiseFactoriesTo(l, 'player', Sim.CFG.lineUnlockFactoryLevels[2]);
+  const day = l.day;
+  Sim.tick(l);
+  assert.deepStrictEqual(l.beats.line3, { day: day, by: 'player' });
+});
+
+test('beats: the same seed and the same commands record the same beats', () => {
+  const H = require('../tools/balance.js');
+  const run = () => {
+    const s = Sim.createGame(1234); const mem = {};
+    while (!s.gameOver) { H.PROFILES.factories.play(Sim, s, mem); Sim.tick(s); }
+    return s.beats;
+  };
+  const a = run();
+  assert.deepStrictEqual(Object.keys(a).sort(), Sim.BEAT_IDS.slice().sort(), 'a full campaign reaches all three beats');
+  assert.deepStrictEqual(run(), a);
+});
+
+test('beats: recording them changes nothing else in a full campaign', () => {
+  const H = require('../tools/balance.js');
+  const play = (beatsOn) => {
+    Sim.CFG.campaignBeats = beatsOn;
+    try {
+      const s = Sim.createGame(42); const mem = {};
+      while (!s.gameOver) { H.PROFILES.factories.play(Sim, s, mem); Sim.tick(s); }
+      return s;
+    } finally {
+      Sim.CFG.campaignBeats = true;
+    }
+  };
+  const on = play(true), off = play(false);
+  assert.ok(Object.keys(on.beats).length === 3);
+  assert.deepStrictEqual(off.beats, {});
+  const strip = s => { const c = Object.assign({}, s); delete c.beats; return JSON.stringify(c); };
+  assert.strictEqual(strip(on), strip(off), 'every unit, province, nation, edge, and log line is identical');
+});

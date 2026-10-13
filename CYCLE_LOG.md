@@ -531,3 +531,26 @@ Built by the Claude Code builder session.
 ## Cycle 7, The lore seed, Step 3 of 4: CLAIMED (2026-10-13)
 
 Claimed by the Claude Code builder session. Scope: tests for lore content and its consistency with the sim's own names, each beat trigger, fire once, the same day "both" case, determinism, and zero mechanical effect; the Cycle 6 balance baseline committed to the repo so the identical output claim can be checked by anyone; the balance rerun on the 8 standard seeds and seeds 1 to 200.
+
+## Cycle 7, The lore seed, Step 3 of 4: tests and balance, DONE (2026-10-13)
+
+Built by the Claude Code builder session.
+
+### What was built
+- `tests/sim.test.js`, a pure append of 6 tests (plus a local factory helper for scenario setup). Suite: 49 pass, 0 fail (43 before).
+  - Lore content: the codex order and all five entries exist; the nation and capital titles equal the sim's own names (The Vessari Compact, The Khessite Dominion, Vesskar City, Khessograd); both nation histories are 300 to 500 words.
+  - Lore cards: js/lore.js has exactly the sim's three beat ids, each with a title, a trigger line, and Vessari, Khessite, and both variants; the no effect sentence is present; no em or en dash anywhere in the lore.
+  - Capital row trigger: nothing is recorded before anything changes hands; a player infantry marching into a cleared p5_3 records { day, by: 'player' } on that day; a later change never overwrites it.
+  - Drone Gen 2 and line 3 triggers: a player who researches as soon as the panel allows records 'both' (seed 42); a player who never researches leaves it to 'enemy' on the same day; a player raised to 16 factory levels records line3 by 'player' that tick.
+  - Determinism: the factories profile on seed 1234, run twice, reaches all three beats and records identical beats.
+  - Zero effect: a full factories campaign on seed 42 with CFG.campaignBeats on and off is identical, as JSON, in every unit, province, nation, edge, and log line; only state.beats differs.
+- Mutation check (scratch copies, not committed): a beat that quietly adds 1 steel fails only the zero effect test; beats that may overwrite themselves fail only the capital row test.
+- `tools/baseline-cycle6.txt`: the Cycle 6 final output of `node tools/balance.js`, committed so the "lore changes no number" claim can be checked from repo contents alone.
+
+### Balance rerun
+- `node tools/balance.js | diff - tools/baseline-cycle6.txt`: no difference, on all six profiles and the 8 standard seeds. Seeds 1 to 200: identical to the Cycle 6 output too. Every ruling check passes (passive day 36 on all 8; factories and rationed win 8 of 8 above the floor; reckless and direct lose 8 of 8).
+- Em and en dash scan over every file in the repo: zero. One slipped in during this step, inside the very test that bans them: the regex escapes for the two dash characters were written as the literal characters. Found by the repo scan and replaced with – and — escapes before commit.
+
+### Lessons
+- The zero effect test is the strongest lore test: a switch that turns the hook off, and a whole campaign compared as JSON, proves no number moved without trusting anyone's reading of the code.
+- A scan that errors is not a scan that passed: the first repo wide dash check used a grep mode this locale rejects and printed its fallback message. Rerun with plain grep before trusting it.
