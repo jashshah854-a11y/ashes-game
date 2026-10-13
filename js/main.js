@@ -17,7 +17,7 @@
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
    'btn-factory', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
-   'prod-summary', 'production-lines'
+   'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -155,6 +155,13 @@
     el.statEnemyProvs.textContent = enemyProvs;
     el.statEnemyUnits.textContent = Sim.unitsOf(state, 'enemy').length;
     el.statEnemyGen.textContent = e.droneGen2 ? 'Gen 2' : 'Gen 1';
+    // The Dominion opens lines by the same factory thresholds you do, so its
+    // factory total says when its next line arrives.
+    var enemyLines = (e.productionLines || []).length;
+    var enemyNext = Sim.lineLockInfo(state, 'enemy', enemyLines + 1);
+    el.statEnemyFactories.textContent = Sim.factoryLevels(state, 'enemy');
+    el.statEnemyLines.textContent = enemyLines + ' of ' + Sim.CFG.maxProductionLines +
+      (enemyNext ? ' (next at ' + enemyNext.required + ' factory levels)' : '');
 
     renderProduction();
     renderProvinceCard();

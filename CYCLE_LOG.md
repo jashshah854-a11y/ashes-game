@@ -401,3 +401,8 @@ Claimed by the Claude Code builder session after re-reading the log end (reconci
 - New test: the judge's mirror pair (west stack attacks occupants who were attacking out; east stack does the same) resolves the same way: the occupant fights at home, never marches out, its own target is untouched, a battle is logged, nobody takes a province unopposed. It fails on the previous sim. Suite: 43 pass, 0 fail.
 - Balance: `node tools/balance.js` output is byte identical before and after on the 8 standard seeds and on seeds 1 to 200. No campaign in either set hit the asymmetric case through the scripted players, matching the judge's own scratch measurement.
 - Whether a stack under attack should stay home is also a feel question; the rule the docs already stated is now the rule the code runs, and the question is parked for Jash with flag slice 3.
+
+### Judge flag slice 4: the enemy card shows the Dominion's factories and lines
+- `index.html` and `js/main.js`: two new rows on the Khessite Dominion card, "Factory levels" (its live total) and "Production lines open", for example "3 of 4 (next at 24 factory levels)". The Dominion opens lines by the same thresholds as the player, so its factory total tells the player when its next line arrives. The seed 1 long war loss to a 4 line Dominion is now readable on screen before it happens.
+- Suite: 43 pass, 0 fail. Balance: unchanged (UI only, harness output byte identical).
+- Real browser check (headless Chromium, the repo's index.html, a fresh random seed at 2x speed, no checker edits): by day 13 the card read "Factory levels 16" and "Production lines open 3 of 4 (next at 24 factory levels)"; the unit card of an ordered unit showed the new defend sentence. Zero page errors.
