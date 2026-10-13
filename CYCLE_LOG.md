@@ -353,3 +353,7 @@ The Claude Code session built Cycle 6 steps 3 and 4 on branch claude/adoring-joh
 - `tests/sim.test.js`: a pure append of the branch's busy order reversal scenario (one movement phase holding a province battle whose defenders were ordered elsewhere, a road meeting, a clash over empty ground, and a plain move, run twice with state.units reversed), renamed "every engagement kind is order independent, and ordered defenders still defend".
 - Suite: 40 pass, 0 fail. Against the mutant that stops drawing ordered defenders into the battle for their province, this test fails and every other test passes, so it closes the one gap the mutation check found.
 - Balance rerun: unchanged from slice 1 (tests do not touch the sim).
+
+### Slice 3: the factory card states the line unlock rule
+- `js/main.js`: a new lineUnlockText() builds a sentence from CFG.lineUnlockFactoryLevels and the live total, appended to the factory card on your own provinces, for example "Your total factory levels across all provinces also unlock production lines: Line 3 opens at 16, line 4 opens at 24 (you have 7). An unlocked line stays open even if you later lose factories." The rule is now stated where the player builds factories, not only in the production card.
+- Suite: 40 pass, 0 fail. Balance rerun: unchanged from slice 1 (UI only). Browser check: with slice 5, which touches the same cards.
