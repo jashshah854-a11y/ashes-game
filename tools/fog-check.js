@@ -11,8 +11,8 @@
 // says its units are unknown.
 // Run 2: the front drone wing flies recon through its card's button; the
 // provinces the sim lit are drawn and their units shown, the button and
-// the unit card say it flew, the map no longer offers it a march, and the
-// log names the flight.
+// the unit card say it flew, the map no longer offers it a march, the log
+// names the flight, and the infantry's attack preview leaves the wing out.
 // Run 3, checker edit stated plainly: the Dominion starts with Jamming Gen
 // 1. The button warns that the flight would be blinded; after the click
 // the log says it was and nothing beyond the front is revealed.
@@ -114,6 +114,16 @@ async function fogMatches(page) {
       /Flew recon today; it holds this province until tomorrow\./.test(await page.textContent('#unit-details')));
     check('the map offers the wing no march today', (await page.$$eval('.province.reachable', (ns) => ns.length)) === 0);
     check('the log names the flight', /Vessari recon from .* \(Gen 1, 2 hops\) lights \d+ provinces through tomorrow\./.test(await page.textContent('#log')));
+    await page.click('[data-prov="p4_3"]'); // cycles to the infantry
+    const inf = await page.textContent('#unit-details');
+    const marchable = await page.evaluate(() => {
+      const S = window.AshesSim, s = window.__state;
+      const st = S.unitsIn(s, 'p4_3').filter((x) => x.nation === 'player' && x.reconDay !== s.day);
+      return S.stackPower(s, st, 'attack', S.provinceId(S.CFG.mapW / 2, 3));
+    });
+    const pm = inf.match(/your stack power (\d+)/);
+    check('after recon, the infantry preview counts only the units that can march',
+      /^Infantry Division/.test(inf) && !!pm && Number(pm[1]) === marchable && /1 drone wing here flew recon today and cannot march/.test(inf), (pm && pm[1]) + ' vs ' + marchable);
     await page.close();
 
     // Run 3: the Dominion's jamming blinds Gen 1 recon.

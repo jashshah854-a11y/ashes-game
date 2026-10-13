@@ -587,12 +587,16 @@
     }
     // Attack preview: the same stackPower the combat and the AI use, so
     // the numbers here are the numbers the war is fought with.
-    var stack = Sim.unitsIn(state, u.provinceId).filter(function (x) { return x.nation === 'player'; });
+    // Only units that can march today attack: a wing that flew recon holds.
+    var here = Sim.unitsIn(state, u.provinceId).filter(function (x) { return x.nation === 'player'; });
+    var stack = here.filter(function (x) { return x.reconDay !== state.day; });
+    var scouting = here.length - stack.length;
     var myPower = Sim.stackPower(state, stack, 'attack');
-    var preview = '';
+    var preview = scouting ? '<br>' + scouting + (scouting === 1 ? ' drone wing here flew' : ' drone wings here flew') +
+      ' recon today and cannot march; the attack numbers below leave ' + (scouting === 1 ? 'it' : 'them') + ' out.' : '';
     Sim.neighborsOf(state, state.provinces[u.provinceId]).forEach(function (np) {
       if (np.owner !== 'enemy') return;
-      var defs = Sim.unitsIn(state, np.id).filter(function (d) { return d.nation === 'enemy'; });
+      var defs = (Sim.seenUnitsIn(state, 'player', np.id) || []).filter(function (d) { return d.nation === 'enemy'; });
       if (!defs.length) return;
       // Air defense there strikes your drone wings before the fight; the
       // power below is what is left after the launches it can pay for.

@@ -1011,3 +1011,8 @@ The rest is accepted as measured and remeasured where a slice depends on it.
 
 ## Cycle 13, Step 0: the judge's conditions, CLAIMED (2026-10-13)
 Claimed by the Claude Code builder session after re-reading the log end. Parts (a) to (e), each its own commit.
+
+### Step 0 (a): the preview counts only units that can march
+- `js/main.js`: the attack preview's stack leaves out wings that flew recon today (issueOrder refuses them a march) and says so ("1 drone wing here flew recon today and cannot march; the attack numbers below leave it out"); its defenders are read through Sim.seenUnitsIn, the visibility function the AI uses.
+- `tools/fog-check.js`: after recon through the button, the infantry's preview power equals stackPower of the units that can march (4, the judge's figure, instead of 7) and names the held wing. 17 checks, all pass.
+- Suite 83 pass, 0 fail. Balance byte identical to tools/baseline-cycle12-step1.txt. The other five browser checks pass.
