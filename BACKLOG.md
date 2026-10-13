@@ -3,7 +3,7 @@
 Honest list of what is stubbed, simplified, or missing. If it is not in the
 game, it is written here. Nothing in this file is secretly faked in the code.
 
-## Stubbed or simplified (current, after Cycle 5 step 2)
+## Stubbed or simplified (current, after Cycle 5 step 3)
 
 - Combat ordering: player attack groups resolve before AI groups each day. Real simultaneous resolution is a future fix.
 - Passing through: opposing units can swap provinces in one day without fighting if both march past each other. Battles only happen when a unit enters a held province.
@@ -15,11 +15,12 @@ game, it is written here. Nothing in this file is secretly faked in the code.
 - Map: the rules run on an explicit typed-edge graph since Cycle 3 (land and river edges; coastal is a province flag). The renderer still draws a flat 10 by 7 grid with 4-direction movement, province names are syllable generated, terrain types have no combat effect yet, no sea provinces, no province shapes.
 - UI: full re-render of the map every tick, no animations, no sound, no save or load, no minimap, no tooltips beyond the hint text. Selected unit orders show in the unit card only, not as arrows on the map.
 
-- Production lines (Cycle 5, steps 1 and 2 of 4 done): each nation has 2 lines (line 1 infantry, line 2 drone at start), a queue cap of 9 per line, no way to cancel or refund a queued order, and no way to pause a line; retooling scraps work in progress with no steel refund. The production panel (step 2) shows each line, its template, queue, days remaining, and steel drain, and the unit card shows unit cost; the old train buttons are gone. Formal production tests and the balance rerun are step 3, and the judge pass is step 4.
+- Production lines (Cycle 5, steps 1 to 3 of 4 done): each nation has 2 lines (line 1 infantry, line 2 drone at start), a queue cap of 9 per line, no way to cancel or refund a queued order, and no way to pause a line; retooling scraps work in progress with no steel refund. The production panel (step 2) shows each line, its template, queue, days remaining, and steel drain, and the unit card shows unit cost; the old train buttons are gone. Formal production tests and the balance rerun are done (step 3, see the Done section); only the judge pass (step 4) remains for this cycle.
 
 ## Done since Iteration 1 (kept honest, limits noted)
 
 - Production lines and unit costs (Cycle 5 step 1): lines assigned a template, steel cost per unit paid as a daily drain over build days (infantry 30 steel over 6 days, drone 15 steel over 3 days, 5 steel per day per working line), finished units deploy at the capital, and the AI orders through the identical lines and costs. A day the stockpile cannot pay the drain is a stalled day with no progress, so rail building and unit production compete for the same steel.
+- Production tests and balance rerun (Cycle 5 step 3): 10 Opus authored tests pin budget parity between player and AI, queue completion timing (infantry on the 6th funded day for 30 steel, drone on the 3rd for 15, sequential queues, cap of 9), and steel starvation where a rail purchase up front stalls a production line with no progress and no charge. Balance rerun on the unchanged sim: passive player falls on day 36 on all 8 prescribed seeds, scripted sensible player survives 8 of 8, all by capital capture on day 28. Suite is now 30 tests, all passing.
 - Production panel (Cycle 5 step 2): a Production card lists both player lines with template, full cost and build days, queue count against the cap, days paid and days left on the unit in progress, steel drain per day, a stalled warning when a day goes unpaid, and queue and retool buttons per line. A summary line shows total production drain and queued units, and the selected unit card now shows its build cost. The old province card train buttons were removed.
 - Rail network and supply (Cycle 3): rail edges buildable for steel over days, supply computed over the owner's rail net within 8 hops, out-of-supply penalties and attrition as named, visible modifiers, captured rail converts over 4 days before it feeds the capturer. Limits: no rail levels or capacity, no supply effect on the economy, hover route highlighting not built (the inspector states the reason instead).
 

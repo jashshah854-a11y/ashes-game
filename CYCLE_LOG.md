@@ -126,3 +126,27 @@ Prescription: Cycle 4 judge verdict (risk 2), step 2 of this cycle. Built by Cla
 ### Lessons
 - The diff discipline paid off: because the brief demanded complete replacement files plus an exact API list, the returned files changed only what the step specified, and the whole step verified in one pass with no fix round.
 - A stub DOM smoke test is cheap and catches panel wiring (ids, listeners, re-render after clicks) without a browser. Worth keeping for step 3's harness work.
+
+## Cycle 5, production lines and unit costs, Step 3 of 4: tests and balance (2026-10-13)
+
+Prescription: Cycle 4 judge verdict (risk 2), step 3 of this cycle. Tests authored by Claude Opus 5.5 through the direct Anthropic line, per Jash's division of labor. Steps 1 (sim, commit 8c40c9a) and 2 (production panel UI, commit 32368c0) are done. Step 4 (judge) remains for a later run of this loop.
+
+### What Opus built
+- `tests/sim.test.js`: all 20 existing tests preserved verbatim (verified by diff: the change is a pure append of 290 lines, no existing line touched), plus a new Cycle 5 production section with 10 tests.
+  - Budget parity (3 tests): player and AI start with identical lines, steel, and equipment; template costs, build days, and per day drain are the same CFG numbers for both nations; and the same order queued by both nations completes on the same production day for the same total steel when productionPhase runs in isolation, so there is no discount on either side.
+  - Queue completion timing (5 tests): ordering charges nothing up front and spawns nothing on the day ordered; infantry completes exactly on the 6th funded day for exactly 30 steel and deploys at the capital; a drone wing completes exactly on the 3rd funded day for exactly 15 steel; two orders on one line build strictly one after the other; a line holds CFG.maxQueuePerLine (9) orders and rejects one more.
+  - Steel starvation (2 tests): rail paid up front (15 steel for the capital to p0_2 edge) leaves the player below the 5 steel daily drain, and the infantry line stalls with stalled true, progressDays stuck at 0, zero steel spent by the line, and no unit appearing; and at exactly zero steel a line stalls, topping up to exactly the drain makes the next day progress and clears the stalled flag, and a later return to zero keeps the paid progress instead of erasing it.
+
+### Opus usage
+- Build call: [usage: in=11344, out=13296]. One call, no fix rounds needed: the returned file passed the whole suite on the first run.
+
+### Test and balance results (run by the orchestrator)
+- `node --check js/sim.js` and `node --check js/main.js`: both pass. Em dash scan of the Opus output: zero.
+- `node --test tests/sim.test.js`: 30 pass, 0 fail (20 existing plus 10 new).
+- Balance rerun, harness note: the balance harness for this step was written by the orchestrator as glue (as the mission allows), because no harness file exists in the repo from step 1; the scripted players below are that glue, not Opus work. The sim itself is unchanged since step 1, so this is a regression check, not new tuning.
+  - Passive player (never acts) across seeds 1, 7, 42, 99, 1234, 555, 2024, 31337: capital falls on day 36 on all 8 seeds, inside the judge's day 30 to 45 band, exactly matching the step 1 measurement.
+  - Scripted sensible player (queues both lines whenever idle, researches Drone Gen 2, builds rail toward unsupplied owned provinces keeping a steel buffer of 40, keeps the two starting capital infantry as garrison, masses every other unit at the easternmost capital row province, and attacks only eastward along the capital row with at least 1.5x stackPower edge): survives 8 of 8 seeds, all 8 by capturing the enemy capital on day 28, inside step 1's day 25 to 78 capture range.
+
+### Lessons
+- The first draft of the orchestrator's sensible player got only 5 of 8, because it attacked opportunistically from whatever province a group stood in and lost units piecemeal, which is exactly the failure step 1's log already recorded. Enforcing the mass first rule (no attack until at least 5 units are massed at the staging province, then only eastward with a clear power edge) restored 8 of 8 with no sim change. The balance did not regress; the script had.
+- Testing productionPhase directly, in isolation from the tick, is what makes the parity and timing numbers exact: on full ticks, economy income and the AI's own orders blur who spent what. Opus chose that isolation unprompted and it is the right call for this layer of tests.

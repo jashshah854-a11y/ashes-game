@@ -264,3 +264,293 @@ test('supply: penalty is a named modifier inside unitStats and stackPower', () =
   const fresh = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.id !== inf.id);
   assert.strictEqual(Sim.stackPower(s, [inf, fresh], 'attack'), 2 + 4);
 });
+
+// ---------- Cycle 5: production lines, queues, steel starvation ----------
+// These tests call productionPhase directly instead of Sim.tick so that
+// economy income and AI decisions cannot blur the steel numbers.
+
+// Run productionPhase until the given line completes a unit, or until
+// maxDays have passed. Returns the 1-based day of completion (or -1),
+// the total steel spent, and the units completed.
+function runUntilComplete(s, nationId, maxDays) {
+  let spent = 0;
+  for (let day = 1; day <= maxDays; day++) {
+    const r = Sim.productionPhase(s, nationId);
+    spent += r.steelSpent;
+    if (r.completed.length > 0) return { day, spent, completed: r.completed };
+  }
+  return { day: -1, spent, completed: [] };
+}
+
+test('production parity: player and AI start with identical lines, steel, and equipment', () => {
+  const s = Sim.createGame(101);
+  const p = s.nations.player;
+  const e = s.nations.enemy;
+  assert.strictEqual(Sim.CFG.productionLinesPerNation, 2);
+  assert.strictEqual(p.productionLines.length, Sim.CFG.productionLinesPerNation);
+  assert.strictEqual(e.productionLines.length, Sim.CFG.productionLinesPerNation);
+  assert.deepStrictEqual(p.productionLines, e.productionLines);
+  assert.deepStrictEqual(p.productionLines.map(l => l.id), [1, 2]);
+  assert.deepStrictEqual(p.productionLines.map(l => l.template), ['infantry', 'drone']);
+  p.productionLines.concat(e.productionLines).forEach(l => {
+    assert.strictEqual(l.queue, 0);
+    assert.strictEqual(l.progressDays, 0);
+    assert.strictEqual(l.stalled, false);
+  });
+  // Separate objects, not shared references.
+  assert.notStrictEqual(p.productionLines[0], e.productionLines[0]);
+  assert.strictEqual(p.steel, 20);
+  assert.strictEqual(e.steel, 20);
+  assert.strictEqual(p.equipment, 60);
+  assert.strictEqual(e.equipment, 60);
+  assert.strictEqual(Sim.queuedUnits(s, 'player'), 0);
+  assert.strictEqual(Sim.queuedUnits(s, 'enemy'), 0);
+  assert.strictEqual(Sim.productionDrain(s, 'player'), 0);
+  assert.strictEqual(Sim.productionDrain(s, 'enemy'), 0);
+});
+
+test('production parity: template costs, build days, and drain are the same numbers for both nations', () => {
+  const inf = Sim.CFG.unitTypes.infantry;
+  const dr = Sim.CFG.unitTypes.drone;
+  assert.strictEqual(inf.steelCost, 30);
+  assert.strictEqual(inf.buildDays, 6);
+  assert.strictEqual(dr.steelCost, 15);
+  assert.strictEqual(dr.buildDays, 3);
+  assert.strictEqual(Sim.lineSteelPerDay('infantry'), 5);
+  assert.strictEqual(Sim.lineSteelPerDay('drone'), 5);
+  assert.strictEqual(Sim.lineSteelPerDay('infantry'), inf.steelCost / inf.buildDays);
+  assert.strictEqual(Sim.lineSteelPerDay('drone'), dr.steelCost / dr.buildDays);
+
+  const s = Sim.createGame(103);
+  ['player', 'enemy'].forEach(nid => {
+    const a = Sim.queueProduction(s, nid, 1);
+    const b = Sim.queueProduction(s, nid, 2);
+    assert.strictEqual(a.ok, true);
+    assert.strictEqual(a.template, 'infantry');
+    assert.strictEqual(a.cost, inf.steelCost);
+    assert.strictEqual(a.buildDays, inf.buildDays);
+    assert.strictEqual(b.ok, true);
+    assert.strictEqual(b.template, 'drone');
+    assert.strictEqual(b.cost, dr.steelCost);
+    assert.strictEqual(b.buildDays, dr.buildDays);
+  });
+  assert.strictEqual(Sim.productionDrain(s, 'player'), Sim.productionDrain(s, 'enemy'));
+  assert.strictEqual(Sim.productionDrain(s, 'player'),
+    Sim.lineSteelPerDay('infantry') + Sim.lineSteelPerDay('drone'));
+  assert.strictEqual(Sim.productionDrain(s, 'player'), 10);
+  assert.strictEqual(Sim.queuedUnits(s, 'player'), Sim.queuedUnits(s, 'enemy'));
+  assert.strictEqual(Sim.queuedUnits(s, 'player'), 2);
+});
+
+test('production parity: same order completes on the same day for the same steel, no discounts', () => {
+  const s = Sim.createGame(107);
+  s.nations.player.steel = 100;
+  s.nations.enemy.steel = 100;
+  ['infantry', 'drone'].forEach(template => {
+    const lineId = template === 'infantry' ? 1 : 2;
+    const t = Sim.CFG.unitTypes[template];
+    assert.strictEqual(Sim.queueProduction(s, 'player', lineId).ok, true);
+    assert.strictEqual(Sim.queueProduction(s, 'enemy', lineId).ok, true);
+    const pSteel = s.nations.player.steel;
+    const eSteel = s.nations.enemy.steel;
+    const pr = runUntilComplete(s, 'player', 20);
+    const er = runUntilComplete(s, 'enemy', 20);
+    assert.strictEqual(pr.day, t.buildDays);
+    assert.strictEqual(er.day, t.buildDays);
+    assert.strictEqual(pr.spent, t.steelCost);
+    assert.strictEqual(er.spent, t.steelCost);
+    assert.strictEqual(pSteel - s.nations.player.steel, t.steelCost);
+    assert.strictEqual(eSteel - s.nations.enemy.steel, t.steelCost);
+    assert.strictEqual(pr.completed[0].type, template);
+    assert.strictEqual(er.completed[0].type, template);
+    assert.strictEqual(pr.completed[0].provinceId, s.nations.player.capitalId);
+    assert.strictEqual(er.completed[0].provinceId, s.nations.enemy.capitalId);
+  });
+  assert.strictEqual(s.nations.player.steel, s.nations.enemy.steel);
+  assert.strictEqual(s.nations.player.steel, 100 - 30 - 15);
+});
+
+test('production queue: ordering is free and spawns nothing on the day ordered', () => {
+  const s = Sim.createGame(109);
+  s.nations.player.steel = 100;
+  const unitsBefore = Sim.unitsOf(s, 'player').length;
+  const res = Sim.queueProduction(s, 'player', 1);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.cost, 30);
+  assert.strictEqual(res.buildDays, 6);
+  assert.strictEqual(s.nations.player.steel, 100, 'nothing is paid up front');
+  assert.strictEqual(Sim.unitsOf(s, 'player').length, unitsBefore, 'no unit appears on order');
+  const line = Sim.productionLine(s, 'player', 1);
+  assert.strictEqual(line.queue, 1);
+  assert.strictEqual(line.progressDays, 0);
+  assert.strictEqual(Sim.queuedUnits(s, 'player'), 1);
+  assert.strictEqual(Sim.productionLine(s, 'player', 99), null);
+  assert.strictEqual(Sim.queueProduction(s, 'player', 99).ok, false);
+});
+
+test('production queue: infantry completes on the 6th funded day for exactly 30 steel at the capital', () => {
+  const s = Sim.createGame(113);
+  const n = s.nations.player;
+  n.steel = 100;
+  const unitsBefore = Sim.unitsOf(s, 'player').length;
+  Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  const perDay = Sim.lineSteelPerDay('infantry');
+  assert.strictEqual(perDay, 5);
+  for (let day = 1; day <= 5; day++) {
+    const r = Sim.productionPhase(s, 'player');
+    assert.strictEqual(r.completed.length, 0, 'not done on day ' + day);
+    assert.strictEqual(r.steelSpent, perDay);
+    assert.strictEqual(line.progressDays, day);
+    assert.strictEqual(line.stalled, false);
+    assert.strictEqual(n.steel, 100 - perDay * day);
+  }
+  assert.strictEqual(Sim.unitsOf(s, 'player').length, unitsBefore, 'nothing on day 5');
+  const r6 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r6.completed.length, 1);
+  assert.strictEqual(r6.steelSpent, perDay);
+  const u = r6.completed[0];
+  assert.strictEqual(u.type, 'infantry');
+  assert.strictEqual(u.nation, 'player');
+  assert.strictEqual(u.provinceId, n.capitalId);
+  assert.strictEqual(n.capitalId, 'p0_3');
+  assert.strictEqual(n.steel, 100 - 30);
+  assert.strictEqual(n.steel, 100 - Sim.CFG.unitTypes.infantry.steelCost);
+  assert.strictEqual(line.queue, 0);
+  assert.strictEqual(line.progressDays, 0);
+  assert.strictEqual(Sim.unitsOf(s, 'player').length, unitsBefore + 1);
+  // An empty line drains nothing afterwards.
+  const r7 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r7.steelSpent, 0);
+  assert.strictEqual(r7.completed.length, 0);
+  assert.strictEqual(n.steel, 70);
+});
+
+test('production queue: drone wing completes on the 3rd funded day for exactly 15 steel', () => {
+  const s = Sim.createGame(127);
+  const n = s.nations.player;
+  n.steel = 50;
+  Sim.queueProduction(s, 'player', 2);
+  const line = Sim.productionLine(s, 'player', 2);
+  assert.strictEqual(line.template, 'drone');
+  const r1 = Sim.productionPhase(s, 'player');
+  const r2 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r1.completed.length, 0);
+  assert.strictEqual(r2.completed.length, 0);
+  assert.strictEqual(line.progressDays, 2);
+  const r3 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r3.completed.length, 1);
+  assert.strictEqual(r3.completed[0].type, 'drone');
+  assert.strictEqual(r3.completed[0].provinceId, n.capitalId);
+  assert.strictEqual(r1.steelSpent + r2.steelSpent + r3.steelSpent, 15);
+  assert.strictEqual(r1.steelSpent + r2.steelSpent + r3.steelSpent, Sim.CFG.unitTypes.drone.steelCost);
+  assert.strictEqual(n.steel, 50 - 15);
+  assert.strictEqual(line.queue, 0);
+  assert.strictEqual(line.progressDays, 0);
+});
+
+test('production queue: two orders on one line build one after the other', () => {
+  const s = Sim.createGame(131);
+  const n = s.nations.player;
+  n.steel = 200;
+  Sim.queueProduction(s, 'player', 1);
+  Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  assert.strictEqual(line.queue, 2);
+  assert.strictEqual(Sim.productionDrain(s, 'player'), 5, 'one line builds one unit at a time');
+  const first = runUntilComplete(s, 'player', 20);
+  assert.strictEqual(first.day, 6);
+  assert.strictEqual(first.completed.length, 1, 'second unit is not done with the first');
+  assert.strictEqual(line.queue, 1);
+  assert.strictEqual(line.progressDays, 0);
+  const second = runUntilComplete(s, 'player', 20);
+  assert.strictEqual(second.day, 6, 'second unit takes its own full build');
+  assert.strictEqual(second.completed.length, 1);
+  assert.strictEqual(line.queue, 0);
+  assert.strictEqual(first.spent + second.spent, 60);
+  assert.strictEqual(n.steel, 200 - 60);
+});
+
+test('production queue: a line holds CFG.maxQueuePerLine orders and rejects one more', () => {
+  const s = Sim.createGame(137);
+  assert.strictEqual(Sim.CFG.maxQueuePerLine, 9);
+  for (let i = 0; i < Sim.CFG.maxQueuePerLine; i++) {
+    assert.strictEqual(Sim.queueProduction(s, 'player', 1).ok, true, 'order ' + (i + 1));
+  }
+  const line = Sim.productionLine(s, 'player', 1);
+  assert.strictEqual(line.queue, 9);
+  const over = Sim.queueProduction(s, 'player', 1);
+  assert.strictEqual(over.ok, false);
+  assert.ok(over.reason && over.reason.length > 0);
+  assert.strictEqual(line.queue, 9);
+  assert.strictEqual(Sim.queuedUnits(s, 'player'), 9);
+  // The other line is unaffected by the cap on line 1.
+  assert.strictEqual(Sim.queueProduction(s, 'player', 2).ok, true);
+  assert.strictEqual(Sim.queuedUnits(s, 'player'), 10);
+});
+
+test('steel starvation: rail paid up front leaves too little steel, the infantry line stalls', () => {
+  const s = Sim.createGame(139);
+  const n = s.nations.player;
+  n.steel = 19;
+  const unitsBefore = Sim.unitsOf(s, 'player').length;
+  assert.strictEqual(Sim.queueProduction(s, 'player', 1).ok, true);
+  const rail = Sim.buildRail(s, 'player', 'p0_3', 'p0_2');
+  assert.strictEqual(rail.ok, true);
+  assert.strictEqual(rail.cost, Sim.CFG.railCostSteel);
+  assert.strictEqual(Sim.CFG.railCostSteel, 15);
+  assert.strictEqual(n.steel, 19 - 15);
+  assert.ok(n.steel < Sim.productionDrain(s, 'player'), 'remainder is below the daily drain');
+  const line = Sim.productionLine(s, 'player', 1);
+  const r = Sim.productionPhase(s, 'player');
+  assert.deepStrictEqual(r.completed, []);
+  assert.strictEqual(r.steelSpent, 0);
+  assert.strictEqual(line.stalled, true);
+  assert.strictEqual(line.progressDays, 0);
+  assert.strictEqual(line.queue, 1);
+  assert.strictEqual(n.steel, 4, 'a stalled line spends nothing');
+  assert.strictEqual(Sim.unitsOf(s, 'player').length, unitsBefore);
+  // Still starved the next day: still no progress, still no spend.
+  const r2 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r2.steelSpent, 0);
+  assert.strictEqual(line.stalled, true);
+  assert.strictEqual(line.progressDays, 0);
+  assert.strictEqual(n.steel, 4);
+});
+
+test('steel starvation: exactly zero steel stalls, topping up to the drain recovers', () => {
+  const s = Sim.createGame(149);
+  const n = s.nations.player;
+  n.steel = 0;
+  Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  const unitsBefore = Sim.unitsOf(s, 'player').length;
+  const r0 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r0.steelSpent, 0);
+  assert.strictEqual(r0.completed.length, 0);
+  assert.strictEqual(line.stalled, true);
+  assert.strictEqual(line.progressDays, 0);
+  assert.strictEqual(n.steel, 0);
+  // Top up to exactly the drain: the next day is paid and makes progress.
+  n.steel = Sim.productionDrain(s, 'player');
+  assert.strictEqual(n.steel, 5);
+  const r1 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r1.steelSpent, 5);
+  assert.strictEqual(r1.completed.length, 0);
+  assert.strictEqual(line.stalled, false);
+  assert.strictEqual(line.progressDays, 1);
+  assert.strictEqual(n.steel, 0);
+  // Back to zero: stalls again but keeps the work already paid for.
+  const r2 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r2.steelSpent, 0);
+  assert.strictEqual(line.stalled, true);
+  assert.strictEqual(line.progressDays, 1);
+  // Funding the remaining days finishes the unit for 30 steel in total.
+  n.steel = 25;
+  const rest = runUntilComplete(s, 'player', 10);
+  assert.strictEqual(rest.day, 5, 'five more funded days after the first');
+  assert.strictEqual(rest.spent + r1.steelSpent, 30);
+  assert.strictEqual(line.stalled, false);
+  assert.strictEqual(n.steel, 0);
+  assert.strictEqual(Sim.unitsOf(s, 'player').length, unitsBefore + 1);
+});
