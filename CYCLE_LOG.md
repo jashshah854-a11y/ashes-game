@@ -215,3 +215,32 @@ In aiTakeTurn, the first 3 idle Dominion units on its capital hold as a garrison
 
 ### Mission status
 The production lines cycle prescribed by the Cycle 4 judge is complete: steps 1 to 4 done, judge PASS with all fix-now flags closed, no unresolved balance flags. Per the mission, this loop job is disabled at the end of this step and a completion summary goes to the chat. Cycle 6 as prescribed above is the queued next work when Jash wants it running.
+
+## Cycle 6, Close the loop, fix the clock, Step 1 of 5: factories gate line count, sim (2026-10-13)
+
+Prescription: Cycle 5 judge verdict, item (A). This run did step 1 only, the simulation. Step 2 (simultaneous battles), step 3 (locked slot UI), step 4 (tests and balance), and step 5 (judge) remain for later runs. Mission note: this cycle runs under Jash's 2026-10-13 continuous mission (cycle after cycle until the Anthropic credit is exhausted); the Cycle 5 entry's "loop job is disabled" line is superseded history, not current state. All code in this step was authored by Claude Opus 5.5 through the direct Anthropic line (9 anchor replacement blocks against js/sim.js, applied verbatim by the orchestrator); the orchestrator wrote the brief, chose the tuning below, ran every check itself, and verified the results.
+
+### Tuning chosen by the loop (recorded per the prescription)
+- One tunable config in CFG: lineUnlockFactoryLevels [0, 0, 16, 24] with maxProductionLines 4 as the hard cap. Line 3 unlocks at 16 total factory levels (summed over owned provinces, the existing factoryLevels function), line 4 at 24.
+- Why 16 and 24: starting totals on the 8 standard seeds run 5 to 14 (highest is player seed 1 at 14), so every standard seed still starts with exactly 2 lines, unchanged, and line 3 is a build goal, not a gift. Building from a typical start of 8 to 16 takes 8 factory level builds, affordable from equipment income inside the first weeks.
+- An unlock is permanent once reached: lines never relock or disappear if factory provinces are later lost. Decided as a legibility call (an unlock that flickers with the front line would read as a bug), and noted here so the step 5 judge can rule on it.
+
+### What Opus built
+- `js/sim.js` only. New functions, all exported: syncProductionLines (appends earned line objects in id order, templates alternating infantry, drone, infantry, drone, and logs each opening with the nation's total factory levels), unlockedLineCount, isLineUnlocked, lineLockInfo (required, current, and missing levels for a locked in-range slot).
+- queueProduction and assignLineTemplate sync first, then reject an in-range locked line with { ok: false, locked: true } and a legible reason carrying real numbers, for example at seed 42 start: "Line 3 is locked. Build 8 more factory levels anywhere to unlock it (needs 16 total factory levels, you have 8)." No queue is incremented and nothing is logged on a locked rejection. Out-of-range ids still return "no such production line".
+- productionPhase syncs at its start, so a line earned by building or capturing factories works the same day. aiTakeTurn syncs the Dominion's lines immediately before its production ordering block, so the AI queues on lines 3 and 4 through the identical queueProduction path and costs the moment they unlock.
+- Starting state is untouched: exactly 2 line objects per nation (ids 1 and 2, infantry and drone), same costs, build days, armies, steel, and equipment. The existing parity test that pins this passed unmodified.
+
+### Opus usage
+- Build call: [usage: in=17660, out=4594]. One call, no fix rounds needed: the 9 blocks applied cleanly, syntax and the whole suite passed on the first run.
+- Cycle 6 running total: in=17660, out=4594. Recorded grand total across cycles (sum of the usage lines in this log; Cycle 5 step 1 and the Cycle 2 judge calls were never recorded, so the true total is higher): in=87585, out=62420.
+
+### Test and verification results (run by the orchestrator)
+- `node --check js/sim.js`: pass. Em dash scan of js/sim.js: zero.
+- `node --test tests/sim.test.js`: 32 pass, 0 fail (suite unchanged this step; formal line gating tests are step 4).
+- Spot checks by the orchestrator against the new API: on all 8 standard seeds both nations start with 2 lines, unlockedLineCount 2, and totals under 16. Locked queue and retool rejections return the exact numbers above and create no phantom line. Raised to exactly 16 total factory levels (direct province edits in the checker only, not a balance run), line 3 unlocks with template infantry, queues, and a unit built on it deploys at the capital after 6 funded days. Line 4 stays locked at 16 and unlocks at 24 with template drone for the enemy, same thresholds. Permanence verified: razing every player factory to 0 leaves line 3 open and queueable.
+- AI parity through the real tick path: with the enemy raised to 16 total factory levels, one tick left the Dominion with lines 1, 2, and 3 each holding a queued order, line 3 included, so the AI demonstrably uses an extra line when unlocked.
+
+### Lessons
+- The representation matters more than the rule: keeping productionLines at exactly the earned lines (and syncing at every public entry point: queue, retool, production phase, AI turn) preserved the pinned starting test and made locked rejection a small special case, instead of a fourth line object the UI and tests would have to explain before step 3 exists.
+- Thresholds chosen against measured starting totals, not vibes: the 14 on seed 1 is what pushed line 3 to 16. A threshold of 12, the first number that came to mind, would have handed seed 1 a third line at game start and broken the prescription's "start unchanged at 2" on a standard seed.

@@ -3,6 +3,12 @@
 // Loadable in the browser (window.AshesSim) and in node (module.exports)
 // so the same code that runs the game is the code the tests exercise.
 //
+// Cycle 6 note: factories gate how many production lines a nation runs.
+// Every nation starts with 2 lines. More lines open when the nation's
+// total factory levels reach the thresholds in CFG.lineUnlockFactoryLevels.
+// An opened line stays open for good, even if factory provinces are lost.
+// The AI opens and uses its lines under the exact same rule.
+//
 // Cycle 5 note: units are built, not bought. Production lines (below)
 // replaced instant whole-unit purchases: steel drains over build days,
 // finished units deploy at the capital, and the AI pays the same.
@@ -38,6 +44,8 @@
     supplyGraceDays: 3,           // days out of supply before attrition starts
     supplyAttritionRate: 0.02,    // strength fraction lost per day after the grace days
     productionLinesPerNation: 2,  // lines each nation starts with, identical for player and AI
+    maxProductionLines: 4,        // most lines any nation can ever run
+    lineUnlockFactoryLevels: [0, 0, 16, 24], // total factory levels needed for line slots 1..4; an unlock is permanent
     maxQueuePerLine: 9,           // orders one line can hold, current unit included
     unitTypes: {
       // cost is the steel cost per unit, paid as a daily drain over
@@ -114,7 +122,13 @@
   ];
 
   // ---------- Production lines ----------
-  // Each nation owns the same number of lines. A line is assigned one
+  // Every nation starts with the same 2 lines. Factories feed production:
+  // when a nation's total factory levels (summed over every province it
+  // owns) reach 16, line 3 opens; at 24, line 4 opens. A line that has
+  // opened never closes again, even if the factories behind it are later
+  // lost. Asking a locked line for work is refused with a plain reason
+  // that names how many more factory levels it needs.
+  // A line is assigned one
   // unit template, holds a queue of orders, and builds one unit at a
   // time. While it works it drains steel every day (steelCost spread
   // evenly over buildDays); a day the stockpile cannot pay for is a
@@ -145,6 +159,73 @@
     return null;
   }
 
+  // How many line slots the nation's current total factory levels meet.
+  function slotsEarnedByFactories(state, nationId) {
+    var levels = factoryLevels(state, nationId);
+    var count = 0;
+    for (var i = 0; i < CFG.maxProductionLines; i++) {
+      var need = CFG.lineUnlockFactoryLevels[i];
+      if (need != null && levels >= need) count += 1;
+    }
+    return count;
+  }
+
+  // Lines the nation may run: the lines it already has (unlocks are
+  // permanent) or the slots its factories earn now, whichever is more.
+  function unlockedLineCount(state, nationId) {
+    var have = (state.nations[nationId].productionLines || []).length;
+    return Math.min(CFG.maxProductionLines, Math.max(have, slotsEarnedByFactories(state, nationId)));
+  }
+
+  function isLineUnlocked(state, nationId, lineId) {
+    return lineId >= 1 && lineId <= unlockedLineCount(state, nationId);
+  }
+
+  function lineLockInfo(state, nationId, lineId) {
+    if (!(lineId >= 1 && lineId <= CFG.maxProductionLines)) return null;
+    if (isLineUnlocked(state, nationId, lineId)) return null;
+    var required = CFG.lineUnlockFactoryLevels[lineId - 1];
+    var current = factoryLevels(state, nationId);
+    return { locked: true, lineId: lineId, required: required, current: current, missing: required - current };
+  }
+
+  // Open every line the nation has earned. New lines get the next id and
+  // alternate templates by id: odd ids infantry, even ids drone.
+  function syncProductionLines(state, nationId) {
+    var n = state.nations[nationId];
+    if (!n.productionLines) n.productionLines = [];
+    var earned = unlockedLineCount(state, nationId);
+    var created = [];
+    while (n.productionLines.length < earned) {
+      var id = n.productionLines.length + 1;
+      var line = {
+        id: id,
+        template: id % 2 === 1 ? 'infantry' : 'drone',
+        queue: 0,
+        progressDays: 0,
+        stalled: false
+      };
+      n.productionLines.push(line);
+      created.push(line);
+      logEvent(state, n.short + ' open production line ' + id + '. Their factories reach ' +
+        factoryLevels(state, nationId) + ' total factory levels.');
+    }
+    return created;
+  }
+
+  // The refusal for an in-range line that is still locked, with real numbers.
+  function lockedLineResult(state, nationId, lineId) {
+    var info = lineLockInfo(state, nationId, lineId);
+    if (!info) return null;
+    return {
+      ok: false, locked: true, lineId: lineId,
+      required: info.required, current: info.current, missing: info.missing,
+      reason: 'Line ' + lineId + ' is locked. Build ' + info.missing + ' more factory ' +
+        (info.missing === 1 ? 'level' : 'levels') + ' anywhere to unlock it (needs ' +
+        info.required + ' total factory levels, you have ' + info.current + ').'
+    };
+  }
+
   function lineSteelPerDay(template) {
     var t = CFG.unitTypes[template];
     return t.steelCost / t.buildDays;
@@ -167,8 +248,9 @@
   // unit appears today: the cost lands as the daily drain while the
   // line builds it. This replaces the old instant whole-unit purchase.
   function queueProduction(state, nationId, lineId) {
+    syncProductionLines(state, nationId);
     var line = productionLine(state, nationId, lineId);
-    if (!line) return { ok: false, reason: 'no such production line' };
+    if (!line) return lockedLineResult(state, nationId, lineId) || { ok: false, reason: 'no such production line' };
     if (line.queue >= CFG.maxQueuePerLine) return { ok: false, reason: 'queue is full' };
     line.queue += 1;
     var t = CFG.unitTypes[line.template];
@@ -181,8 +263,9 @@
   // unit in production is scrapped (the steel drained into it is gone);
   // the queue count carries over and now builds the new template.
   function assignLineTemplate(state, nationId, lineId, template) {
+    syncProductionLines(state, nationId);
     var line = productionLine(state, nationId, lineId);
-    if (!line) return { ok: false, reason: 'no such production line' };
+    if (!line) return lockedLineResult(state, nationId, lineId) || { ok: false, reason: 'no such production line' };
     if (!CFG.unitTypes[template]) return { ok: false, reason: 'no such unit template' };
     if (line.template === template) return { ok: true, line: line, template: template, retooled: false };
     line.template = template;
@@ -197,6 +280,7 @@
   // from the steel stockpile the economy phase left behind. A line
   // that cannot be paid stalls for the day instead of going into debt.
   function productionPhase(state, nationId) {
+    syncProductionLines(state, nationId); // a line earned today works today
     var n = state.nations[nationId];
     var completed = [];
     var steelSpent = 0;
@@ -738,6 +822,9 @@
     // which paces its reinforcements the way the old every-3-days
     // instant training did.
     // (The cap exists because the first smoke test ended with a 51 unit pile-up.)
+    // Lines 3 and 4 open for the AI by the same factory thresholds as the
+    // player, and it feeds them through the same queueProduction path.
+    syncProductionLines(state, ai);
     if (unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
       (n.productionLines || []).forEach(function (line) {
         if (line.queue === 0 && unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
@@ -865,6 +952,10 @@
     productionDrain: productionDrain,
     queuedUnits: queuedUnits,
     lineSteelPerDay: lineSteelPerDay,
+    syncProductionLines: syncProductionLines,
+    unlockedLineCount: unlockedLineCount,
+    isLineUnlocked: isLineUnlocked,
+    lineLockInfo: lineLockInfo,
     researchDroneGen2: researchDroneGen2,
     unitStats: unitStats,
     stackPower: stackPower,
