@@ -189,10 +189,17 @@ was invented by the loop, not by you:
       drones: 32 against 41 (it delays its own Gen 2 and gets weaker).
     - Cheaper jamming (30 and 60 points): 38 against 52; with the
       reactive rule, 32 against 49, or 37 against 62 at 30 and 40.
-    - Infantry attack 5: 38 against 52.
-    - Drone attack 2 / 3 / 4: 49 against 58. Attack 2 / 4 / 6: 49 against
-      58. Attack 2 / 3 / 4 with defense 1 / 2 / 3: 43 against 52. Gen 2 and
-      Gen 3 adding attack only (2 / 3 / 4, defense 2 / 2 / 3): 44 against 57.
+    - Infantry attack 5: 38 against 52, and it breaks the rulings (rationed
+      wins 188 of 200, the reckless direct script wins 1).
+    - Drone attack 2 / 3 / 4: 49 against 58, rulings pass. Attack 2 / 4 / 6:
+      49 against 58, rulings break (rationed 198 of 200). Attack 2 / 3 / 4
+      with defense 1 / 2 / 3: 43 against 52, rulings break (rationed 199,
+      reckless direct wins 9). Gen 2 and Gen 3 adding attack only (2 / 3 / 4,
+      defense 2 / 2 / 3): 44 against 57, rulings not measured.
+    - Rulings for the other rows: today and cheaper jamming pass; the
+      reactive rule rows were measured on two profiles only. The Cycle 11
+      judge also found drone attack 2 / 3 / 4 with slower or dearer drones
+      breaks the rulings.
     - Massing by strength instead of unit count (a harness change, to
       test whether cheap fast units only win by count): drones 22 against
       50, so the edge is real power, not a counting artifact.
@@ -204,6 +211,15 @@ was invented by the loop, not by you:
 21. Before intel exists, should the attack preview say how many
     interceptors the Dominion can pay for? It does today, which tells you
     roughly how much steel it holds, something nothing else shows.
+
+22. Should the Dominion read your army and adapt its research? Today it
+    never changes its order, and that predictability is what lets you plan
+    around it.
+
+23. Should interceptor steel be held back ahead of that day's factories
+    and rail, or should air defense take only what is left? Today it is
+    held back at the attacker's decision, which also means the Dominion
+    decides its factories and rail on the steel left after the hold.
 
 Nothing here blocks the loop. Cycle 9 ("one clock for both sides") is
 closed; Cycle 10 (interception and the steel exchange) passed its judge
