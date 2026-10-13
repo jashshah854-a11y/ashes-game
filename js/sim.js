@@ -462,8 +462,12 @@
     // Fortification: a named modifier on defense only, for a unit standing
     // in a fortified province its own nation holds. Applied after supply.
     var fortBonus = fortBonusFor(state, unit);
-    if (fortBonus > 0) def = Math.round(def * (1 + fortBonus / 100));
-    return { attack: atk, defense: def, supplyPenalty: penalty, fortBonus: fortBonus };
+    var walled = fortBonus > 0 ? Math.round(def * (1 + fortBonus / 100)) : def;
+    var stats = { attack: atk, defense: walled, supplyPenalty: penalty, fortBonus: fortBonus };
+    // Kept off the enumerable fields so the stats object stays the one the
+    // panels show; stackPower reads it to apply walls once per stack.
+    Object.defineProperty(stats, 'defenseBeforeWalls', { value: def, enumerable: false });
+    return stats;
   }
 
   // Percent defense a unit gets from fortifications where it stands.
@@ -477,10 +481,23 @@
   // decisions, and the player's attack preview all call this, so a
   // number the player sees is the number the war is fought with.
   function stackPower(state, units, mode) {
-    return units.reduce(function (s, u) {
-      if (u.strength <= 0) return s;
-      var st = unitStats(state, u);
-      return s + (mode === 'defense' ? st.defense : st.attack);
+    if (mode !== 'defense') {
+      return units.reduce(function (s, u) {
+        return u.strength > 0 ? s + unitStats(state, u).attack : s;
+      }, 0);
+    }
+    // Defense: walls multiply the summed defense of the units sharing a
+    // fortification bonus, once, so the stated percent holds for a whole
+    // stack (rounding unit by unit let small, hungry defenders gain
+    // nothing from a second level; found by the Cycle 8 judge).
+    var byBonus = {};
+    units.forEach(function (u) {
+      if (u.strength <= 0) return;
+      var b = fortBonusFor(state, u);
+      byBonus[b] = (byBonus[b] || 0) + unitStats(state, u).defenseBeforeWalls;
+    });
+    return Object.keys(byBonus).reduce(function (s, b) {
+      return s + Math.round(byBonus[b] * (1 + Number(b) / 100));
     }, 0);
   }
 

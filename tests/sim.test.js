@@ -1261,3 +1261,18 @@ test('fortify: the Dominion attacks an open province but holds against the same 
   assert.strictEqual(aiAttacks(0), true, 'two infantry attack one in the open');
   assert.strictEqual(aiAttacks(Sim.CFG.fortMaxLevel), false, 'the same two hold against level 2 walls');
 });
+
+test('fortify: walls multiply a stack once, so each level adds its stated percent even for hungry defenders', () => {
+  const s = Sim.createGame(5);
+  const hungry = id => ({ id, nation: 'player', type: 'infantry', provinceId: 'p1_3', strength: 12, maxStrength: 12, supplyPenalty: 50 });
+  const stack = [1, 2, 3, 4, 5, 6].map(hungry);
+  const at = L => { s.provinces.p1_3.fortLevel = L; return Sim.stackPower(s, stack, 'defense'); };
+  const open = at(0);
+  assert.strictEqual(open, 12, 'six infantry at the 50 percent supply penalty defend at 2 each');
+  assert.strictEqual(at(1), Math.round(open * (1 + Sim.CFG.fortDefensePctPerLevel / 100)));
+  assert.strictEqual(at(2), Math.round(open * (1 + 2 * Sim.CFG.fortDefensePctPerLevel / 100)));
+  assert.ok(at(2) > at(1), 'the second level always adds defense');
+  // One unit alone reads the same number in its card and in stackPower.
+  s.provinces.p1_3.fortLevel = 2;
+  assert.strictEqual(Sim.stackPower(s, [stack[0]], 'defense'), Sim.unitStats(s, stack[0]).defense);
+});
