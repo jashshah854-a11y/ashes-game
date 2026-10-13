@@ -81,6 +81,7 @@
       jamming2: { label: 'Jamming Gen 2', cost: 100, requires: 'jamming1' }
     },
     jammingPct: 40,               // percent attack and defense a jammed drone wing loses
+    reconRange: { 1: 2, 2: 3, 3: 4 }, // recon range in graph hops, by drone generation
     // The Dominion buys the first project in this list it has not finished,
     // as soon as it has the points; it never skips ahead.
     aiResearchOrder: ['droneGen2', 'jamming1', 'droneGen3', 'jamming2']
@@ -129,6 +130,74 @@
 
   function unitsIn(state, provId) {
     return state.units.filter(function (u) { return u.provinceId === provId && u.strength > 0; });
+  }
+
+  // ---------- Fog of war: one visibility rule for both sides ----------
+  // A nation sees the provinces it owns, every province next to one it
+  // owns, and the provinces its recon has lit through today. It sees enemy
+  // units only in provinces it sees. Ownership and structures (factories,
+  // walls, air defense) are public: they stand on the map.
+  function visibleProvinces(state, nationId) {
+    var seen = {};
+    Object.keys(state.provinces).forEach(function (pid) {
+      var p = state.provinces[pid];
+      if (p.owner !== nationId) return;
+      seen[pid] = true;
+      neighborsOf(state, p).forEach(function (np) { seen[np.id] = true; });
+    });
+    var lit = (state.recon && state.recon[nationId]) || {};
+    Object.keys(lit).forEach(function (pid) { if (lit[pid] >= state.day) seen[pid] = true; });
+    return seen;
+  }
+  function canSee(state, nationId, provId) { return !!visibleProvinces(state, nationId)[provId]; }
+  // The units a nation can see in a province: the list, or null when the
+  // province is unseen (unknown, never guessed).
+  function seenUnitsIn(state, nationId, provId) {
+    return canSee(state, nationId, provId) ? unitsIn(state, provId) : null;
+  }
+
+  // Provinces within `hops` graph steps of a province, itself included.
+  function provincesWithin(state, provId, hops) {
+    var dist = {}; dist[provId] = 0;
+    var queue = [provId];
+    while (queue.length) {
+      var cur = queue.shift();
+      if (dist[cur] >= hops) continue;
+      neighborsOf(state, state.provinces[cur]).forEach(function (np) {
+        if (dist[np.id] == null) { dist[np.id] = dist[cur] + 1; queue.push(np.id); }
+      });
+    }
+    return Object.keys(dist).sort(cmpStr);
+  }
+
+  // Drone recon, the one command for both sides: a drone wing that has not
+  // been ordered today flies recon instead of marching, lighting every
+  // province within CFG.reconRange[its generation] hops through the end of
+  // the next day. If the other side's jamming reaches its generation the
+  // flight is blinded and lights nothing. The wing holds its province today.
+  function reconFlight(state, nationId, unitId) {
+    var u = state.units.filter(function (x) { return x.id === unitId; })[0];
+    if (!u || u.strength <= 0 || u.nation !== nationId) return { ok: false, reason: 'no such unit' };
+    if (u.type !== 'drone') return { ok: false, reason: 'only drone wings fly recon' };
+    if (u.order) return { ok: false, reason: 'already ordered to march today' };
+    if (u.reconDay === state.day) return { ok: false, reason: 'already flew recon today' };
+    u.reconDay = state.day;
+    var n = state.nations[nationId];
+    var gen = droneGeneration(state, nationId);
+    var prov = state.provinces[u.provinceId];
+    var foe = state.nations[otherNation(nationId)];
+    if ((foe.jamming || 0) >= gen) {
+      logEvent(state, n.short + ' recon from ' + prov.name + ' is blinded: ' + foe.short + ' Jamming Gen ' + foe.jamming +
+        ' reaches Gen ' + gen + ' drones. Nothing is seen.');
+      return { ok: true, blinded: true, lit: [] };
+    }
+    var range = CFG.reconRange[gen];
+    var lit = provincesWithin(state, u.provinceId, range);
+    if (!state.recon) state.recon = { player: {}, enemy: {} };
+    lit.forEach(function (pid) { state.recon[nationId][pid] = Math.max(state.recon[nationId][pid] || 0, state.day + 1); });
+    logEvent(state, n.short + ' recon from ' + prov.name + ' (Gen ' + gen + ', ' + range + ' hops) lights ' + lit.length +
+      ' provinces through tomorrow.');
+    return { ok: true, blinded: false, lit: lit };
   }
 
   function unitsOf(state, nationId) {
@@ -354,6 +423,8 @@
       endReason: null,
       log: [],
       beats: {},           // campaign turning points, recorded once each (beatPhase)
+      // Recon: province id -> the last day it stays lit for that nation.
+      recon: { player: {}, enemy: {} },
       // The cost exchange scoreboard: the steel value each side has lost
       // (strength lost, priced at its unit's steel cost) and the steel it
       // has spent on interceptor launches. Who bleeds steel faster.
@@ -811,6 +882,7 @@
     var to = state.provinces[targetProvId];
     if (!to) return { ok: false, reason: 'no such province' };
     if (!areAdjacent(state, from, to)) return { ok: false, reason: 'not adjacent' };
+    if (unit.reconDay === state.day) return { ok: false, reason: 'flew recon today' };
     unit.order = { target: targetProvId };
     return { ok: true };
   }
@@ -1450,7 +1522,11 @@
         for (var i = 0; i < options.length && !ordered; i++) {
           var t = options[i];
           if (t.owner === ai) continue;
-          var defenders = unitsIn(state, t.id).filter(function (d) { return d.nation !== ai; });
+          // It decides on what it sees, by the same rule as you; an unseen
+          // province is unknown and never attacked on a guess.
+          var seen = seenUnitsIn(state, ai, t.id);
+          if (!seen) continue;
+          var defenders = seen.filter(function (d) { return d.nation !== ai; });
           var myPower = stackPower(state, group, 'attack', t.id);
           var theirPower = stackPower(state, defenders, 'defense');
           if (defenders.length === 0 || myPower >= theirPower * 1.5) {
@@ -1678,6 +1754,11 @@
     buildFactory: buildFactory,
     buildFortification: buildFortification,
     buildAirDefense: buildAirDefense,
+    visibleProvinces: visibleProvinces,
+    canSee: canSee,
+    seenUnitsIn: seenUnitsIn,
+    provincesWithin: provincesWithin,
+    reconFlight: reconFlight,
     reserveLaunches: reserveLaunches,
     interceptPlan: interceptPlan,
     trainUnit: trainUnit,

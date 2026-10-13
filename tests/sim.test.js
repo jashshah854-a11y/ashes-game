@@ -1780,3 +1780,71 @@ test('launch reserve: when steel covers one launch, the lower province id gets i
   assert.ok(s.log.some(e => e.msg.indexOf('air defense at ' + s.provinces.p5_4.name + ' cannot launch') !== -1));
   assert.strictEqual(s.ledger.enemy.launches, 1);
 });
+
+// ---------- Cycle 12: fog of war and drone recon ----------
+test('fog: a nation sees its provinces and their neighbours, and enemy units only there', () => {
+  const s = Sim.createGame(7);
+  const seen = Sim.visibleProvinces(s, 'player');
+  Object.keys(s.provinces).forEach(pid => {
+    const p = s.provinces[pid];
+    const expect = p.owner === 'player' || Sim.neighborsOf(s, p).some(np => np.owner === 'player');
+    assert.strictEqual(!!seen[pid], expect, pid);
+  });
+  const cap = s.nations.enemy.capitalId;
+  assert.strictEqual(Sim.canSee(s, 'player', cap), false, 'the Dominion capital is deep behind its front');
+  assert.strictEqual(Sim.seenUnitsIn(s, 'player', cap), null, 'unseen is unknown, not an empty list');
+  assert.deepStrictEqual(Sim.seenUnitsIn(s, 'player', 'p5_3').map(u => u.id), Sim.unitsIn(s, 'p5_3').map(u => u.id));
+  // The same rule from the other side.
+  assert.strictEqual(Sim.canSee(s, 'enemy', s.nations.player.capitalId), false);
+  assert.strictEqual(Sim.canSee(s, 'enemy', 'p4_3'), true);
+});
+
+test('recon: one command, range by generation, lit through the end of the next day, and the wing holds', () => {
+  const s = Sim.createGame(7);
+  const wing = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'drone');
+  const inf = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'infantry');
+  assert.strictEqual(Sim.reconFlight(s, 'player', inf.id).reason, 'only drone wings fly recon');
+  assert.strictEqual(Sim.reconFlight(s, 'enemy', wing.id).reason, 'no such unit');
+  Sim.issueOrder(s, wing.id, 'p3_3');
+  assert.strictEqual(Sim.reconFlight(s, 'player', wing.id).reason, 'already ordered to march today');
+  wing.order = null;
+  const r = Sim.reconFlight(s, 'player', wing.id);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.lit, Sim.provincesWithin(s, 'p4_3', Sim.CFG.reconRange[1]));
+  assert.ok(r.lit.indexOf('p6_3') !== -1 && r.lit.indexOf('p7_3') === -1, 'Gen 1 reaches 2 hops');
+  assert.strictEqual(Sim.canSee(s, 'player', 'p6_3'), true);
+  assert.strictEqual(Sim.reconFlight(s, 'player', wing.id).reason, 'already flew recon today');
+  assert.strictEqual(Sim.issueOrder(s, wing.id, 'p3_3').reason, 'flew recon today');
+  const day = s.day;
+  Sim.tick(s);
+  assert.strictEqual(wing.provinceId, 'p4_3', 'the wing held its province');
+  assert.strictEqual(Sim.canSee(s, 'player', 'p6_3'), true, 'still lit the next day');
+  Sim.tick(s);
+  assert.strictEqual(s.day, day + 2);
+  assert.strictEqual(s.recon.player.p6_3, day + 1, 'lit through day ' + (day + 1) + ' only');
+  // Gen 2 reaches 3 hops.
+  const g = Sim.createGame(7);
+  g.nations.player.droneGen2 = true;
+  const w2 = Sim.unitsIn(g, 'p4_3').find(u => u.type === 'drone');
+  assert.ok(Sim.reconFlight(g, 'player', w2.id).lit.indexOf('p7_3') !== -1);
+});
+
+test('recon: jamming at or above the wing generation blinds it, your own jamming never does, and the rule is the same for both', () => {
+  const blinded = (viewer, foeJam, gen) => {
+    const s = Sim.createGame(7);
+    const other = viewer === 'player' ? 'enemy' : 'player';
+    s.nations[other].jamming = foeJam;
+    s.nations[viewer].jamming = 2;
+    if (gen >= 2) s.nations[viewer].droneGen2 = true;
+    const prov = viewer === 'player' ? 'p4_3' : 'p5_3';
+    const w = Sim.unitsIn(s, prov).find(u => u.type === 'drone' && u.nation === viewer);
+    const r = Sim.reconFlight(s, viewer, w.id);
+    return { blinded: r.blinded, lit: r.lit.length, logged: s.log.some(e => /is blinded: .* Jamming Gen \d reaches Gen \d drones\. Nothing is seen\./.test(e.msg)) };
+  };
+  ['player', 'enemy'].forEach(v => {
+    assert.deepStrictEqual(blinded(v, 1, 1), { blinded: true, lit: 0, logged: true }, v + ': Jamming Gen 1 blinds Gen 1');
+    assert.strictEqual(blinded(v, 1, 2).blinded, false, v + ': Gen 2 outranges Jamming Gen 1');
+    assert.strictEqual(blinded(v, 2, 2).blinded, true, v + ': Jamming Gen 2 blinds Gen 2');
+    assert.strictEqual(blinded(v, 0, 1).blinded, false, v + ': its own Jamming Gen 2 never blinds it');
+  });
+});

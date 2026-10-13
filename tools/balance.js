@@ -15,7 +15,7 @@
 //   node tools/balance.js --seeds 1-500        a seed range (mass testing)
 //   node tools/balance.js --seeds 1,7,42       a seed list
 //   node tools/balance.js --profile sensible   one profile (repeatable): passive,
-//                     sensible, factories, fortress, reckless, rationed, direct, drones, jamming
+//                     sensible, factories, fortress, reckless, rationed, direct, drones, jamming, recon
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -55,6 +55,14 @@ function feedLines(Sim, s) {
 // --research-order overrides the default order for every script that does
 // not set its own (a report tool; the rulings use the default).
 let RESEARCH_ORDER_OVERRIDE = null;
+// Enemy units a script may read in a province: since Cycle 12 only what
+// the player sees (Sim.seenUnitsIn), the same rule the Dominion follows.
+// Its targets are always next to its own provinces, so always seen.
+function seenEnemies(Sim, s, provId) {
+  const seen = Sim.seenUnitsIn ? Sim.seenUnitsIn(s, 'player', provId) : Sim.unitsIn(s, provId);
+  return (seen || []).filter(u => u.nation === 'enemy');
+}
+
 function researchWhenReady(Sim, s, order) {
   const n = s.nations.player;
   if (!Sim.research) {
@@ -155,7 +163,7 @@ function passive() {}
 // garrison, masses every other unit at the easternmost capital row
 // province, and attacks only eastward along that row with 5 or more units
 // massed and a 1.5x stackPower edge.
-function makeSensible(withFactories, withForts, droneLines, researchOrder) {
+function makeSensible(withFactories, withForts, droneLines, researchOrder, recon) {
   return function sensible(Sim, s) {
     const n = s.nations.player;
     const row = s.provinces[n.capitalId].y;
@@ -189,11 +197,17 @@ function makeSensible(withFactories, withForts, droneLines, researchOrder) {
     const massed = field.filter(u => u.provinceId === staging);
     if (massed.length >= 5 && sx + 1 < s.mapW) {
       const target = pid(Sim, sx + 1, row);
-      const defs = Sim.unitsIn(s, target).filter(d => d.nation === 'enemy');
+      const defs = seenEnemies(Sim, s, target);
       const mine = Sim.stackPower(s, massed, 'attack', target);
       if (!defs.length || mine >= 1.5 * Sim.stackPower(s, defs, 'defense')) {
         massed.forEach(u => Sim.issueOrder(s, u.id, target));
       }
+    }
+    // Recon report: on a day the stack holds, its lowest id drone wing
+    // flies recon from the staging province.
+    if (recon && Sim.reconFlight) {
+      const scout = massed.filter(u => u.type === 'drone' && !u.order).sort((a, b) => a.id - b.id)[0];
+      if (scout) Sim.reconFlight(s, 'player', scout.id);
     }
   };
 }
@@ -285,7 +299,7 @@ function rationed(Sim, s, mem) {
   if (atStaging.length >= 5 && atStaging.every(u => (u.supplyPenalty || 0) === 0)) {
     const east = s.provinces[Sim.provinceId(staging.x + 1, 3)];
     if (east && east.owner === 'enemy') {
-      const defs = Sim.unitsIn(s, east.id).filter(u => u.nation === 'enemy');
+      const defs = seenEnemies(Sim, s, east.id);
       if (!defs.length || Sim.stackPower(s, atStaging, 'attack', east.id) >= Sim.stackPower(s, defs, 'defense') * 1.5) attackTarget = east.id;
     }
   }
@@ -331,7 +345,10 @@ const PROFILES = {
   drones: { play: makeSensible(true, false, true), ruling: 'report', label: 'sensible plus factories, every line building drone wings (steel exchange report)' },
   // Cycle 11: the jamming report. Same as factories, but it researches both
   // jamming generations before Drone Gen 2 and Gen 3.
-  jamming: { play: makeSensible(true, false, false, ['jamming1', 'jamming2', 'droneGen2', 'droneGen3']), ruling: 'report', label: 'sensible plus factories, jamming researched first (jamming report)' }
+  jamming: { play: makeSensible(true, false, false, ['jamming1', 'jamming2', 'droneGen2', 'droneGen3']), ruling: 'report', label: 'sensible plus factories, jamming researched first (jamming report)' },
+  // Cycle 12: the recon report. Same as factories, and on days the massed
+  // stack holds, one of its drone wings flies recon from the staging province.
+  recon: { play: makeSensible(true, false, false, null, true), ruling: 'report', label: 'sensible plus factories, flying recon from the staging province (recon report)' }
 };
 
 // ---------- One campaign ----------
@@ -350,6 +367,7 @@ function runGame(Sim, seed, profileName, opts) {
   // Days the Dominion's air defense launched at you: whether that day's
   // attack on the province failed, and the steel each side bled that day.
   const intercepts = [];
+  const reconFlights = [];
   const bledNow = id => s.ledger ? s.ledger[id].lostSteel + s.ledger[id].launchSteel : 0;
   while (!s.gameOver && s.day < MAX_DAYS) {
     const youBefore = bledNow('player'), themBefore = bledNow('enemy');
@@ -366,6 +384,10 @@ function runGame(Sim, seed, profileName, opts) {
       if (m) builtByLine[m[1]] = (builtByLine[m[1]] || 0) + 1;
       m = /^Vessari open production line (\d+)/.exec(e.msg);
       if (m && lineOpenDay[m[1]] == null) lineOpenDay[m[1]] = day;
+    });
+    fresh.forEach(e => {
+      if (/^Vessari recon from .* lights/.test(e.msg)) reconFlights.push({ day, blinded: false });
+      if (/^Vessari recon from .* is blinded/.test(e.msg)) reconFlights.push({ day, blinded: true });
     });
     fresh.forEach(e => {
       const m = /^Khessite air defense at (.+?) (launches|cannot launch)/.exec(e.msg);
@@ -406,7 +428,7 @@ function runGame(Sim, seed, profileName, opts) {
     builtByLine, lineOpenDay,
     bled: Math.round(bledNow('player')), enemyBled: Math.round(bledNow('enemy')),
     launches: s.ledger ? s.ledger.enemy.launches : 0,
-    intercepts,
+    intercepts, reconFlights,
     trace
   };
 }
@@ -506,6 +528,13 @@ function main(argv) {
       console.log('  end strength % on wins: ' + summarize(wins.map(r => r.endPercent)));
       console.log('  end equipment, yours: ' + summarize(results.map(r => r.endEquipment)) + '; Dominion: ' + summarize(results.map(r => r.enemyEquipment)));
       console.log('  steel bled, yours: ' + summarize(results.map(r => r.bled)) + '; Dominion: ' + summarize(results.map(r => r.enemyBled)));
+    }
+    // Recon flights and how many the Dominion's jamming blinded.
+    const rf = [].concat.apply([], results.map(r => r.reconFlights));
+    if (rf.length) {
+      const bl = rf.filter(f => f.blinded);
+      console.log('  recon: ' + rf.length + ' flights in ' + results.filter(r => r.reconFlights.length).length + ' campaigns; ' +
+        bl.length + ' blinded by Dominion jamming' + (bl.length ? ' (first on day ' + Math.min.apply(null, bl.map(f => f.day)) + ')' : ''));
     }
     // The steel exchange on days the Dominion's air defense fired at you.
     const ix = [].concat.apply([], results.map(r => r.intercepts));

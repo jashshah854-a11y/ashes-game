@@ -221,6 +221,19 @@ was invented by the loop, not by you:
     held back at the attacker's decision, which also means the Dominion
     decides its factories and rail on the steel left after the hold.
 
+24. The jamming clock. Jamming never reaches the other side's wings in
+    combat or blinds its recon in intended play, because both sides
+    research on one clock and Drone Gen 2 lands on day 21, before any
+    jamming that reaches it (Jamming Gen 1 on day 38 reaches only Gen 1),
+    and Drone Gen 3 on day 78, before Jamming Gen 2 (day 111). Measured in
+    Cycle 12: 9,232 recon flights over 200 seeds, none blinded; the Cycle
+    11 judge counted 0 jammed wings in 44,339 drone fights. Making it bite
+    means changing that clock (cheaper jamming, Jamming Gen 2 before Drone
+    Gen 3 in the Dominion's order, or dearer drone generations), and every
+    such change moves the rulings: researching both jammings before Gen 3
+    loses rationed seed 108. How the drone and jamming race should pace is
+    yours; it ties to items 20 and 22.
+
 Nothing here blocks the loop. Cycle 9 ("one clock for both sides") is
 closed; Cycle 10 (interception and the steel exchange) passed its judge
 with conditions, which Cycle 11 step 0 closes; nothing waits on any item
