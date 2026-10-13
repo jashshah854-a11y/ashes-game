@@ -940,3 +940,8 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - DECISIONS: item 20's table states which levers break rulings; new items 22 (should the Dominion adapt its research) and 23 (should launch steel be held ahead of factories and rail).
 - CYCLE_LOG: the step 0c seed 99 label and the two enemy line changes corrected in place.
 - Docs only; suite and balance unchanged.
+
+### Step 0 (b): which steel the Dominion's factory and rail checks read: measured, current rule kept
+- The question (the Cycle 11 judge): reserveLaunches('player') runs before aiFactories and aiRail, so the Dominion decides its factories (steel at least 60) and rail (at least 50) on steel net of what it has set aside against your attacks.
+- Variant measured (scratch, not landed): both checks add back the Dominion's reserved steel (buildRail still refuses on the real steel, so steel cannot go negative). 8 standard seeds: every ruling passes, 15 lines of output change. Seeds 1 to 200: rationed loses seed 18 on day 67, ruling FAIL; every other ruling passes. This reproduces the judge's measurement.
+- Kept: the current rule. Set aside steel is committed, and each side's economy spends only uncommitted steel; the Dominion decides after your attacks are reserved only because you move first (your clicks come before the tick), and the reserve against its attacks is likewise taken after its decisions, from what you hold then. Whether launch steel should be held ahead of factories and rail at all is DECISIONS item 23. No code change.
