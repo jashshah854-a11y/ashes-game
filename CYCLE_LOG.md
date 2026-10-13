@@ -993,3 +993,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Plan: u
 - Seeds 1 to 200 at the step 2 head: every ruling passes (factories, fortress, rationed 200 of 200; passive 30 to 45; both reckless never survive); reports: no factory 198, drones 200, jamming 200, recon 200 (9,232 flights, 0 blinded).
 - The preview against battle measure (tools/measure/preview-vs-battle.js) at the step 2 head: factories 195 of 195, drones 183 of 183, launches and downed wings both, so routing the attack decisions through visibility kept the preview equal to the battle (every target is a seen neighbour).
 - Cycle 12 exit, against the judge's criteria: parity tests pass; the preview equals the battle where the target is seen; rulings pass on 8 and 200; passive in band; a committed fog check at 1400 and 390 px; docs consistent; no dashes. Not met: jamming changing something measurable in a ruling profile (DECISIONS item 24; the research clock, which is Jash's to pace).
+
+## Cycle 12, Step 4 of 4: the judge, CLAIMED (2026-10-13)
+Claimed by the Claude Code builder session. A fresh read only context with no builder context judges Cycle 12 against DESIGN_BIBLE.md, the hard rules, and the Cycle 11 judge's prescription, reproduces the logged numbers, and prescribes Cycle 13.
