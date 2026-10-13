@@ -897,3 +897,6 @@ Prescription: the Cycle 10 judge, accepted. Claimed by the Claude Code builder s
 - Balance, 8 standard seeds: byte identical to tools/baseline-cycle11-step0c.txt. Seeds 1 to 200: every ruling passes (factories, fortress, rationed 200 of 200; passive 30 to 45; both reckless never survive); no factory report 198, drone report 200 (median 38, against 52 for factories: the exit criterion is not met yet; that is step 3's tuning).
 - Browser checks: browser-check 6, lore-check 29, fort-check 13, ad-check 23.
 - Lesson: a scripted player that ignores a new system makes the system look like a balance break; the first measurement told the story only after the trace showed who had researched what.
+
+## Cycle 11, Step 2 of 4: the research choice panel and jamming on screen, CLAIMED (2026-10-13)
+Claimed by the Claude Code builder session after re-reading the log end. Plan: the single research button becomes a panel listing every project with its cost, prerequisite, exact effect from CFG, and a button stating why it is disabled; the nation and enemy cards show drone generation and jamming level; the Dominion's research order is in its doctrine text, built from CFG; the unit card and the attack preview name jamming inside the numbers it changes; then a committed browser check.
