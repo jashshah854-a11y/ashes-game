@@ -585,3 +585,7 @@ Claimed by the Claude Code builder session after re-reading the log end (step 3 
 ### Judge flag slice B: the header fits a phone again
 - `css/style.css`: the header controls wrap (flex-wrap), so the Codex button no longer pushes New Game off screen. At a 390 px viewport the page is 390 px wide again, as in Cycle 6 (it was 423).
 - `node tools/lore-check.js`: 28 of 28 pass. `node tools/browser-check.js`: 6 of 6. Suite 49 pass, 0 fail. Balance byte identical to the baseline.
+
+### Judge flag slice C: the gauge contradiction
+- `js/lore.js`, the Ashwater history, paragraph 3: "both sides had relaid their track to rival gauges" became "the Compact had relaid its track to a narrower gauge ...; the Dominion kept the imperial gauge", which is what the Vessari entry (the narrow Compact gauge) and the Khessite entry (the full imperial gauge) already said. The Claude Design canvas's codex artboard carries the same corrected sentence. History entry: 281 words.
+- Suite 49 pass, 0 fail. Balance byte identical to the baseline. No dashes.
