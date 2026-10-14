@@ -6,8 +6,11 @@
 // plainly here, crowds two tiles: the capital p0_3 (three units and its
 // level 2 factory) gets level 1 walls being raised to 2; the front p4_3
 // (two units) gets level 1 walls, air defense, and a river flotilla.
-// For both tiles at both widths, every badge and every unit chip must be
-// visible by hit test at its centre, and the map key must name every
+// Further tiles carry standing level 2 walls (p1_3), walls being raised
+// (p2_3), and air defense being built (p3_3). For the two crowded tiles at
+// both widths, every badge and every unit chip must be visible by hit test
+// at its centre; on every tile nothing may overlap the province name; and
+// the map key must name every
 // badge code, and no factory badge may sit over a province name.
 // Usage: node tools/map-check.js   (CHROME=/path/to/chrome, PLAYWRIGHT=/path/to/playwright)
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
@@ -21,7 +24,8 @@ const CHROME = process.env.CHROME ||
   ['/opt/pw-browsers/chromium', '/opt/meta-chromium/chrome'].find((p) => fs.existsSync(p));
 const URL = 'file://' + path.join(REPO, 'index.html') + '?seed=7';
 const EDIT = "s.provinces.p0_3.fortLevel=1;s.provinces.p0_3.fortBuild={toLevel:2,daysLeft:5};" +
-  "s.provinces.p4_3.fortLevel=1;s.provinces.p4_3.airDefense=1;s.provinces.p4_3.flotilla=1;";
+  "s.provinces.p4_3.fortLevel=1;s.provinces.p4_3.airDefense=1;s.provinces.p4_3.flotilla=1;" +
+  "s.provinces.p1_3.fortLevel=2;s.provinces.p2_3.fortBuild={toLevel:1,daysLeft:3};s.provinces.p3_3.airDefenseBuild={daysLeft:2};";
 
 const results = [];
 function check(name, ok, detail) {
@@ -67,13 +71,25 @@ async function crowded(page, id) {
         const c = await crowded(page, id);
         check(w + ' px: every badge and unit chip on ' + id + ' is visible', c.count >= 4 && c.bad.length === 0, c.count + ' items; covered or outside: ' + c.bad.join('; '));
       }
-      const overName = await page.evaluate(() => Array.prototype.filter.call(document.querySelectorAll('.province'), (tile) => {
-        const n = tile.querySelector('.pname'), f = tile.querySelector('.factory-badge');
-        if (!n || !f) return false;
-        const a = n.getBoundingClientRect(), b = f.getBoundingClientRect();
-        return b.top < a.bottom - 1 && b.bottom > a.top + 1;
-      }).map((t) => t.getAttribute('data-prov')));
-      check(w + ' px: no factory badge sits over a province name', overName.length === 0, overName.join(','));
+      // Cycle 17: nothing on any tile may overlap its name: every badge type
+      // (walls standing and being raised, air defense standing and being
+      // built, fleet, factory), rail work tags, the fog tag, and unit chips.
+      const overName = await page.evaluate(() => {
+        const bad = [];
+        Array.prototype.forEach.call(document.querySelectorAll('.province'), (tile) => {
+          const n = tile.querySelector('.pname');
+          if (!n) return;
+          const a = n.getBoundingClientRect();
+          tile.querySelectorAll('.fort-badge, .ad-badge, .fleet-badge, .factory-badge, .rail-tag, .fog-tag, .unit-chip').forEach((el) => {
+            const b = el.getBoundingClientRect();
+            if (b.width && b.height && b.left < a.right - 1 && b.right > a.left + 1 && b.top < a.bottom - 1 && b.bottom > a.top + 1) {
+              bad.push(tile.getAttribute('data-prov') + ' ' + el.className.split(' ')[0]);
+            }
+          });
+        });
+        return bad;
+      });
+      check(w + ' px: no badge, tag, or chip overlaps any province name', overName.length === 0, overName.slice(0, 6).join(', '));
       const capBadge = await page.evaluate(() => document.querySelector('[data-prov="p0_3"] .fort-badge').innerText.trim());
       check(w + ' px: standing walls and walls being raised share one badge', (await page.$$eval('[data-prov="p0_3"] .fort-badge', (ns) => ns.length)) === 1 &&
         (w > 700 ? capBadge === 'Fort 1, to 2 in 5d' : capBadge === 'F1>2'), capBadge);

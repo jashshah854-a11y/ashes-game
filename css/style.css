@@ -280,3 +280,15 @@ button.linkish:hover { background: none; color: #fff2c4; }
 @media (max-width: 700px) {
   .factory-badge { top: 26px; }
 }
+
+/* Cycle 17: the badge strip flows at the top of the tile; nothing pinned over the name. */
+.province { min-height: 124px; }
+.badge-strip { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; margin-bottom: 1px; }
+.badge-strip .fort-badge, .badge-strip .ad-badge, .badge-strip .fleet-badge, .badge-strip .rail-tag,
+.province .factory-badge { position: static; top: auto; right: auto; left: auto; z-index: 1; }
+.province .factory-badge { align-self: flex-start; margin-top: 1px; }
+.badge-strip .rail-tag { padding: 0 3px; }
+@media (max-width: 700px) {
+  .badge-strip { gap: 1px; }
+  .badge-strip .rail-tag { font-size: 8px; padding: 0 2px; }
+}

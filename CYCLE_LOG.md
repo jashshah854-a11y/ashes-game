@@ -1298,3 +1298,8 @@ The rest is accepted as measured.
 
 ## Cycle 17, Step 0: the judge's conditions, CLAIMED (2026-10-14)
 Claimed by the Claude Code builder session after re-reading the log end. The cycle follows the judge: no new system; fixes, a full campaign won through the browser, and a demo for Jash.
+
+### Step 0 (a): nothing over a province name
+- `js/main.js`, `css/style.css`: walls, air defense, fleet, and rail work tags (which were also pinned top right) now sit in one badge strip at the top of the tile that flows with the content, so the name, steel line, and factory badge follow below it and nothing pinned can cover them; only unit chips stay pinned to the bottom; rail tags gained short labels (R3, C4) on phones; tiles are 124 px tall so a two line strip, the name, the steel line, the factory, and three chip rows fit.
+- `tools/map-check.js` (12 checks): further tiles carry standing level 2 walls, walls being raised, and air defense being built; on every tile at both widths no badge, rail tag, fog tag, or unit chip may overlap the province name (the judge's regression, 28 to 55 percent of the name before); the crowded tiles' badges and chips stay visible by hit test. Screenshots of the map at 1400 and 390 px inspected: the strip reads above each name.
+- UI only: suite 94 pass, 0 fail; all eight browser checks pass.

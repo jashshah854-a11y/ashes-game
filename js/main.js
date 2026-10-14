@@ -103,18 +103,20 @@
   // Rail state of the edge from this province toward a neighbor id, as a
   // little track bar on the shared border. Presentation only: the rules
   // all live in the graph inside sim.js.
+  // Returns the bar (drawn on the tile edge) and, for rail under work, a
+  // tag that goes in the tile's badge strip.
   function railBar(p, neighborId, side) {
     var e = Sim.edgeBetween(state, p.id, neighborId);
-    if (!e || !e.rail) return '';
+    if (!e || !e.rail) return { bar: '', tag: '' };
     if (e.rail.daysLeft > 0) {
-      return '<span class="rail-bar ' + side + ' building"></span>' +
-        '<span class="rail-tag">Rail ' + e.rail.daysLeft + 'd</span>';
+      return { bar: '<span class="rail-bar ' + side + ' building"></span>',
+        tag: '<span class="rail-tag"><span class="b-long">Rail ' + e.rail.daysLeft + 'd</span><span class="b-short">R' + e.rail.daysLeft + '</span></span>' };
     }
     if (e.rail.converting) {
-      return '<span class="rail-bar ' + side + ' building"></span>' +
-        '<span class="rail-tag">Converting ' + e.rail.converting.daysLeft + 'd</span>';
+      return { bar: '<span class="rail-bar ' + side + ' building"></span>',
+        tag: '<span class="rail-tag"><span class="b-long">Converting ' + e.rail.converting.daysLeft + 'd</span><span class="b-short">C' + e.rail.converting.daysLeft + '</span></span>' };
     }
-    return '<span class="rail-bar ' + side + '"></span>';
+    return { bar: '<span class="rail-bar ' + side + '"></span>', tag: '' };
   }
 
   function renderMap() {
@@ -134,28 +136,35 @@
         if (fogged) cls += ' fogged';
         else if (lit[p.id] >= state.day && p.owner !== 'player' && !Sim.neighborsOf(state, p).some(function (np) { return np.owner === 'player'; })) cls += ' lit';
         html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '">';
+        // Badges carry a long label and a short one for phone widths.
+        var two = function (long, short) { return '<span class="b-long">' + long + '</span><span class="b-short">' + short + '</span>'; };
+        // The badge strip: walls, air defense, fleet, and rail work, in one
+        // row at the top of the tile that flows with the content, so no
+        // badge can sit over the name (Cycle 17; pinned badges covered it).
+        var strip = '';
+        // Walls: one badge, so standing walls are never hidden under work on the next level.
+        if (p.fortLevel > 0 && p.fortBuild) strip += '<span class="fort-badge lvl' + p.fortLevel + ' building">' + two('Fort ' + p.fortLevel + ', to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortLevel + '>' + p.fortBuild.toLevel) + '</span>';
+        else if (p.fortLevel > 0) strip += '<span class="fort-badge lvl' + p.fortLevel + '">' + two('Fort ' + p.fortLevel, 'F' + p.fortLevel) + '</span>';
+        else if (p.fortBuild) strip += '<span class="fort-badge building">' + two('Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortBuild.toLevel + '..') + '</span>';
+        if (p.airDefense > 0) strip += '<span class="ad-badge">AD</span>';
+        if (p.airDefenseBuild) strip += '<span class="ad-badge building">' + two('AD in ' + p.airDefenseBuild.daysLeft + 'd', 'AD..') + '</span>';
+        if (p.flotilla > 0) strip += '<span class="fleet-badge">' + two('Fleet', 'Fl') + '</span>';
+        if (p.flotillaBuild) strip += '<span class="fleet-badge building">' + two('Fleet ' + p.flotillaBuild.daysLeft + 'd', 'Fl..') + '</span>';
+        var railR = x + 1 < state.mapW ? railBar(p, Sim.provinceId(x + 1, y), 'r') : { bar: '', tag: '' };
+        var railB = y + 1 < state.mapH ? railBar(p, Sim.provinceId(x, y + 1), 'b') : { bar: '', tag: '' };
+        strip += railR.tag + railB.tag;
+        if (strip) html += '<span class="badge-strip">' + strip + '</span>';
         html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
         html += '<span class="steel"><span class="b-long">Steel ' + p.steel + '</span><span class="b-short">S' + p.steel + '</span></span>';
         if (p.factoryLevel > 0) {
-          html += ' <span class="factory-badge lvl' + p.factoryLevel + '"><span class="b-long">Factory ' + p.factoryLevel +
+          html += '<span class="factory-badge lvl' + p.factoryLevel + '"><span class="b-long">Factory ' + p.factoryLevel +
             '</span><span class="b-short">Fa' + p.factoryLevel + '</span></span>';
         }
-        // Badges carry a long label and a short one for phone widths.
-        var two = function (long, short) { return '<span class="b-long">' + long + '</span><span class="b-short">' + short + '</span>'; };
-        // Walls: one badge, so standing walls are never hidden under work on the next level.
-        if (p.fortLevel > 0 && p.fortBuild) html += ' <span class="fort-badge lvl' + p.fortLevel + ' building">' + two('Fort ' + p.fortLevel + ', to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortLevel + '>' + p.fortBuild.toLevel) + '</span>';
-        else if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">' + two('Fort ' + p.fortLevel, 'F' + p.fortLevel) + '</span>';
-        else if (p.fortBuild) html += ' <span class="fort-badge building">' + two('Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortBuild.toLevel + '..') + '</span>';
-        if (p.flotilla > 0) html += ' <span class="fleet-badge">' + two('Fleet', 'Fl') + '</span>';
-        if (p.flotillaBuild) html += ' <span class="fleet-badge building">' + two('Fleet ' + p.flotillaBuild.daysLeft + 'd', 'Fl..') + '</span>';
-        if (p.airDefense > 0) html += ' <span class="ad-badge">AD</span>';
-        if (p.airDefenseBuild) html += ' <span class="ad-badge building">' + two('AD in ' + p.airDefenseBuild.daysLeft + 'd', 'AD..') + '</span>';
         // The river line: a band on the east side of each province whose
         // eastern edge is a river.
         var eastEdge = x + 1 < state.mapW ? Sim.edgeBetween(state, p.id, Sim.provinceId(x + 1, y)) : null;
         if (eastEdge && eastEdge.terrain === 'river') html += '<span class="river-bar" title="River: attacks across it lose ' + Sim.CFG.riverCrossingPct + '% attack"></span>';
-        if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
-        if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
+        html += railR.bar + railB.bar;
         var units = fogged ? [] : Sim.unitsIn(state, p.id);
         if (fogged) html += '<span class="fog-tag"><span class="fog-long">Unseen</span><span class="fog-short">?</span></span>';
         if (units.length) {
