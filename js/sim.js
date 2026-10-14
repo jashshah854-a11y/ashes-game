@@ -1426,11 +1426,21 @@
   // provinces controls it; a tie leaves it open.
   function seaRows() { return { north: 0, south: CFG.mapH - 1 }; }
   function isCoastRow(y) { var r = seaRows(); return y === r.north || y === r.south; }
-  function seaControl(state, sea) {
+  // How many of a sea's coastal provinces each side holds.
+  function seaHolding(state, sea) {
     var y = seaRows()[sea];
-    var count = { player: 0, enemy: 0 };
+    var count = { player: 0, enemy: 0, of: CFG.mapW };
     for (var x = 0; x < CFG.mapW; x++) count[state.provinces[provinceId(x, y)].owner] += 1;
+    return count;
+  }
+  function seaControl(state, sea) {
+    var count = seaHolding(state, sea);
     return count.player > count.enemy ? 'player' : (count.enemy > count.player ? 'enemy' : null);
+  }
+  // Which sea a coastal province is on, or null inland.
+  function seaOf(state, provId) {
+    var p = state.provinces[provId], r = seaRows();
+    return p.y === r.north ? 'north' : (p.y === r.south ? 'south' : null);
   }
   // Blockade: on a sea the other side controls, a nation's steel from its
   // coastal provinces there is cut by CFG.blockadePct, taken once off the
@@ -1914,6 +1924,8 @@
     buildAirDefense: buildAirDefense,
     buildFlotilla: buildFlotilla,
     seaControl: seaControl,
+    seaHolding: seaHolding,
+    seaOf: seaOf,
     blockade: blockade,
     onRiver: onRiver,
     visibleProvinces: visibleProvinces,

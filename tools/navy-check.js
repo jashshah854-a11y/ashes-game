@@ -133,7 +133,7 @@ async function buildAndRun(page, label, phone) {
     });
     check('1400: the river is drawn on every river edge and nowhere else', rv.edges === 7 && rv.drawn === rv.edges && rv.extra === rv.edges, JSON.stringify(rv));
     check('both seas start open, and the key states the blockade from CFG',
-      (await page.textContent('#stat-seas')) === 'North open; South open' && (await page.textContent('#stat-enemy-blockade')) === 'none' &&
+      (await page.textContent('#stat-seas')) === 'North open (5 of 10 each); South open (5 of 10 each)' && (await page.textContent('#stat-enemy-blockade')) === 'none' &&
       (await page.textContent('#blockade-pct')) === String(CFG.blockadePct));
     check('the doctrine says the Dominion builds none', /It builds no river flotilla, so its attacks across the river always pay the crossing\./.test(await page.textContent('#enemy-card')));
     await page.close();
@@ -157,17 +157,25 @@ async function buildAndRun(page, label, phone) {
     // Run 2b: checker edit stated plainly: the Dominion starts holding p4_0, so it holds six of
     // the north coast; your income must show the cut, equal to the sim's.
     page = await newPage();
-    await serveSim(page, "s.provinces.p4_0.owner='enemy';");
+    await serveSim(page, "s.provinces.p4_0.owner='enemy';s.provinces.p5_6.owner='player';s.provinces.p6_6.steel=2;s.provinces.p7_6.steel=2;");
     await page.goto(URL);
     await page.click('#btn-pause');
+    // The south sea goes the other way: the player holds six there, and the
+    // Dominion's coastal steel on it is raised so the cut is not zero.
     const sea = await page.evaluate(() => {
-      const S = window.AshesSim, s = window.__state, b = S.blockade(s, 'player');
-      return { income: S.steelIncome(s, 'player'), lost: b.north.lost, control: b.north.control };
+      const S = window.AshesSim, s = window.__state, b = S.blockade(s, 'player'), e = S.blockade(s, 'enemy');
+      return { income: S.steelIncome(s, 'player'), lost: b.north.lost, control: b.north.control, theirLost: e.south.lost };
     });
-    check('a sea held against you is named with its cost, and income shows the cut',
-      sea.control === 'enemy' && (await page.textContent('#stat-seas')) === 'North theirs, -' + sea.lost + ' steel; South open' &&
-      (await page.textContent('#stat-steel-income')) === sea.income + (sea.lost ? ' (blockade takes ' + sea.lost + ')' : ''),
+    check('a sea held against you is named with the counts and its cost a day, and income shows the cut',
+      sea.control === 'enemy' && sea.lost > 0 &&
+      (await page.textContent('#stat-seas')) === 'North theirs (6 of 10), -' + sea.lost + ' steel a day; South yours (6 of 10)' &&
+      (await page.textContent('#stat-steel-income')) === sea.income + ' (blockade takes ' + sea.lost + ')',
       (await page.textContent('#stat-seas')) + ' | ' + (await page.textContent('#stat-steel-income')));
+    check('the Dominion row names the cut your sea makes', sea.theirLost > 0 &&
+      (await page.textContent('#stat-enemy-blockade')) === 'your seas cut its coastal steel by ' + sea.theirLost + ' a day', await page.textContent('#stat-enemy-blockade'));
+    await page.click('[data-prov="p0_0"]');
+    check('a coastal province card names its sea and the cut', /Coast: on the north sea, held by the Dominion\. Its steel is cut 50% with the rest of your coast on this sea/.test(await page.textContent('#prov-details')),
+      (await page.textContent('#prov-details')).slice(0, 200));
     await page.close();
 
     // Run 3: phone width.

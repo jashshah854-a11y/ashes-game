@@ -1315,3 +1315,12 @@ Claimed by the Claude Code builder session after re-reading the log end. The cyc
 - `js/sim.js`: the coastal flag on provinces now comes from seaRows (isCoastRow), the one coast source; CFG.blockadePct's comment calls 50 a placeholder under DECISIONS item 34. Balance byte identical.
 - BACKLOG: heading after Cycle 16; the balance line cites tools/baseline-cycle16-step2.txt with the coast report; the v1 systems section is "built in part, or not yet started". DECISIONS: the brief names its measurement commits truthfully, counts four inert systems, says no new system starts before Jash rules on item 20, 27, or 34, and drops the stale "coastal control comes after"; item 20 says day 21; items 20 and 30 cite the commits they were measured and reproduced at. CYCLE_LOG: Cycle 16 step 2's title and its "65 differ" meaning corrected in place.
 - The edit script for this part stopped once on a text anchor (the item 20 line starts mid line); nothing was committed until it was rerun with the right anchor and its output read.
+
+### Step 0 (e): the seas legible
+- `js/sim.js`: seaHolding (how many of a sea's coastal provinces each side holds) and seaOf (which sea a province is on), used by seaControl and the UI; no rule changed.
+- `js/main.js`: the Seas row reads "North open (5 of 10 each)", "yours (6 of 10)", or "theirs (6 of 10), -2 steel a day"; a coastal province's card has a coast line naming its sea, who holds it, and, when the sea is held against the province's owner, that its steel is cut with the rest of that coast.
+- `tools/navy-check.js` (24 checks): with a checker edit (the Dominion holding six of the north coast, the player six of the south, and two Dominion south coast provinces at 2 steel so the cut is not zero), your Seas row names both seas with counts and a nonzero cut a day, your income names the cut, the Dominion row names the nonzero cut your sea makes, and a coastal card names its sea and the cut.
+- Suite 95 pass, 0 fail; balance byte identical to tools/baseline-cycle16-step2.txt; all eight browser checks pass.
+
+### Cycle 17 Step 0 closed
+All conditions of the Cycle 16 judge are met: nothing over a name (a), the blockade's rules tested (b), the blockade measured for what it takes and item 34 reframed (c), one coast source and the docs (d), the seas legible (e).

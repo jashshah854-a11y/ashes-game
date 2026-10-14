@@ -498,10 +498,21 @@
   // The two seas in plain words: who holds each, and what the blockade takes.
   function seaText(b, id) {
     return ['north', 'south'].map(function (sea) {
-      var c = b[sea].control;
-      var who = c === null ? 'open' : (c === id ? 'yours' : 'theirs, -' + b[sea].lost + ' steel');
+      var c = b[sea].control, h = Sim.seaHolding(state, sea), mine = h[id], theirs = h[id === 'player' ? 'enemy' : 'player'];
+      var who = c === null ? 'open (' + mine + ' of ' + h.of + ' each)' :
+        (c === id ? 'yours (' + mine + ' of ' + h.of + ')' : 'theirs (' + theirs + ' of ' + h.of + '), -' + b[sea].lost + ' steel a day');
       return (sea === 'north' ? 'North ' : 'South ') + who;
     }).join('; ');
+  }
+  // A coastal province's sea line on its card.
+  function coastLine(p) {
+    var sea = Sim.seaOf(state, p.id);
+    if (!sea) return '';
+    var c = Sim.seaControl(state, sea);
+    var name = sea === 'north' ? 'north sea' : 'south sea';
+    var line = 'Coast: on the ' + name + ', ' + (c === null ? 'open' : (c === 'player' ? 'held by you' : 'held by the Dominion'));
+    if (c && c !== p.owner) line += '. Its steel is cut ' + Sim.CFG.blockadePct + '% with the rest of ' + (p.owner === 'player' ? 'your' : 'their') + ' coast on this sea';
+    return line + '<br>';
   }
 
   // How you see this province, in plain words.
@@ -581,6 +592,7 @@
       fortLine(p) + '<br>' +
       airDefenseLine(p) + '<br>' +
       flotillaLine(p) +
+      coastLine(p) +
       sightLine(p) + '<br>' +
       supplyLine + '<br>' +
       (Sim.canSee(state, 'player', p.id)
