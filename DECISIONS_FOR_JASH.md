@@ -310,6 +310,13 @@ was invented by the loop, not by you:
     The Dominion decides per group, so a stack command would also match
     how it thinks.
 
+30. Should the Dominion build river flotillas? The command exists for both
+    sides, but the Dominion's rule is off: on (at 450 equipment), it cost
+    the rationed script seeds 89 and 108 over 200; at 800 equipment, or
+    with the rationed script building its own flotilla too, it still lost
+    seed 108, the seesaw seed that tips on every Dominion gain. Leaving it
+    off keeps a tool only you use.
+
 Nothing here blocks the loop. Cycles 9 to 12 passed their judges (10, 11,
 and 12 with conditions, each closed in the next cycle's step 0); nothing
 waits on any item above.

@@ -1958,3 +1958,59 @@ test('river crossing: one modifier in unitStats, read by stackPower and combat, 
     Sim.CFG.riverCrossingPct = saved;
   }
 });
+
+test('river flotilla: one command, refusals, timing, it carries crossings from its province only, and capture loses it', () => {
+  const s = Sim.createGame(7);
+  s.units = s.units.filter(u => u.nation === 'player'); // nothing marches on p4_3 while it builds
+  const n = s.nations.player;
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p5_3').reason, 'not your province');
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p3_3').reason, 'not on the river');
+  n.equipment = Sim.CFG.flotillaCost - 1;
+  assert.deepStrictEqual(Sim.buildFlotilla(s, 'player', 'p4_3'), { ok: false, reason: 'not enough equipment', cost: Sim.CFG.flotillaCost });
+  n.equipment = 1000;
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p4_3').ok, true);
+  assert.strictEqual(n.equipment, 1000 - Sim.CFG.flotillaCost);
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p4_3').reason, 'flotilla already under construction');
+  const inf = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'infantry');
+  const crossing = Sim.unitStats(s, inf, 'p5_3').attack;
+  for (let d = 1; d < Sim.CFG.flotillaBuildDays; d++) { Sim.tick(s); assert.strictEqual(s.provinces.p4_3.flotilla, 0, 'not yet on day ' + d); }
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p4_3.flotilla, 1);
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p4_3').reason, 'flotilla already built');
+  const here = mkU(50, 'player', 'infantry', 'p4_3');
+  assert.strictEqual(crossing, Math.round(4 * (1 - Sim.CFG.riverCrossingPct / 100)), 'before: the crossing costs attack');
+  assert.strictEqual(Sim.unitStats(s, here, 'p5_3').riverPct, 0, 'the flotilla carries the crossing');
+  assert.strictEqual(Sim.unitStats(s, here, 'p5_3').attack, 4, 'full attack across the river');
+  // A unit crossing elsewhere still pays.
+  assert.strictEqual(Sim.unitStats(s, mkU(51, 'player', 'infantry', 'p4_2'), 'p5_2').riverPct, Sim.CFG.riverCrossingPct);
+  // An enemy unit standing in your flotilla province gets nothing from it.
+  assert.strictEqual(Sim.unitStats(s, mkU(52, 'enemy', 'infantry', 'p4_3'), 'p5_3').riverPct, Sim.CFG.riverCrossingPct);
+  // Capture loses it.
+  const c = Sim.createGame(5);
+  c.units = [mkU(1, 'enemy', 'infantry', 'p5_3')];
+  c.provinces.p4_3.flotilla = 1;
+  Sim.issueOrder(c, 1, 'p4_3');
+  Sim.movementPhase(c);
+  assert.strictEqual(c.provinces.p4_3.owner, 'enemy');
+  assert.strictEqual(c.provinces.p4_3.flotilla, 0);
+});
+
+test('river flotilla: the Dominion does not build one while its rule is off, and builds through the same command when on', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = 5000;
+  for (let d = 0; d < 3; d++) Sim.tick(s);
+  const river = s.provinces[Sim.provinceId(Sim.CFG.mapW / 2, 3)];
+  assert.ok(!river.flotilla && !river.flotillaBuild, 'off by default');
+  const saved = Sim.CFG.aiBuildsFlotilla;
+  try {
+    Sim.CFG.aiBuildsFlotilla = true;
+    const t = Sim.createGame(42);
+    t.nations.enemy.equipment = 5000;
+    Sim.tick(t);
+    const r = t.provinces[Sim.provinceId(Sim.CFG.mapW / 2, 3)];
+    assert.deepStrictEqual(r.flotillaBuild, { daysLeft: Sim.CFG.flotillaBuildDays - 1 });
+    assert.ok(t.log.some(e => /^Khessite begin building a river flotilla at /.test(e.msg)));
+  } finally {
+    Sim.CFG.aiBuildsFlotilla = saved;
+  }
+});

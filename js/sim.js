@@ -83,6 +83,10 @@
     jammingPct: 40,               // percent attack and defense a jammed drone wing loses
     reconRange: { 1: 2, 2: 3, 3: 4 }, // recon range in graph hops, by drone generation
     riverCrossingPct: 15,         // percent attack lost attacking across a river edge (Cycle 14, measured)
+    flotillaCost: 100,            // equipment for a river flotilla, paid when work starts
+    flotillaBuildDays: 4,         // days of construction
+    aiBuildsFlotilla: false,      // Cycle 14: off; on, it lost rationed seeds 89 and 108 (CYCLE_LOG)
+    aiFlotillaEquipment: 450,     // when on, the Dominion builds its flotilla only while holding at least this much equipment
     // The Dominion buys the first project in this list it has not finished,
     // as soon as it has the points; it never skips ahead.
     aiResearchOrder: ['droneGen2', 'jamming1', 'droneGen3', 'jamming2']
@@ -484,6 +488,8 @@
           airDefense: 0,       // 1 once air defense is built
           airDefenseBuild: null, // { daysLeft } while building
           launchReserve: null, // launches set aside for today's attacks (reserveLaunches), null otherwise
+          flotilla: 0,         // 1 once a river flotilla is built here
+          flotillaBuild: null, // { daysLeft } while building
           coastal: (y === 0 || y === CFG.mapH - 1) // sea to the north and south, navy comes later
         };
       }
@@ -605,7 +611,11 @@
   function riverPenaltyFor(state, unit, attackTarget) {
     if (!attackTarget || !(CFG.riverCrossingPct > 0)) return 0;
     var e = edgeBetween(state, unit.provinceId, attackTarget);
-    return e && e.terrain === 'river' ? CFG.riverCrossingPct : 0;
+    if (!e || e.terrain !== 'river') return 0;
+    // A river flotilla of your own where you stand carries the crossing.
+    var from = state.provinces[unit.provinceId];
+    if (from && from.flotilla > 0 && from.owner === unit.nation) return 0;
+    return CFG.riverCrossingPct;
   }
 
   function unitStats(state, unit, attackTarget) {
@@ -850,6 +860,15 @@
   function constructionPhase(state) {
     Object.keys(state.provinces).forEach(function (pid) {
       var prov = state.provinces[pid];
+      if (prov.flotillaBuild) {
+        prov.flotillaBuild.daysLeft -= 1;
+        if (prov.flotillaBuild.daysLeft <= 0) {
+          prov.flotilla = 1;
+          prov.flotillaBuild = null;
+          logEvent(state, state.nations[prov.owner].short + ' finish a river flotilla at ' + prov.name +
+            '. Attacks from there across the river no longer lose ' + CFG.riverCrossingPct + '% attack.');
+        }
+      }
       if (prov.airDefenseBuild) {
         prov.airDefenseBuild.daysLeft -= 1;
         if (prov.airDefenseBuild.daysLeft <= 0) {
@@ -902,6 +921,9 @@
     // Air defense is lost with the province, and so is work on it.
     prov.airDefense = 0;
     prov.airDefenseBuild = null;
+    // So is a river flotilla.
+    prov.flotilla = 0;
+    prov.flotillaBuild = null;
     neighborEdges(state, prov).forEach(function (ne) {
       var e = ne.edge;
       if (!e.rail || e.rail.daysLeft > 0 || e.rail.converting) return;
@@ -1455,6 +1477,31 @@
     return { ok: true, cost: cost, level: level + 1, days: CFG.fortBuildDays };
   }
 
+  // Is this province on the river line (one of its edges is a river)?
+  function onRiver(state, provId) {
+    return neighborEdges(state, state.provinces[provId]).some(function (ne) { return ne.edge.terrain === 'river'; });
+  }
+
+  // Build a river flotilla in a province you hold on the river line:
+  // equipment paid up front, CFG.flotillaBuildDays of work, one per
+  // province. Attacks launched from there across the river take no
+  // crossing penalty. Lost with the province.
+  function buildFlotilla(state, nationId, provId) {
+    var prov = state.provinces[provId];
+    var n = state.nations[nationId];
+    if (!prov || prov.owner !== nationId) return { ok: false, reason: 'not your province' };
+    if (!onRiver(state, provId)) return { ok: false, reason: 'not on the river' };
+    if (prov.flotilla > 0) return { ok: false, reason: 'flotilla already built' };
+    if (prov.flotillaBuild) return { ok: false, reason: 'flotilla already under construction' };
+    var cost = CFG.flotillaCost;
+    if (n.equipment < cost) return { ok: false, reason: 'not enough equipment', cost: cost };
+    n.equipment -= cost;
+    prov.flotillaBuild = { daysLeft: CFG.flotillaBuildDays };
+    logEvent(state, n.short + ' begin building a river flotilla at ' + prov.name + ' (' + cost + ' equipment, ' +
+      CFG.flotillaBuildDays + ' days).');
+    return { ok: true, cost: cost, days: CFG.flotillaBuildDays };
+  }
+
   // Build air defense in a province you hold: equipment paid up front, the
   // work takes CFG.airDefenseBuildDays, one level per province.
   function buildAirDefense(state, nationId, provId) {
@@ -1748,6 +1795,18 @@
     buildAirDefense(state, ai, capProv.id);
   }
 
+  // A river flotilla at its river Spine province, after walls and air
+  // defense, while its equipment is at least CFG.aiFlotillaEquipment.
+  function aiFlotilla(state) {
+    if (!CFG.aiBuildsFlotilla) return;
+    var n = state.nations.enemy;
+    if (n.equipment < CFG.aiFlotillaEquipment) return;
+    var cap = state.provinces[n.capitalId];
+    var p = state.provinces[provinceId(CFG.mapW / 2, cap.y)];
+    if (!p || p.owner !== 'enemy' || p.flotilla > 0 || p.flotillaBuild) return;
+    buildFlotilla(state, 'enemy', p.id);
+  }
+
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
@@ -1757,6 +1816,7 @@
     aiRail(state);       // rail building, the same moment
     aiFortify(state);    // fortification, the same moment
     aiAirDefense(state); // air defense, after walls
+    aiFlotilla(state);   // a river flotilla, after air defense
     aiProduction(state); // the same start of day moment for production orders
     aiTakeTurn(state);   // movement orders too: on yesterday's supply, like the player's preview
     reserveLaunches(state, 'enemy');  // launch steel against its attacks, from the steel its estimate read
@@ -1802,6 +1862,8 @@
     buildFactory: buildFactory,
     buildFortification: buildFortification,
     buildAirDefense: buildAirDefense,
+    buildFlotilla: buildFlotilla,
+    onRiver: onRiver,
     visibleProvinces: visibleProvinces,
     canSee: canSee,
     seenUnitsIn: seenUnitsIn,
