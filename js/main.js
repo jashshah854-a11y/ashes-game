@@ -19,7 +19,7 @@
   var codexEntryId = 'ashwater';
 
   var el = {};
-  ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
+  ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-step', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'stat-jamming', 'research-list', 'research-explain', 'stat-enemy-jam', 'stat-enemy-research', 'ai-research-order', 'prov-name', 'prov-details',
    'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'river-pct', 'btn-flotilla', 'stat-seas', 'stat-enemy-blockade', 'blockade-pct', 'btn-ad', 'stat-enemy-ad',
@@ -52,11 +52,15 @@
     var ms = speed === 1 ? 900 : 300;
     timer = setInterval(function () {
       if (paused || state.gameOver) return;
-      Sim.tick(state);
-      render();
-      if (state.gameOver) showBanner();
-      else checkBeats(); // no card over the end banner; the codex still lists the beat
+      advanceDay();
     }, ms);
+  }
+  // One day of war: the same path for the timer and the Next day button.
+  function advanceDay() {
+    Sim.tick(state);
+    render();
+    if (state.gameOver) showBanner();
+    else checkBeats(); // no card over the end banner; the codex still lists the beat
   }
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 
@@ -311,6 +315,7 @@
       var qBtn = document.createElement('button');
       qBtn.type = 'button';
       qBtn.textContent = 'Queue ' + t.label + ' (+1)';
+      qBtn.setAttribute('data-queue-line', line.id);
       qBtn.disabled = line.queue >= Sim.CFG.maxQueuePerLine;
       qBtn.addEventListener('click', function () {
         Sim.queueProduction(state, 'player', line.id);
@@ -626,6 +631,7 @@
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = 'Build rail to ' + ne.province.name + ' (' + Sim.CFG.railCostSteel + ' steel, ' + Sim.CFG.railBuildDays + ' days)';
+      btn.setAttribute('data-rail-to', ne.province.id);
       btn.disabled = state.nations.player.steel < Sim.CFG.railCostSteel;
       btn.addEventListener('click', function () {
         Sim.buildRail(state, 'player', p.id, ne.province.id);
@@ -759,6 +765,7 @@
   function setPaused(p) {
     paused = p;
     el.btnPause.textContent = paused ? 'Resume' : 'Pause';
+    el.btnStep.disabled = !paused;
   }
   function overlayOpen() {
     return !el.eventOverlay.classList.contains('hidden') || !el.codexOverlay.classList.contains('hidden');
@@ -914,6 +921,18 @@
     render();
   }
 
+  // Next day: while paused, play exactly one day.
+  el.btnStep.addEventListener('click', function () {
+    if (!paused || overlayOpen() || state.gameOver) return;
+    advanceDay();
+  });
+  // Escape clears the selected unit, so a click on a neighbouring
+  // province selects there instead of ordering the unit.
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape' || overlayOpen()) return;
+    selectedUnitId = null;
+    render();
+  });
   el.btnPause.addEventListener('click', function () {
     if (overlayOpen()) return; // a card or the codex holds the pause until closed
     setPaused(!paused);
