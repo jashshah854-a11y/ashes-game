@@ -2020,3 +2020,49 @@ test('river flotilla: the Dominion does not build one while its rule is off, and
     Sim.CFG.aiBuildsFlotilla = saved;
   }
 });
+
+// ---------- Cycle 15: the river rules the Cycle 14 judge found unpinned ----------
+test('river crossing: the Dominion estimate reads it, clashes pay it, and only a flotilla where the attacker stands carries it', () => {
+  // The Dominion's 1.5x rule across the river: two Gen 1 wings (6) against one infantry (defense 4) need 6;
+  // across the river 6 becomes 5, so it holds; with its own flotilla at p5_3 it attacks.
+  const aiAttacks = (flotilla) => {
+    const s = Sim.createGame(5);
+    s.day = Sim.CFG.aiMobilizationDays + 1;
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3'), mkU(3, 'enemy', 'drone', 'p5_3')];
+    s.provinces.p5_3.flotilla = flotilla ? 1 : 0;
+    s.nations.enemy.equipment = 0;
+    Sim.tick(s);
+    return s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group/.test(e.msg));
+  };
+  assert.strictEqual(aiAttacks(false), false, 'the crossing keeps the Dominion under its 1.5x rule');
+  assert.strictEqual(aiAttacks(true), true, 'its own flotilla carries the crossing, and it attacks');
+  // A clash over empty ground across the river: the attacking side pays the crossing.
+  const saved = Sim.CFG.riverCrossingPct;
+  try {
+    const clash = (pct) => {
+      Sim.CFG.riverCrossingPct = pct;
+      const s = Sim.createGame(5);
+      s.units = [mkU(1, 'player', 'infantry', 'p4_4'), mkU(2, 'player', 'infantry', 'p4_4'), mkU(9, 'enemy', 'infantry', 'p6_4')];
+      Sim.issueOrder(s, 1, 'p5_4'); Sim.issueOrder(s, 2, 'p5_4'); Sim.issueOrder(s, 9, 'p5_4');
+      Sim.movementPhase(s);
+      return JSON.stringify(s.units.map(u => [u.id, u.strength]));
+    };
+    assert.notStrictEqual(clash(50), clash(0), 'the player crosses into the clash and pays');
+  } finally {
+    Sim.CFG.riverCrossingPct = saved;
+  }
+  // A flotilla in the target province carries nothing for the attacker.
+  const t = Sim.createGame(5);
+  t.provinces.p5_3.flotilla = 1;
+  const inf = mkU(1, 'player', 'infantry', 'p4_3');
+  assert.strictEqual(Sim.unitStats(t, inf, 'p5_3').riverPct, Sim.CFG.riverCrossingPct);
+  assert.strictEqual(Sim.attackPower(t, [inf], 'p5_3'), Math.round(4 * (1 - Sim.CFG.riverCrossingPct / 100)));
+  // Capture loses flotilla work in progress too.
+  const c = Sim.createGame(5);
+  c.units = [mkU(1, 'enemy', 'infantry', 'p5_3')];
+  c.provinces.p4_3.flotillaBuild = { daysLeft: 2 };
+  Sim.issueOrder(c, 1, 'p4_3');
+  Sim.movementPhase(c);
+  assert.strictEqual(c.provinces.p4_3.owner, 'enemy');
+  assert.strictEqual(c.provinces.p4_3.flotillaBuild, null);
+});
