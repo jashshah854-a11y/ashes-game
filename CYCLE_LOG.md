@@ -1105,3 +1105,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Cycle 14 Step 0 closed
 All conditions of the Cycle 13 judge are met: the preview counts only units that can join (a), the step 3 claim corrected with a control profile (b), the four legibility items fixed and asserted at 390 px (c), two questions routed to Jash (d), docs (e). Suite 87 pass, 0 fail; balance on 8 seeds as tools/baseline-cycle14-step0b.txt; all six browser checks pass.
+
+## Cycle 14, Step 1: the brief for Jash
+- `DECISIONS_FOR_JASH.md` opens with a one page brief ranking the five calls that unblock the most (items 20, 27, 24, 25, 15), each with the measured effect of every option from the earlier cycles' 200 seed runs, in the order that matters (item 27 first among the sight items, since jamming and recon cost only matter once sight is used). Docs only.

@@ -3,6 +3,45 @@
 Taste calls the loop will not make for you. Each one is blocking something
 specific; everything else keeps moving.
 
+## Start here: the five calls that unblock the most (Cycle 14 brief)
+
+Three systems are built and working but change little in play until you
+rule: jamming, recon, and the drone balance. They are tied together, so
+the order below matters. Every number is measured over 200 seeds with the
+committed harness (`node tools/balance.js --seeds 1-200`).
+
+1. Item 20, should an all drone army be the fastest way to win? Today an
+   all drone script wins at median day 38, mixed production at day 52.
+   Options measured: leave it (drones lead by 14 days); drone attack
+   2 / 3 / 4 by generation (drones lead by 9; every ruling still passes;
+   the smallest safe step); 2 / 4 / 6 or infantry attack 5 or fragile
+   drones (each breaks a ruling). Cheaper jamming or a reactive Dominion
+   do not close it. If drones should not lead, say so and the loop lands
+   2 / 3 / 4 as one measured slice.
+2. Item 27, should the Dominion fly recon and act on it? This is the one
+   that makes fog, recon, and jamming matter. Today no decision on either
+   side reads beyond its neighbours, so fog changes what you see, not the
+   war: a script that acts on recon gains nothing on net against the same
+   script with the rule off. A yes means the loop designs a Dominion that
+   scouts before it attacks, measured against the rulings.
+3. Item 24, how should the drone and jamming race pace? Jamming never
+   reaches a drone in intended play (both sides field Gen 2 on day 21,
+   before Jamming Gen 1 on day 38, and Gen 3 on day 78, before Jamming
+   Gen 2 on day 111). Options: cheaper jamming, Jamming Gen 2 before Gen
+   3 in the Dominion's order, or dearer drone generations. Every clock
+   change measured so far moves a ruling (both jammings first loses
+   rationed seed 108). It matters only after item 27 gives sight a use.
+4. Item 25, should recon cost something? Today it is free and unlimited:
+   one Gen 2 wing at the front lifts the fog three provinces deep every
+   day. Only matters once item 27 makes sight count.
+5. Item 15, the siege. Most wins end at a walled Khessograd (twelve units
+   behind level 2 walls defend at 66; an attack needs 99). Should
+   something break walls (drones, a siege unit), or is the siege the war?
+
+Everything else below waits on you too, but nothing else stalls a system.
+The loop keeps building around all of it; next is the navy, starting with
+river crossings.
+
 LORE WRITTEN BY THE LOOP, OPEN FOR YOUR REWRITE OR VETO (Cycle 7). Under
 the lore rule the loop wrote the world's first lore itself rather than
 stall. All of it is in js/lore.js and none of it changes a number in the
