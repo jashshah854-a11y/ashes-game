@@ -396,8 +396,8 @@ function runGame(Sim, seed, profileName, opts) {
   const bledNow = id => s.ledger ? s.ledger[id].lostSteel + s.ledger[id].launchSteel : 0;
   while (!s.gameOver && s.day < MAX_DAYS) {
     const youBefore = bledNow('player'), themBefore = bledNow('enemy');
-    // Province names repeat on the map, so launches are matched to the
-    // Dominion's air defense provinces by id, through their names.
+    // Launches are matched to the Dominion's air defense provinces by id,
+    // through their names (unique on every map since Cycle 13).
     const adIds = Object.keys(s.provinces).filter(k => s.provinces[k].airDefense > 0 && s.provinces[k].owner === 'enemy');
     const day = s.day;
     const seen = new Set(s.log); // the log is capped, so diff by entry identity

@@ -253,7 +253,8 @@ was invented by the loop, not by you:
 
 26. Should the war log show the Dominion's production at all? Since
     Cycle 13 it hides production lines from provinces you cannot see;
-    the Dominion's capital is always one of those until you reach it.
+    the Dominion's capital is one of those unless your front is next to
+    it or your recon lights it.
 
 27. Should the Dominion fly recon and act on what it sees? Today it sees
     only its neighbours and flies none; no decision on either side reads

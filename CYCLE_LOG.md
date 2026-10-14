@@ -1099,3 +1099,9 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (d): two questions routed to Jash
 - DECISIONS item 28 (should the steel exchange count only what you can see; today it counts Dominion attrition in fog) and item 29 (should one click order the whole stack), the Cycle 13 judge's two taste questions. Docs only.
+
+### Step 0 (e): the record matches the game
+- BACKLOG: heading after Cycle 13; the balance line cites tools/baseline-cycle14-step0b.txt with the four report profiles added since Cycle 10. DECISIONS item 26: the capital is unseen unless your front is next to it or your recon lights it. `tools/balance.js`: the launch matching comment no longer says names repeat. CYCLE_LOG's step 1 "some maps" was corrected in step 0b. Docs and a comment only; balance unchanged.
+
+### Cycle 14 Step 0 closed
+All conditions of the Cycle 13 judge are met: the preview counts only units that can join (a), the step 3 claim corrected with a control profile (b), the four legibility items fixed and asserted at 390 px (c), two questions routed to Jash (d), docs (e). Suite 87 pass, 0 fail; balance on 8 seeds as tools/baseline-cycle14-step0b.txt; all six browser checks pass.
