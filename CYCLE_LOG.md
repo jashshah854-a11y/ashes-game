@@ -1242,3 +1242,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (b): three claims corrected in place, and the stack histogram printed
 - tools/measure/river-penalty.js prints stackSums (the summed attack of each crossing stack before the crossing). CYCLE_LOG Cycle 15 step 0b (the sums), step 1 (most numbers, not every), and step 2 (all 8 lines differ) corrected in place. A tool and docs; no rule changed.
+
+### Step 0 (a): BACKLOG agrees with DECISIONS and a fresh run
+- BACKLOG: the 390 px badge line now says step 3 shortened the badges and names the chip clipping left for step 0f; the crossing line carries the judge's remeasure (25 loses rationed seed 189 on day 40; 35 loses 152 on day 109 and 189 on day 40); the flotilla line says seed 89 only since Cycle 15, matching DECISIONS item 30; the balance line cites tools/baseline-cycle15-step2.txt, which the current output matches. Docs only.
