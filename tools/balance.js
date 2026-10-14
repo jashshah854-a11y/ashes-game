@@ -16,7 +16,7 @@
 //   node tools/balance.js --seeds 1,7,42       a seed list
 //   node tools/balance.js --profile sensible   one profile (repeatable): passive,
 //                     sensible, factories, fortress, reckless, rationed, direct, drones, jamming, recon,
-//                     scout, scoutnohold, flotilla
+//                     scout, scoutnohold, flotilla, coast
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -166,7 +166,7 @@ function passive() {}
 // garrison, masses every other unit at the easternmost capital row
 // province, and attacks only eastward along that row with 5 or more units
 // massed and a 1.5x stackPower edge.
-function makeSensible(withFactories, withForts, droneLines, researchOrder, recon, scout, flotilla) {
+function makeSensible(withFactories, withForts, droneLines, researchOrder, recon, scout, flotilla, coast) {
   return function sensible(Sim, s, mem) {
     const n = s.nations.player;
     const row = s.provinces[n.capitalId].y;
@@ -196,9 +196,25 @@ function makeSensible(withFactories, withForts, droneLines, researchOrder, recon
     const staging = pid(Sim, sx, row);
     if (withForts) fortifyHome(Sim, s, staging);
 
+    // Coast report (Cycle 16): the lowest id infantry that started on the
+    // row north of the capital row marches to the north coast and pushes
+    // east along it, taking coastal provinces to win the north sea.
+    if (coast && !mem.raider) {
+      const r = units.filter(u => u.type === 'infantry' && s.provinces[u.provinceId].y === row - 1).sort((a, b) => a.id - b.id)[0];
+      if (r) mem.raider = r.id;
+    }
+    const raider = coast ? units.find(u => u.id === mem.raider) : null;
+    if (raider) {
+      const here = s.provinces[raider.provinceId];
+      const next = here.y > 0 ? pid(Sim, here.x, here.y - 1) : (here.x + 1 < s.mapW ? pid(Sim, here.x + 1, 0) : null);
+      if (next) {
+        const defs = seenEnemies(Sim, s, next);
+        if (s.provinces[next].owner === 'player' || (defs && !defs.length)) Sim.issueOrder(s, raider.id, next);
+      }
+    }
     // Orders are cleared by every movement phase, so a unit given no
     // order today simply holds; nothing here edits unit state directly.
-    const field = units.filter(u => !garrison.has(u.id));
+    const field = units.filter(u => !garrison.has(u.id) && u !== raider);
     field.forEach(u => {
       if (u.provinceId === staging) return;
       const step = stepToward(Sim, s, u.provinceId, staging);
@@ -384,7 +400,9 @@ const PROFILES = {
   scoutnohold: { play: makeSensible(true, false, false, null, false, 'nohold'), ruling: 'report', label: 'scout control: the same daily recon, the hold switched off (sight report)' },
   // Cycle 14, reworked in Cycle 15: the factories plan with a river
   // flotilla built first at the capital row's river province.
-  flotilla: { play: makeSensible(true, false, false, null, false, false, true), ruling: 'report', label: 'sensible plus factories, a river flotilla built first at the river province (navy report)' }
+  flotilla: { play: makeSensible(true, false, false, null, false, false, true), ruling: 'report', label: 'sensible plus factories, a river flotilla built first at the river province (navy report)' },
+  // Cycle 16: the factories plan with one infantry raiding the north coast.
+  coast: { play: makeSensible(true, false, false, null, false, false, false, true), ruling: 'report', label: 'sensible plus factories, one infantry taking the north coast (blockade report)' }
 };
 
 // ---------- One campaign ----------

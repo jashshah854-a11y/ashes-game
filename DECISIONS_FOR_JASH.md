@@ -355,6 +355,15 @@ was invented by the loop, not by you:
     tiles that scroll, or a tap to expand a tile)? Cycle 16 adds a key for
     the codes either way.
 
+34. How should the sea matter? Today sea control follows who holds more of
+    a coast, and a blockade cuts the other side's coastal steel by half.
+    Nobody fights for the coasts (the war runs along the capital row), and
+    the coasts carry little steel, so even a deliberate coastal raid that
+    blockades the Dominion almost every day costs it 0.3 percent of its
+    income. Making the sea count needs a design call: ships that contest
+    sea control on their own, a richer coast (ports, trade), or a blockade
+    that hits more than coastal steel.
+
 Nothing here blocks the loop. Cycles 9 to 15 passed their judges (10 to
 15 with conditions, each closed in the next cycle's step 0); nothing
 waits on any item above.

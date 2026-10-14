@@ -83,7 +83,7 @@
     jammingPct: 40,               // percent attack and defense a jammed drone wing loses
     reconRange: { 1: 2, 2: 3, 3: 4 }, // recon range in graph hops, by drone generation
     riverCrossingPct: 15,         // percent attack lost attacking across a river edge (Cycle 14, measured)
-    blockadePct: 0,               // percent of coastal steel lost on a sea the other side controls (0 until measured)
+    blockadePct: 50,              // percent of coastal steel lost on a sea the other side controls (Cycle 16, measured)
     flotillaCost: 100,            // equipment for a river flotilla, paid when work starts
     flotillaBuildDays: 4,         // days of construction
     aiBuildsFlotilla: false,      // Cycle 14: off; on, it lost rationed seeds 89 and 108 (CYCLE_LOG)

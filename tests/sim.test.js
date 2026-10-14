@@ -2115,8 +2115,9 @@ test('coastal control: the side holding more of a sea coast controls it, and its
     const mb = Sim.blockade(m, 'player');
     assert.strictEqual(Sim.seaControl(m, 'south'), 'enemy');
     assert.strictEqual(mb.south.lost, mb.south.steel - Math.round(mb.south.steel * 0.5));
+    Sim.CFG.blockadePct = 0;
+    assert.strictEqual(Sim.blockade(s, 'enemy').north.lost, 0, 'at 0 percent nothing is lost');
   } finally {
     Sim.CFG.blockadePct = saved;
   }
-  assert.strictEqual(Sim.blockade(s, 'enemy').north.lost, 0, 'at 0 percent nothing is lost');
 });
