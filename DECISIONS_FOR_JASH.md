@@ -5,12 +5,15 @@ specific; everything else keeps moving.
 
 ## Start here: the five calls that unblock the most
 
-Refreshed in Cycle 15 from `node tools/brief-numbers.js`, which reruns
-every number below from the current sim over 200 seeds; measured at
-commit f3f0e67 (the game's rules are unchanged since).
+From `node tools/brief-numbers.js`, which reruns the numbers below from
+the current sim over 200 seeds (its header lists exactly which). Measured
+at commit f3f0e67 and reproduced exactly by the Cycle 16 judge at d92b4e9,
+after the blockade landed; no rule has changed since d92b4e9.
 
-Three systems are built and working but change little in play until you
-rule: jamming, recon, and the drone balance. They are tied together, so
+Four systems are built and working but change little in play until you
+rule: jamming, recon, the river flotilla, and the blockade (and the drone
+balance waits on item 20). The loop starts no new system until you rule
+on one of items 20, 27, or 34. They are tied together, so
 the order below matters.
 
 1. Item 20, should an all drone army be the fastest way to win? Today an
@@ -44,9 +47,10 @@ the order below matters.
    the war?
 
 Everything else below waits on you too, but nothing else stalls a system.
-The loop keeps building around all of it; river crossings and the river
-flotilla are in (item 30), and coastal control comes after this
-consolidation.
+The loop keeps working around all of it: river crossings, the river
+flotilla (item 30), and coastal control with the blockade (item 34) are
+in, and Cycle 17 spends its time on fixes, a campaign won through the
+browser, and a demo that lets you try the measured options yourself.
 
 LORE WRITTEN BY THE LOOP, OPEN FOR YOUR REWRITE OR VETO (Cycle 7). Under
 the lore rule the loop wrote the world's first lore itself rather than
@@ -228,8 +232,8 @@ was invented by the loop, not by you:
     against day 52 for the same script building both. Cycle 11 added
     jamming, but jamming alone cannot close it: per steel a Gen 2 drone
     wing has 2.5 times infantry's attack, 1.5 times its defense, and the
-    same strength, and it arrives on day 20, long before any jamming that
-    reaches it. Measured over 200 seeds at commit f3f0e67 by tools/brief-numbers.js
+    same strength, and it arrives on day 21, long before any jamming that
+    reaches it. Measured over 200 seeds by tools/brief-numbers.js (at f3f0e67 and 7ed955f, reproduced at d92b4e9)
     (drone median against mixed median, the lead, and the rulings; the
     target being a lead of 5 days or less):
     - Today (drone attack 3 / 5 / 7 by generation): 38 against 52, lead 14;
@@ -325,7 +329,7 @@ was invented by the loop, not by you:
     sides, but the Dominion's rule is off: on (at 450 equipment), it cost
     the rationed script seeds 89 and 108 over 200 when measured in Cycle
     14; with the crossing taken once off the stack (Cycle 15) it costs seed
-    89 only (tools/brief-numbers.js at f3f0e67). At 800 equipment, or with
+    89 only (tools/brief-numbers.js at 7ed955f, reproduced at d92b4e9). At 800 equipment, or with
     the rationed script building its own flotilla too, Cycle 14 still lost
     seed 108, the seesaw seed that tips on every Dominion gain. Leaving it
     off keeps a tool only you use. Built after factories (Cycle 14) it

@@ -83,7 +83,7 @@
     jammingPct: 40,               // percent attack and defense a jammed drone wing loses
     reconRange: { 1: 2, 2: 3, 3: 4 }, // recon range in graph hops, by drone generation
     riverCrossingPct: 15,         // percent attack lost attacking across a river edge (Cycle 14, measured)
-    blockadePct: 50,              // percent of coastal steel lost on a sea the other side controls (Cycle 16, measured)
+    blockadePct: 50,              // percent of coastal steel lost on a sea the other side controls (Cycle 16; a placeholder under DECISIONS item 34, harmless to every ruling)
     flotillaCost: 100,            // equipment for a river flotilla, paid when work starts
     flotillaBuildDays: 4,         // days of construction
     aiBuildsFlotilla: false,      // Cycle 14: off; on, it lost rationed seeds 89 and 108 (CYCLE_LOG)
@@ -491,7 +491,7 @@
           launchReserve: null, // launches set aside for today's attacks (reserveLaunches), null otherwise
           flotilla: 0,         // 1 once a river flotilla is built here
           flotillaBuild: null, // { daysLeft } while building
-          coastal: (y === 0 || y === CFG.mapH - 1) // sea to the north and south, navy comes later
+          coastal: isCoastRow(y) // on the north or south sea (seaRows, the one coast source)
         };
       }
     }
@@ -1425,6 +1425,7 @@
   // south, the last row). The side holding more of a sea's coastal
   // provinces controls it; a tie leaves it open.
   function seaRows() { return { north: 0, south: CFG.mapH - 1 }; }
+  function isCoastRow(y) { var r = seaRows(); return y === r.north || y === r.south; }
   function seaControl(state, sea) {
     var y = seaRows()[sea];
     var count = { player: 0, enemy: 0 };
