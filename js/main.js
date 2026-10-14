@@ -146,7 +146,7 @@
         if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
         if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
         var units = fogged ? [] : Sim.unitsIn(state, p.id);
-        if (fogged) html += '<span class="fog-tag">Unseen</span>';
+        if (fogged) html += '<span class="fog-tag"><span class="fog-long">Unseen</span><span class="fog-short">?</span></span>';
         if (units.length) {
           html += '<span class="units">';
           units.forEach(function (u) {
@@ -187,7 +187,7 @@
     }).length;
     el.statEnemyProvs.textContent = enemyProvs;
     var seenEnemy = Sim.unitsOf(state, 'enemy').filter(function (x) { return Sim.canSee(state, 'player', x.provinceId); }).length;
-    el.statEnemyUnits.textContent = seenEnemy + ' seen (the rest are out of sight)';
+    el.statEnemyUnits.textContent = seenEnemy + ' seen; units in provinces you cannot see are unknown';
     el.statEnemyGen.textContent = droneGenText('enemy');
     el.statEnemyJam.textContent = jammingText('enemy');
     var aiNext = Sim.CFG.aiResearchOrder.filter(function (id) { return !Sim.hasResearched(state, 'enemy', id); })[0];
@@ -445,6 +445,15 @@
       'The scoreboard informs; it does not decide the war.';
   }
 
+  // How you see this province, in plain words.
+  function sightLine(p) {
+    if (p.owner === 'player') return 'Sight: your province';
+    if (Sim.neighborsOf(state, p).some(function (np) { return np.owner === 'player'; })) return 'Sight: next to your ground, always seen';
+    var until = state.recon && state.recon.player ? state.recon.player[p.id] : null;
+    if (until != null && until >= state.day) return 'Sight: lit by your recon through day ' + until;
+    return 'Sight: unseen. Units here are unknown';
+  }
+
   // Air defense in plain words: what stands, what it does, what it costs.
   function airDefenseLine(p) {
     var holder = p.owner === 'player' ? 'your' : 'the Dominion\'s';
@@ -510,6 +519,7 @@
       'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
       fortLine(p) + '<br>' +
       airDefenseLine(p) + '<br>' +
+      sightLine(p) + '<br>' +
       supplyLine + '<br>' +
       (Sim.canSee(state, 'player', p.id)
         ? 'Units here: ' + Sim.unitsIn(state, p.id).length

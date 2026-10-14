@@ -237,3 +237,8 @@ button.linkish:hover { background: none; color: #fff2c4; }
   background: rgba(0, 0, 0, 0.6); color: #b9b09a; border-radius: 2px;
 }
 #btn-recon { margin-top: 6px; width: 100%; font-size: 13px; padding: 5px 8px; text-align: left; }
+.fog-short { display: none; }
+@media (max-width: 700px) {
+  .fog-long { display: none; }
+  .fog-short { display: inline; }
+}

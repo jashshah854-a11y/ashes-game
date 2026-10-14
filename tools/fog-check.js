@@ -83,10 +83,13 @@ async function fogMatches(page) {
       const S = window.AshesSim, s = window.__state;
       return S.unitsOf(s, 'enemy').filter((u) => S.canSee(s, 'player', u.provinceId)).length;
     });
-    check('the enemy card counts only the units you see', (await page.textContent('#stat-enemy-units')) === seenCount + ' seen (the rest are out of sight)', await page.textContent('#stat-enemy-units'));
+    check('the enemy card counts only the units you see, and never says whether any are hidden',
+      (await page.textContent('#stat-enemy-units')) === seenCount + ' seen; units in provinces you cannot see are unknown', await page.textContent('#stat-enemy-units'));
     const cap = Sim.createGame(7).nations.enemy.capitalId;
     await page.click('[data-prov="' + cap + '"]');
-    check('an unseen province says its units are unknown', /Units here: unknown\./.test(await page.textContent('#prov-details')));
+    check('an unseen province says its units are unknown', /Units here: unknown\./.test(await page.textContent('#prov-details')) &&
+      /Sight: unseen\. Units here are unknown/.test(await page.textContent('#prov-details')));
+    check('the hint explains the recon outline', /outlined in green/.test(await page.textContent('.hint')));
     check('the doctrine says the Dominion sees by the same rule', /decides only on what it sees, and flies no recon/.test(await page.textContent('#enemy-card')));
     await page.close();
 
@@ -149,6 +152,11 @@ async function fogMatches(page) {
     fm = await fogMatches(page);
     check('the lit provinces are drawn unfogged and marked', fm.ok && after.deep.length > 0 &&
       (await page.evaluate((ids) => ids.every((id) => document.querySelector('[data-prov="' + id + '"]').classList.contains('lit')), after.deep)), after.deep.join(','));
+    await page.click('[data-prov="' + after.deep[0] + '"]');
+    const day = await page.evaluate(() => window.__state.day);
+    check('a recon lit province card says so, with the last day', new RegExp('Sight: lit by your recon through day ' + (day + 1)).test(await page.textContent('#prov-details')), await page.textContent('#prov-details'));
+    await page.click('[data-prov="p4_3"]');
+    await page.click('[data-prov="p4_3"]'); // back to the wing
     check('the button and the unit card say it flew', (await page.textContent('#btn-recon')) === 'Fly recon: this wing already flew today' &&
       /Flew recon today; it holds this province until tomorrow\./.test(await page.textContent('#unit-details')));
     check('the map offers the wing no march today', (await page.$$eval('.province.reachable', (ns) => ns.length)) === 0);
@@ -188,6 +196,11 @@ async function fogMatches(page) {
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);
     fm = await fogMatches(page);
     check('fog matches the sim at 390 px', fm.ok, fm.bad.join('; '));
+    const tags = await page.evaluate(() => Array.prototype.map.call(document.querySelectorAll('.fog-tag'), (t) => {
+      const r = t.getBoundingClientRect(), tile = t.closest('.province').getBoundingClientRect();
+      return { text: t.innerText.trim(), inside: r.left >= tile.left - 0.5 && r.right <= tile.right + 0.5 };
+    }));
+    check('at 390 px the fog tag is short and fits its tile', tags.length > 0 && tags.every((t) => t.text === '?' && t.inside), JSON.stringify(tags[0]));
     await page.close();
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
