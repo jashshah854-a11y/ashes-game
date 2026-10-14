@@ -1255,3 +1255,12 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (e): three taste questions routed to Jash
 - DECISIONS items 31 (should crossing the river be felt), 32 (should attack show a decimal so the crossing is exact), 33 (are coded phone badges acceptable); the footer says Cycles 9 to 15 passed. Docs only.
+
+### Step 0 (f): crowded tiles readable, and a key for the badge codes
+- `js/main.js`, `css/style.css`, `index.html`: standing walls and walls being raised share one badge ("Fort 1, to 2 in 5d", "F1>2" on phones) instead of one hiding the other; the factory badge has its own row (it was covered by unit chips at both widths); tiles align their content to the top (buttons centre it, which put the name under the pinned badges on taller tiles; seen in a screenshot, then asserted); unit chips and the steel line have compact labels on phones (I12, D6, S2); tiles are 100 px tall; a map key under the map names every code (Factory and Fa, Fort and F, F1>2, AD, Fleet and Fl, dashed for work in progress, the chip codes).
+- `tools/map-check.js`, new, 12 checks at 1400 and 390 px, all pass: on the crowded capital (three units, a factory, walls being raised over standing walls) and the crowded front (two units, a factory, walls, air defense, a fleet) every badge and chip is visible by hit test inside its tile; the two wall states share one badge; no factory badge sits over a province name anywhere on the map; the key names every code; no horizontal scroll at 390 px; no page errors. Its first runs failed on the covered factory badge, then on a chip at 1400 px, then (in a screenshot the hit tests could not see) on names pushed under the badges; each was fixed before commit.
+- Known limit recorded in BACKLOG: a tile with five or more units still overflows its chips over the rail tag.
+- UI only: suite 93 pass, 0 fail; balance byte identical to tools/baseline-cycle15-step2.txt; all eight browser checks pass.
+
+### Cycle 16 Step 0 closed
+All conditions of the Cycle 15 judge are met: BACKLOG (a), the three claims and the histogram (b), the mixed origin test (c), the brief generator's coverage (d), three taste questions (e), crowded tiles and the key (f).

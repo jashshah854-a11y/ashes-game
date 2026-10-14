@@ -135,14 +135,17 @@
         else if (lit[p.id] >= state.day && p.owner !== 'player' && !Sim.neighborsOf(state, p).some(function (np) { return np.owner === 'player'; })) cls += ' lit';
         html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '">';
         html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
-        html += '<span class="steel">Steel ' + p.steel + '</span>';
+        html += '<span class="steel"><span class="b-long">Steel ' + p.steel + '</span><span class="b-short">S' + p.steel + '</span></span>';
         if (p.factoryLevel > 0) {
-          html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
+          html += ' <span class="factory-badge lvl' + p.factoryLevel + '"><span class="b-long">Factory ' + p.factoryLevel +
+            '</span><span class="b-short">Fa' + p.factoryLevel + '</span></span>';
         }
         // Badges carry a long label and a short one for phone widths.
         var two = function (long, short) { return '<span class="b-long">' + long + '</span><span class="b-short">' + short + '</span>'; };
-        if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">' + two('Fort ' + p.fortLevel, 'F' + p.fortLevel) + '</span>';
-        if (p.fortBuild) html += ' <span class="fort-badge building">' + two('Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortBuild.toLevel + '..') + '</span>';
+        // Walls: one badge, so standing walls are never hidden under work on the next level.
+        if (p.fortLevel > 0 && p.fortBuild) html += ' <span class="fort-badge lvl' + p.fortLevel + ' building">' + two('Fort ' + p.fortLevel + ', to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortLevel + '>' + p.fortBuild.toLevel) + '</span>';
+        else if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">' + two('Fort ' + p.fortLevel, 'F' + p.fortLevel) + '</span>';
+        else if (p.fortBuild) html += ' <span class="fort-badge building">' + two('Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortBuild.toLevel + '..') + '</span>';
         if (p.flotilla > 0) html += ' <span class="fleet-badge">' + two('Fleet', 'Fl') + '</span>';
         if (p.flotillaBuild) html += ' <span class="fleet-badge building">' + two('Fleet ' + p.flotillaBuild.daysLeft + 'd', 'Fl..') + '</span>';
         if (p.airDefense > 0) html += ' <span class="ad-badge">AD</span>';
@@ -159,7 +162,9 @@
           html += '<span class="units">';
           units.forEach(function (u) {
             var st = Sim.unitStats(state, u);
-            var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack;
+            // A compact label on phones: type initial and strength.
+            var label = '<span class="b-long">' + (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack + '</span>' +
+              '<span class="b-short">' + (u.type === 'drone' ? 'D' : 'I') + u.strength + '</span>';
             if (st.supplyPenalty > 0) label += ' <span class="sup-tag">-' + st.supplyPenalty + '%</span>';
             var c = 'unit-chip ' + (u.nation === 'player' ? 'mine' : 'theirs');
             if (u.id === selectedUnitId) c += ' picked';
