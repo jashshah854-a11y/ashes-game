@@ -242,3 +242,11 @@ button.linkish:hover { background: none; color: #fff2c4; }
   .fog-long { display: none; }
   .fog-short { display: inline; }
 }
+
+/* Cycle 14: river flotilla badges. */
+.fleet-badge {
+  position: absolute; top: 38px; right: 2px; z-index: 1;
+  display: inline-block; padding: 0 4px; border-radius: 2px;
+  background: rgba(10, 50, 70, 0.85); color: #bfe9ff; border: 1px solid #6fb6d6; font-weight: bold;
+}
+.fleet-badge.building { font-weight: normal; border-style: dashed; }

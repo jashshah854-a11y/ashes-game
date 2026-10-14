@@ -22,7 +22,7 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'stat-jamming', 'research-list', 'research-explain', 'stat-enemy-jam', 'stat-enemy-research', 'ai-research-order', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'river-pct', 'btn-ad', 'stat-enemy-ad',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'river-pct', 'btn-flotilla', 'btn-ad', 'stat-enemy-ad',
    'xc-you', 'xc-them', 'xc-ratio', 'xc-you-lost', 'xc-you-launch', 'xc-them-lost', 'xc-them-launch', 'xc-explain', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
    'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
@@ -141,6 +141,8 @@
         }
         if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">Fort ' + p.fortLevel + '</span>';
         if (p.fortBuild) html += ' <span class="fort-badge building">Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd</span>';
+        if (p.flotilla > 0) html += ' <span class="fleet-badge">Fleet</span>';
+        if (p.flotillaBuild) html += ' <span class="fleet-badge building">Fleet ' + p.flotillaBuild.daysLeft + 'd</span>';
         if (p.airDefense > 0) html += ' <span class="ad-badge">AD</span>';
         if (p.airDefenseBuild) html += ' <span class="ad-badge building">AD in ' + p.airDefenseBuild.daysLeft + 'd</span>';
         if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
@@ -446,6 +448,26 @@
       'The scoreboard informs; it does not decide the war.';
   }
 
+  // The river flotilla in plain words, and its button.
+  function flotillaLine(p) {
+    if (!Sim.onRiver(state, p.id)) return '';
+    var who = p.owner === 'player' ? 'your' : 'Dominion';
+    if (p.flotillaBuild) return 'River flotilla: being built, ' + p.flotillaBuild.daysLeft + (p.flotillaBuild.daysLeft === 1 ? ' day' : ' days') + ' left<br>';
+    if (p.flotilla > 0) return 'River flotilla: standing. ' + (who === 'your' ? 'Your' : 'Dominion') + ' attacks from here across the river keep full attack (no -' + Sim.CFG.riverCrossingPct + '%). Lost if the province falls<br>';
+    return 'River flotilla: none. Attacks from here across the river lose ' + Sim.CFG.riverCrossingPct + '% attack<br>';
+  }
+  function renderFlotillaButton(p, mine) {
+    var b = el.btnFlotilla, cost = Sim.CFG.flotillaCost;
+    if (!Sim.onRiver(state, p.id)) { b.disabled = true; b.textContent = 'River flotilla (only provinces on the river)'; return; }
+    if (!mine) { b.disabled = true; b.textContent = 'River flotilla (only your own provinces)'; return; }
+    if (p.flotilla > 0) { b.disabled = true; b.textContent = 'River flotilla standing'; return; }
+    if (p.flotillaBuild) { b.disabled = true; b.textContent = 'Building river flotilla: ' + p.flotillaBuild.daysLeft + ' days left'; return; }
+    var have = state.nations.player.equipment;
+    b.disabled = have < cost;
+    b.textContent = 'Build river flotilla (' + cost + ' eq, ' + Sim.CFG.flotillaBuildDays + ' days; attacks from here across the river keep full attack)' +
+      (have < cost ? ': need ' + cost + ', you have ' + have : '');
+  }
+
   // How you see this province, in plain words.
   function sightLine(p) {
     if (p.owner === 'player') return 'Sight: your province';
@@ -499,6 +521,8 @@
       el.btnFort.textContent = 'Fortify';
       el.btnAd.disabled = true;
       el.btnAd.textContent = 'Build air defense';
+      el.btnFlotilla.disabled = true;
+      el.btnFlotilla.textContent = 'Build river flotilla';
       el.provExplain.textContent = '';
       el.railActions.innerHTML = '';
       return;
@@ -520,6 +544,7 @@
       'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
       fortLine(p) + '<br>' +
       airDefenseLine(p) + '<br>' +
+      flotillaLine(p) +
       sightLine(p) + '<br>' +
       supplyLine + '<br>' +
       (Sim.canSee(state, 'player', p.id)
@@ -534,6 +559,7 @@
       : 'Build / Upgrade Factory (' + cost + ' eq)';
     renderFortButton(p, mine);
     renderAirDefenseButton(p, mine);
+    renderFlotillaButton(p, mine);
     el.provExplain.textContent = mine
       ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
         'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
@@ -871,6 +897,9 @@
   });
   el.btnFort.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildFortification(state, 'player', selectedProvinceId); render(); }
+  });
+  el.btnFlotilla.addEventListener('click', function () {
+    if (selectedProvinceId) { Sim.buildFlotilla(state, 'player', selectedProvinceId); render(); }
   });
   el.btnAd.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildAirDefense(state, 'player', selectedProvinceId); render(); }
