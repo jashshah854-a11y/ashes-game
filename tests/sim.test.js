@@ -2078,3 +2078,16 @@ test('fog: retool and completion lines about Dominion lines in fog are hidden fr
   assert.ok(done, 'a Dominion unit was completed');
   assert.ok(done.hiddenFrom && done.hiddenFrom.indexOf('player') !== -1, 'the completion line');
 });
+
+test('river crossing: one province attacked from two origins, across the river and over land, pays only for the river stack', () => {
+  // p5_3 is entered from p4_3 across the river and from p5_2 over land.
+  const s = Sim.createGame(5);
+  s.provinces.p5_2.owner = 'player';
+  const river = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'), mkU(3, 'player', 'infantry', 'p4_3')];
+  const land = [mkU(4, 'player', 'infantry', 'p5_2'), mkU(5, 'player', 'infantry', 'p5_2'), mkU(6, 'player', 'infantry', 'p5_2')];
+  assert.strictEqual(Sim.edgeBetween(s, 'p5_2', 'p5_3').terrain, 'land');
+  const pct = Sim.CFG.riverCrossingPct;
+  const expect = Math.max(1, Math.round(12 * (1 - pct / 100))) + 12;
+  assert.strictEqual(Sim.attackPower(s, river.concat(land), 'p5_3'), expect, 'the crossing comes off the river stack only');
+  assert.strictEqual(Sim.attackPower(s, land.concat(river), 'p5_3'), expect, 'whatever the order of the units');
+});

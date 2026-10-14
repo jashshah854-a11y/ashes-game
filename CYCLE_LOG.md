@@ -1245,3 +1245,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (a): BACKLOG agrees with DECISIONS and a fresh run
 - BACKLOG: the 390 px badge line now says step 3 shortened the badges and names the chip clipping left for step 0f; the crossing line carries the judge's remeasure (25 loses rationed seed 189 on day 40; 35 loses 152 on day 109 and 189 on day 40); the flotilla line says seed 89 only since Cycle 15, matching DECISIONS item 30; the balance line cites tools/baseline-cycle15-step2.txt, which the current output matches. Docs only.
+
+### Step 0 (c): a test for attackPower's grouping by origin
+- One new test (suite 93 pass, 0 fail): p5_3 attacked by three infantry across the river from p4_3 and three over land from p5_2 sums to the river stack's 12 less the crossing plus the land stack's 12, in either unit order. The judge's surviving mutant (one unit's crossing applied to all) now fails it.
