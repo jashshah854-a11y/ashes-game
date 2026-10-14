@@ -338,6 +338,23 @@ was invented by the loop, not by you:
     at all every ruling passes: the losses come from the pair, you paying
     the crossing while a Dominion flotilla lets it skip it.
 
-Nothing here blocks the loop. Cycles 9 to 14 passed their judges (10 to
-14 with conditions, each closed in the next cycle's step 0); nothing
+31. Should crossing the river be felt? Today it costs 15 percent of the
+    attacking stack's attack and changes about one battle per campaign:
+    the opening assault, whose stack of 18 attack becomes 15. At 25 and 35
+    percent the rationed ruling breaks (seed 189; and 152 at 35). Felt
+    more would need something besides the number, such as more crossing
+    points or the Dominion attacking across it more often.
+
+32. Should attack show a decimal so the crossing is exactly the percent
+    it states? Today attack is whole numbers, so 18 becomes 15 (16.7
+    percent off); left unrounded it would read 18 to 15.3, and the damage
+    roll already rounds. Worth doing only if item 31 is yes.
+
+33. On phones, are coded map badges (F1 for walls, AD for air defense, Fl
+    for a fleet) acceptable, or should a phone get a different map (larger
+    tiles that scroll, or a tap to expand a tile)? Cycle 16 adds a key for
+    the codes either way.
+
+Nothing here blocks the loop. Cycles 9 to 15 passed their judges (10 to
+15 with conditions, each closed in the next cycle's step 0); nothing
 waits on any item above.
