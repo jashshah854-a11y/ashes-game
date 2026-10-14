@@ -174,6 +174,14 @@ function makeSensible(withFactories, withForts, droneLines, researchOrder, recon
     // Drone heavy: every open line builds drone wings (retooling is free
     // while a line is idle, and a line keeps its template once set).
     if (droneLines) (n.productionLines || []).forEach(line => { if (line.template !== 'drone') Sim.assignLineTemplate(s, 'player', line.id, 'drone'); });
+    // Flotilla report (Cycle 15): the flotilla comes first, at the capital
+    // row's river province, before any equipment goes to factories, so it
+    // stands before the army crosses (the Cycle 14 judge found it built in
+    // only 50 of 200 campaigns when factories came first).
+    if (flotilla && Sim.buildFlotilla) {
+      const bank = pid(Sim, s.mapW / 2 - 1, row);
+      if (s.provinces[bank].owner === 'player') Sim.buildFlotilla(s, 'player', bank);
+    }
     if (withFactories) factoriesTowardNextLine(Sim, s);
     feedLines(Sim, s);
     railDiscipline(Sim, s, 40);
@@ -187,9 +195,6 @@ function makeSensible(withFactories, withForts, droneLines, researchOrder, recon
     for (let x = 0; x < s.mapW; x++) if (s.provinces[pid(Sim, x, row)].owner === 'player') sx = x;
     const staging = pid(Sim, sx, row);
     if (withForts) fortifyHome(Sim, s, staging);
-    // Flotilla report: a river flotilla at the staging province once it is
-    // on the river, from equipment left after factories.
-    if (flotilla && Sim.buildFlotilla && Sim.onRiver(s, staging)) Sim.buildFlotilla(s, 'player', staging);
 
     // Orders are cleared by every movement phase, so a unit given no
     // order today simply holds; nothing here edits unit state directly.
@@ -377,9 +382,9 @@ const PROFILES = {
   // because the scout attacks with one fewer wing every day (Cycle 13 judge).
   scout: { play: makeSensible(true, false, false, null, false, 'hold'), ruling: 'report', label: 'scout: factories, holding when recon sees a counterattack behind the target (sight report)' },
   scoutnohold: { play: makeSensible(true, false, false, null, false, 'nohold'), ruling: 'report', label: 'scout control: the same daily recon, the hold switched off (sight report)' },
-  // Cycle 14: the factories plan plus a river flotilla at its staging
-  // province once that province is on the river.
-  flotilla: { play: makeSensible(true, false, false, null, false, false, true), ruling: 'report', label: 'sensible plus factories, with a river flotilla at the staging province (navy report)' }
+  // Cycle 14, reworked in Cycle 15: the factories plan with a river
+  // flotilla built first at the capital row's river province.
+  flotilla: { play: makeSensible(true, false, false, null, false, false, true), ruling: 'report', label: 'sensible plus factories, a river flotilla built first at the river province (navy report)' }
 };
 
 // ---------- One campaign ----------

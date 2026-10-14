@@ -323,9 +323,13 @@ was invented by the loop, not by you:
     89 only (tools/brief-numbers.js at f3f0e67). At 800 equipment, or with
     the rationed script building its own flotilla too, Cycle 14 still lost
     seed 108, the seesaw seed that tips on every Dominion gain. Leaving it
-    off keeps a tool only you use, and as the report profile uses it, it
-    buys you almost nothing (built in 50 of 200 campaigns, carrying 7 of
-    208 crossings, changing 3 results, all slower). With no crossing rule
+    off keeps a tool only you use. Built after factories (Cycle 14) it
+    bought almost nothing (built in 50 of 200 campaigns, carrying 7 of 208
+    crossings, changing 3 results, all slower). Built first at the river
+    province, before factories (Cycle 15), it changes 145 of 200
+    campaigns, 38 faster and 107 slower, median day 55 against 52: the
+    equipment it costs comes out of factories, and on single seeds it
+    swings hard (seed 42: day 70 to 34). With no crossing rule
     at all every ruling passes: the losses come from the pair, you paying
     the crossing while a Dominion flotilla lets it skip it.
 
