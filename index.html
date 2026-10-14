@@ -42,7 +42,9 @@
     <p class="hint" id="map-key">Map key: Factory N is a factory level (Fa N on phones);
       Fort N is walls (F N on phones, F1>2 while raising level 1 to 2); AD is air defense;
       Fleet is a river flotilla (Fl on phones); a dashed badge is work in progress. Unit chips
-      read type, strength, and attack (on phones I or D and strength).</p>
+      read type, strength, and attack (on phones I or D and strength). The top and bottom
+      rows are coasts: whoever holds more of a coast controls that sea, and a sea held
+      against you cuts the steel from your coastal provinces there by <span id="blockade-pct">50</span>%.</p>
     <div id="banner" class="banner hidden"></div>
   </section>
 
@@ -52,6 +54,7 @@
       <div class="stat-row"><span>Equipment stockpile</span><strong id="stat-equipment">0</strong></div>
       <div class="stat-row"><span>Steel stockpile</span><strong id="stat-steel">0</strong></div>
       <div class="stat-row"><span>Steel income / day</span><strong id="stat-steel-income">0</strong></div>
+      <div class="stat-row"><span>Seas</span><strong id="stat-seas">open</strong></div>
       <div class="stat-row"><span>Factory levels</span><strong id="stat-factories">0</strong></div>
       <div class="stat-row"><span>Research points</span><strong id="stat-research">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-drone-gen">Gen 1</strong></div>
@@ -109,6 +112,7 @@
       <div class="stat-row"><span>Production lines open</span><strong id="stat-enemy-lines">2</strong></div>
       <div class="stat-row"><span>Fortified provinces</span><strong id="stat-enemy-forts">none</strong></div>
       <div class="stat-row"><span>Air defense</span><strong id="stat-enemy-ad">none</strong></div>
+      <div class="stat-row"><span>Blockade on it</span><strong id="stat-enemy-blockade">none</strong></div>
       <p class="explain">Dominion doctrine: it masses for 10 days, attacks only at clear
       superiority (about 1.5x your defense), and never attacks while its own units are
       out of supply. Starve its rail and it stalls. It always keeps a garrison of three

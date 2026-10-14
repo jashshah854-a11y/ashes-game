@@ -22,7 +22,7 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'stat-jamming', 'research-list', 'research-explain', 'stat-enemy-jam', 'stat-enemy-research', 'ai-research-order', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'river-pct', 'btn-flotilla', 'btn-ad', 'stat-enemy-ad',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'river-pct', 'btn-flotilla', 'stat-seas', 'stat-enemy-blockade', 'blockade-pct', 'btn-ad', 'stat-enemy-ad',
    'xc-you', 'xc-them', 'xc-ratio', 'xc-you-lost', 'xc-you-launch', 'xc-them-lost', 'xc-them-launch', 'xc-explain', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
    'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
@@ -185,7 +185,14 @@
     var n = state.nations.player;
     el.statEquipment.textContent = n.equipment;
     el.statSteel.textContent = n.steel;
-    el.statSteelIncome.textContent = Sim.steelIncome(state, 'player');
+    var myBlock = Sim.blockade(state, 'player');
+    var myLost = myBlock.north.lost + myBlock.south.lost;
+    el.statSteelIncome.textContent = Sim.steelIncome(state, 'player') + (myLost ? ' (blockade takes ' + myLost + ')' : '');
+    el.statSeas.textContent = seaText(myBlock, 'player');
+    var theirBlock = Sim.blockade(state, 'enemy');
+    var theirLost = theirBlock.north.lost + theirBlock.south.lost;
+    el.statEnemyBlockade.textContent = theirLost ? 'your seas cut its coastal steel by ' + theirLost + ' a day' : 'none';
+    el.blockadePct.textContent = Sim.CFG.blockadePct;
     var idle = n.factoryLevelsIdle || 0;
     el.statFactories.textContent = Sim.factoryLevels(state, 'player') +
       (idle > 0 ? ' (' + idle + ' idle today: production lines are paid first and the steel ran out)' : '');
@@ -477,6 +484,15 @@
     b.disabled = have < cost;
     b.textContent = 'Build river flotilla (' + cost + ' eq, ' + Sim.CFG.flotillaBuildDays + ' days; attacks from here across the river keep full attack)' +
       (have < cost ? ': need ' + cost + ', you have ' + have : '');
+  }
+
+  // The two seas in plain words: who holds each, and what the blockade takes.
+  function seaText(b, id) {
+    return ['north', 'south'].map(function (sea) {
+      var c = b[sea].control;
+      var who = c === null ? 'open' : (c === id ? 'yours' : 'theirs, -' + b[sea].lost + ' steel');
+      return (sea === 'north' ? 'North ' : 'South ') + who;
+    }).join('; ');
   }
 
   // How you see this province, in plain words.

@@ -1277,3 +1277,11 @@ All conditions of the Cycle 15 judge are met: BACKLOG (a), the three claims and 
 - `js/sim.js`: CFG.blockadePct 50, as the designed rule, harmless to every ruling and readable for a human who takes a coast; the test that pins it now sets 0 explicitly for its "nothing lost" assertion.
 - Balance, 8 standard seeds: every earlier profile byte identical to tools/baseline-cycle15-step2.txt, the coast report added. Seeds 1 to 200: every ruling passes. New reference: tools/baseline-cycle16-step2.txt. Suite 94 pass, 0 fail.
 - Recorded honestly as the fourth system in a row that is inert in scripted play (after jamming, recon, and the flotilla); DECISIONS item 34 asks how the sea should matter.
+
+## Cycle 16, Step 3: coastal control on screen
+- `index.html`, `js/main.js`: your card has a Seas row ("North open; South open", or "North theirs, -2 steel"); your steel income names the cut ("42 (blockade takes 2)"); the Dominion's card has a Blockade on it row; the map key says the top and bottom rows are coasts, that whoever holds more of a coast controls the sea, and the cut, from CFG.
+- `tools/navy-check.js` (22 checks): both seas open at the start with the key's number from CFG; with the Dominion holding six of the north coast (a checker edit stated in its header), the seas row and the income show the sim's own blockade and income.
+- UI only: suite 94 pass, 0 fail; balance byte identical to tools/baseline-cycle16-step2.txt; all eight browser checks pass.
+
+## Cycle 16, Step 4: the judge, CLAIMED (2026-10-14)
+Claimed by the Claude Code builder session. A fresh read only context judges Cycle 16 against DESIGN_BIBLE.md, the hard rules, and the Cycle 15 judge's prescription, and prescribes Cycle 17.

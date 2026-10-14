@@ -16,6 +16,9 @@
 // the badge, card, and button follow it to standing, and the attack
 // preview from there no longer carries the crossing, with its power equal
 // to stackPower.
+// Run 2b (Cycle 16), checker edit stated plainly: the Dominion starts
+// holding p4_0, so it holds six of the north coast; the seas row and the
+// income must state the blockade and equal the sim.
 // Run 3: the same at 390 px: no horizontal scroll, the badge visible on top.
 // Usage: node tools/navy-check.js   (CHROME=/path/to/chrome, PLAYWRIGHT=/path/to/playwright)
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
@@ -129,6 +132,9 @@ async function buildAndRun(page, label, phone) {
       return { edges: westBank.length, drawn: drawn.length, extra: document.querySelectorAll('.river-bar').length };
     });
     check('1400: the river is drawn on every river edge and nowhere else', rv.edges === 7 && rv.drawn === rv.edges && rv.extra === rv.edges, JSON.stringify(rv));
+    check('both seas start open, and the key states the blockade from CFG',
+      (await page.textContent('#stat-seas')) === 'North open; South open' && (await page.textContent('#stat-enemy-blockade')) === 'none' &&
+      (await page.textContent('#blockade-pct')) === String(CFG.blockadePct));
     check('the doctrine says the Dominion builds none', /It builds no river flotilla, so its attacks across the river always pay the crossing\./.test(await page.textContent('#enemy-card')));
     await page.close();
 
@@ -146,6 +152,22 @@ async function buildAndRun(page, label, phone) {
     }, RIVER);
     const m = after.match(/Attack [A-Za-z ]+: your stack power (\d+)/);
     check('1400: the preview drops the crossing and equals stackPower', !!m && after.indexOf('for attacking across the river') === -1 && Number(m[1]) === sim, (m && m[1]) + ' vs ' + sim);
+    await page.close();
+
+    // Run 2b: checker edit stated plainly: the Dominion starts holding p4_0, so it holds six of
+    // the north coast; your income must show the cut, equal to the sim's.
+    page = await newPage();
+    await serveSim(page, "s.provinces.p4_0.owner='enemy';");
+    await page.goto(URL);
+    await page.click('#btn-pause');
+    const sea = await page.evaluate(() => {
+      const S = window.AshesSim, s = window.__state, b = S.blockade(s, 'player');
+      return { income: S.steelIncome(s, 'player'), lost: b.north.lost, control: b.north.control };
+    });
+    check('a sea held against you is named with its cost, and income shows the cut',
+      sea.control === 'enemy' && (await page.textContent('#stat-seas')) === 'North theirs, -' + sea.lost + ' steel; South open' &&
+      (await page.textContent('#stat-steel-income')) === sea.income + (sea.lost ? ' (blockade takes ' + sea.lost + ')' : ''),
+      (await page.textContent('#stat-seas')) + ' | ' + (await page.textContent('#stat-steel-income')));
     await page.close();
 
     // Run 3: phone width.
