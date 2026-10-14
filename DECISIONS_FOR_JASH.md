@@ -281,7 +281,8 @@ was invented by the loop, not by you:
     that does act on recon (it holds when it sees a counterattack waiting
     behind its target). Against its control, the same recon with the hold
     off, acting on sight gains nothing on net (the same win days; 7
-    campaigns faster, 49 slower). With both sides researching jamming
+    campaigns faster, 49 slower in Cycle 13, 9 and 54 under the river
+    crossing). With both sides researching jamming
     first, 3,889 of 10,409 of its flights were blinded and switching
     blinding off moved only its best end strength. So sight matters only
     once a real decision in the game reads it, which is item 27.
@@ -321,6 +322,6 @@ was invented by the loop, not by you:
     at all every ruling passes: the losses come from the pair, you paying
     the crossing while a Dominion flotilla lets it skip it.
 
-Nothing here blocks the loop. Cycles 9 to 12 passed their judges (10, 11,
-and 12 with conditions, each closed in the next cycle's step 0); nothing
+Nothing here blocks the loop. Cycles 9 to 14 passed their judges (10 to
+14 with conditions, each closed in the next cycle's step 0); nothing
 waits on any item above.

@@ -1179,3 +1179,12 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (e): tests for the four surviving river mutants
 - One new test (suite 91 pass, 0 fail): the Dominion holds when the crossing takes two Gen 1 wings (6) under its 1.5x rule against one infantry (needs 6, gets 5) and attacks once its own flotilla stands at p5_3; a clash across the river costs the player (50 percent against 0 changes the result); a flotilla in the target province carries nothing for the attacker; capture loses flotilla work in progress. Each of the judge's four surviving mutants (the AI estimate ignoring the river, capture keeping flotilla work, clashes exempt, a flotilla in the target carrying the crossing) now fails this test.
+
+### Step 0 (f): the record matches the game, and Cycle 13's last two conditions
+- Cycle 13 condition 5 closed: one new test (suite 92 pass, 0 fail) pins that the Dominion's retool and completion lines are hidden from you while its capital is unseen; removing either tag in a scratch copy fails it.
+- Cycle 13 condition 6 recorded in BACKLOG: the latent state.edgeList order dependence (285 of 440 shuffled campaigns change), harmless today because the list never changes order, with the fix named for when edges become dynamic.
+- BACKLOG: heading after Cycle 14; the balance line cites tools/baseline-cycle15-step0b.txt, the no factory report 197 of 200, the jamming report median 94; the scout's 7 and 49 now carry the current 9 and 54. DECISIONS: the footer says Cycles 9 to 14 passed; item 24 carries 9 and 54.
+- The brief's item 20 numbers (predating the crossing) are refreshed by step 1's regenerating script, not by hand.
+
+### Cycle 15 Step 0 closed
+All conditions of the Cycle 14 judge are met: the flotilla record (a); the crossing once on the stack (b), with its exit missed by half a point and the reason recorded; the selected unit in its own previews (c); the river drawn (d); the four mutants killed (e); docs and Cycle 13's conditions 5 and 6 (f). Suite 92 pass, 0 fail; every ruling passes on 8 and 200 seeds; all seven browser checks pass.

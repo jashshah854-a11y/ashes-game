@@ -2066,3 +2066,15 @@ test('river crossing: the Dominion estimate reads it, clashes pay it, and only a
   assert.strictEqual(c.provinces.p4_3.owner, 'enemy');
   assert.strictEqual(c.provinces.p4_3.flotillaBuild, null);
 });
+
+test('fog: retool and completion lines about Dominion lines in fog are hidden from you', () => {
+  const s = Sim.createGame(7);
+  const line = s.nations.enemy.productionLines[0];
+  Sim.assignLineTemplate(s, 'enemy', line.id, line.template === 'drone' ? 'infantry' : 'drone');
+  assert.deepStrictEqual(s.log[s.log.length - 1].hiddenFrom, ['player'], 'the retool line');
+  Sim.queueProduction(s, 'enemy', line.id);
+  for (let d = 0; d < 8 && !s.log.some(e => /^Khessite line \d completes/.test(e.msg)); d++) Sim.tick(s);
+  const done = s.log.find(e => /^Khessite line \d completes/.test(e.msg));
+  assert.ok(done, 'a Dominion unit was completed');
+  assert.ok(done.hiddenFrom && done.hiddenFrom.indexOf('player') !== -1, 'the completion line');
+});
