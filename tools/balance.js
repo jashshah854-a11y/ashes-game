@@ -16,7 +16,7 @@
 //   node tools/balance.js --seeds 1,7,42       a seed list
 //   node tools/balance.js --profile sensible   one profile (repeatable): passive,
 //                     sensible, factories, fortress, reckless, rationed, direct, drones, jamming, recon,
-//                     scout
+//                     scout, scoutnohold
 //   node tools/balance.js --trace 42 --profile factories   day by day trace
 //   node tools/balance.js --sim path/to/sim.js run against another sim build
 //   node tools/balance.js --json               machine readable results
@@ -209,7 +209,8 @@ function makeSensible(withFactories, withForts, droneLines, researchOrder, recon
       const defs = seenEnemies(Sim, s, target);
       const mine = Sim.stackPower(s, massed, 'attack', target);
       let hold = false;
-      if (scout && sx + 2 < s.mapW) {
+      if (scout) mem.scoutDecisions = (mem.scoutDecisions || 0) + 1;
+      if (scout === 'hold' && sx + 2 < s.mapW) {
         const behind = seenEnemies(Sim, s, pid(Sim, sx + 2, row));
         if (behind && Sim.stackPower(s, behind, 'defense') > mine) hold = true;
         if (hold) mem.scoutHolds = (mem.scoutHolds || 0) + 1;
@@ -365,11 +366,14 @@ const PROFILES = {
   // stack holds, one of its drone wings flies recon from the staging province.
   recon: { play: makeSensible(true, false, false, null, true), ruling: 'report', label: 'sensible plus factories, flying recon from the staging province (recon report)' },
   // Cycle 13: sight with a consumer. The factories plan, but before the
-  // attack decision a drone wing flies recon from the staging province,
-  // and the stack holds if the province behind its target is seen holding
-  // more defense than its own attack (a counterattack waiting). The
-  // factories profile is its blind twin.
-  scout: { play: makeSensible(true, false, false, null, false, true), ruling: 'report', label: 'scout: factories, holding when recon sees a counterattack behind the target (sight report)' }
+  // attack decision a drone wing flies recon from the staging province
+  // (so it stays out of that day's attack), and the stack holds if the
+  // province behind its target is seen holding more defense than its own
+  // attack (a counterattack waiting). Its control is scoutnohold: the same
+  // daily recon, the hold switched off. Factories is not a fair blind twin,
+  // because the scout attacks with one fewer wing every day (Cycle 13 judge).
+  scout: { play: makeSensible(true, false, false, null, false, 'hold'), ruling: 'report', label: 'scout: factories, holding when recon sees a counterattack behind the target (sight report)' },
+  scoutnohold: { play: makeSensible(true, false, false, null, false, 'nohold'), ruling: 'report', label: 'scout control: the same daily recon, the hold switched off (sight report)' }
 };
 
 // ---------- One campaign ----------
@@ -450,6 +454,7 @@ function runGame(Sim, seed, profileName, opts) {
     bled: Math.round(bledNow('player')), enemyBled: Math.round(bledNow('enemy')),
     launches: s.ledger ? s.ledger.enemy.launches : 0,
     intercepts, reconFlights,
+    scoutDecisions: mem.scoutDecisions || 0, scoutHolds: mem.scoutHolds || 0,
     trace
   };
 }
@@ -549,6 +554,13 @@ function main(argv) {
       console.log('  end strength % on wins: ' + summarize(wins.map(r => r.endPercent)));
       console.log('  end equipment, yours: ' + summarize(results.map(r => r.endEquipment)) + '; Dominion: ' + summarize(results.map(r => r.enemyEquipment)));
       console.log('  steel bled, yours: ' + summarize(results.map(r => r.bled)) + '; Dominion: ' + summarize(results.map(r => r.enemyBled)));
+    }
+    // The scout's hold rule: how often it fired.
+    const dec = results.reduce((a, r) => a + r.scoutDecisions, 0);
+    if (dec) {
+      const holds = results.reduce((a, r) => a + r.scoutHolds, 0);
+      console.log('  scout: ' + holds + ' holds in ' + dec + ' attack decisions (' + (Math.round(1000 * holds / dec) / 10) + ' percent), in ' +
+        results.filter(r => r.scoutHolds).length + ' campaigns');
     }
     // Recon flights and how many the Dominion's jamming blinded.
     const rf = [].concat.apply([], results.map(r => r.reconFlights));
