@@ -24,9 +24,9 @@ the order below matters.
 2. Item 27, should the Dominion fly recon and act on it? This is the one
    that makes fog, recon, and jamming matter. Today no decision on either
    side reads beyond its neighbours, so fog changes what you see, not the
-   war: a script that acts on recon gains nothing on net against the same
-   script with the rule off (medians 53 and 52, slowest wins both day
-   106). A yes means the loop designs a Dominion that scouts before it
+   war: a script that acts on recon is net slower than the same script
+   with the rule off (9 campaigns faster, 54 slower; medians 53 and 52,
+   slowest wins both day 106). A yes means the loop designs a Dominion that scouts before it
    attacks, measured against the rulings.
 3. Item 24, how should the drone and jamming race pace? Jamming never
    reaches a drone in intended play (the Dominion fields Drone Gen 2 on day
@@ -243,10 +243,15 @@ was invented by the loop, not by you:
       loses 11 seeds).
     - Cheaper jamming (30 and 60 points): 38 against 52, lead 14; rulings
       pass.
-    Measured earlier, before the river crossing (Cycle 11), and not rerun
-    by the script: a Dominion researching jamming first when your army is
-    mostly drones made it worse (32 against 41); massing by strength instead
-    of unit count gave drones 22 against 50, so the edge is real power.
+    Measured once, before the river crossing (Cycle 11), and not rerun by
+    the script: a Dominion researching jamming first when your army is
+    mostly drones made it worse (32 against 41; with jamming at 30 and 60
+    points 32 against 49, at 30 and 40 37 against 62); Gen 2 and Gen 3
+    adding attack only (2 / 3 / 4, defense 2 / 2 / 3) gave 44 against 57,
+    rulings not measured; drone attack 2 / 3 / 4 with slower or dearer
+    drones broke the rulings (the Cycle 11 judge); massing by strength
+    instead of unit count gave drones 22 against 50, so the edge is real
+    power.
     None reaches 5 days without reshaping the whole game. The builder has
     not changed the drone numbers: whether drones are meant to be the
     strongest unit is yours. If they should not lead, drone attack 2 / 3 / 4
@@ -271,13 +276,14 @@ was invented by the loop, not by you:
     combat or blinds its recon in intended play, because both sides
     research on one clock and Drone Gen 2 lands on day 21, before any
     jamming that reaches it (Jamming Gen 1 on day 38 reaches only Gen 1),
-    and Drone Gen 3 on day 78, before Jamming Gen 2 (day 111). Measured in
-    Cycle 12: 9,232 recon flights over 200 seeds, none blinded; the Cycle
-    11 judge counted 0 jammed wings in 44,339 drone fights. Making it bite
+    and Drone Gen 3 on day 78, before Jamming Gen 2 (day 111). Current
+    (tools/brief-numbers.js): 0 of 9,088 recon flights blinded over 200
+    seeds; the Cycle 11 judge counted 0 jammed wings in 44,339 drone
+    fights. Making it bite
     means changing that clock (cheaper jamming, Jamming Gen 2 before Drone
     Gen 3 in the Dominion's order, or dearer drone generations), and every
     such change moves the rulings: researching both jammings before Gen 3
-    loses rationed seed 108. How the drone and jamming race should pace is
+    loses rationed seed 108 on day 130 (current). How the drone and jamming race should pace is
     yours; it ties to items 20 and 22. One more fact from the Cycle 12
     judge: under a research order where blinding does happen (4,331 of
     15,323 recon flights blinded over 200 seeds) no result changed,
@@ -285,11 +291,10 @@ was invented by the loop, not by you:
     clock alone will not make jamming matter. Cycle 13 measured a script
     that does act on recon (it holds when it sees a counterattack waiting
     behind its target). Against its control, the same recon with the hold
-    off, acting on sight gains nothing on net (the same win days; 7
-    campaigns faster, 49 slower in Cycle 13, 9 and 54 under the river
-    crossing). With both sides researching jamming
-    first, 3,889 of 10,409 of its flights were blinded and switching
-    blinding off moved only its best end strength. So sight matters only
+    off, acting on sight is net slower (current: 9 campaigns faster, 54
+    slower, the same slowest win). With both sides researching jamming
+    first, 3,880 of 10,498 of its flights are blinded (current), and
+    switching blinding off moved only its best end strength (Cycle 13). So sight matters only
     once a real decision in the game reads it, which is item 27.
 
 25. Should recon cost something (steel, the wing's defense that day, or

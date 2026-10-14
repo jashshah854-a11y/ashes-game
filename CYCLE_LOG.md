@@ -1248,3 +1248,7 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Step 0 (c): a test for attackPower's grouping by origin
 - One new test (suite 93 pass, 0 fail): p5_3 attacked by three infantry across the river from p4_3 and three over land from p5_2 sums to the river stack's 12 less the crossing plus the land stack's 12, in either unit order. The judge's surviving mutant (one unit's crossing applied to all) now fails it.
+
+### Step 0 (d): the brief generator covers what the brief quotes
+- `tools/brief-numbers.js`: its header lists exactly what it produces; it now also prints the research order row that loses rationed seed 108, the scout's faster, slower, and same counts against its control, and the flotilla report against factories. Full run at commit 7ed955f over 200 seeds: every earlier line unchanged; rationed researching Gen 2, Jamming 1, Jamming 2, then Gen 3: 199 of 200 (seed 108 lost on day 130); the scout against its control: 9 faster, 54 slower, 137 the same; the flotilla report against factories: median 55 against 52, 38 faster, 107 slower, 55 the same.
+- DECISIONS: the brief says the scout is net slower; item 24 quotes one current figure per measure (0 of 9,088 blinded; 3,880 of 10,498 with jamming first; 9 and 54), labelled current, with the Cycle 13 blinding switch result labelled by its cycle; item 20's rows measured once before the crossing are restored and labelled (the reactive rows, the attack only row, slower or dearer drones). A tool and docs; no rule changed.

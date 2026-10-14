@@ -8,6 +8,15 @@
 // replacement that does not match stops the script, so a variant can
 // never silently measure the unchanged game. Campaigns run through
 // tools/balance.js --json over the seeds given (default 1 to 200).
+// Produces, and only these (Cycle 16 lists them exactly): item 20's lever
+// rows (drone and mixed medians, the lead, the rulings); item 24's research
+// days, recon flights blinded (intended play, and both sides jamming
+// first), and the research order row that loses rationed seed 108; item
+// 27's scout and control medians, slowest wins, and how many campaigns
+// acting on sight makes faster and slower; item 30's Dominion flotilla
+// rulings and the flotilla report against factories (medians, faster,
+// slower, the same); item 15's siege arithmetic. Anything else quoted in
+// DECISIONS was measured once and is marked with its cycle there.
 // Usage: node tools/brief-numbers.js [--seeds 1-200]
 // Prints a plain text report headed with the commit it was measured at.
 const fs = require('fs');
@@ -49,8 +58,9 @@ function run(simFile, profiles, extra) {
   let out;
   try { out = execFileSync('node', argv, { encoding: 'utf8', maxBuffer: 1 << 30 }); } catch (e) { out = e.stdout; }
   const all = JSON.parse(out);
-  const sum = {};
+  const sum = { _raw: all };
   Object.keys(all).forEach(p => {
+    if (p === '_raw') return;
     const rs = all[p].results;
     const wins = rs.filter(r => r.winner === 'player');
     sum[p] = { wins: wins.length, of: rs.length, median: median(wins.map(r => r.day)),
@@ -63,6 +73,17 @@ function run(simFile, profiles, extra) {
 }
 
 const RULINGS = ['passive', 'factories', 'fortress', 'reckless', 'rationed', 'direct'];
+// Campaign by campaign: how many of b's are faster, slower, the same as a's
+// (a loss counts as slower than any win).
+function compare(raw, a, b) {
+  const day = r => (r.winner === 'player' ? r.day : 10000);
+  let faster = 0, slower = 0, same = 0;
+  raw[a].results.forEach((r, i) => {
+    const d = day(raw[b].results[i]) - day(r);
+    if (d < 0) faster++; else if (d > 0) slower++; else same++;
+  });
+  return { faster, slower, same };
+}
 function rulingText(sum) {
   const bad = RULINGS.filter(p => sum[p] && !sum[p].pass);
   return bad.length ? 'rulings FAIL: ' + bad.map(p => p + ' ' + sum[p].wins + ' of ' + sum[p].of + (p === 'rationed' || p === 'factories' || p === 'fortress'
@@ -110,6 +131,9 @@ while (!s.gameOver && s.day < 150) {
 say('Item 24, the Dominion research days (seed 7, a long war): ' + Sim.CFG.aiResearchOrder.map(id => Sim.CFG.research[id].label + ' day ' + arrive[id]).join(', ') + '.');
 const rc = run(null, ['recon']);
 say('- recon flights blinded in intended play (recon report): ' + rc.recon.blinded + ' of ' + rc.recon.recon + '.');
+const ro = run(null, ['rationed'], ['--research-order', 'droneGen2,jamming1,jamming2,droneGen3']);
+say('- rationed researching Gen 2, Jamming 1, Jamming 2, then Gen 3: ' + ro.rationed.wins + ' of ' + ro.rationed.of +
+  (ro.rationed.losses.length ? ' (lost ' + ro.rationed.losses.join(', ') + ')' : '') + '.');
 const jf = variant('jamfirst', [["aiResearchOrder: ['droneGen2', 'jamming1', 'droneGen3', 'jamming2']", "aiResearchOrder: ['jamming1', 'droneGen2', 'jamming2', 'droneGen3']"]]);
 const jfs = run(jf, ['scout']);
 say('- with both sides researching jamming first: scout flights blinded ' + jfs.scout.blinded + ' of ' + jfs.scout.recon + '.');
@@ -117,13 +141,19 @@ say('- with both sides researching jamming first: scout flights blinded ' + jfs.
 // Item 27: sight with a consumer, against its control.
 say('');
 const sc = run(null, ['scout', 'scoutnohold']);
+const scc = compare(sc._raw, 'scoutnohold', 'scout');
 say('Item 27, the scout against its control: scout median ' + sc.scout.median + ' (slowest win ' + sc.scout.maxDay + '), control median ' +
-  sc.scoutnohold.median + ' (slowest win ' + sc.scoutnohold.maxDay + ').');
+  sc.scoutnohold.median + ' (slowest win ' + sc.scoutnohold.maxDay + '); acting on sight makes ' + scc.faster + ' campaigns faster, ' +
+  scc.slower + ' slower, ' + scc.same + ' the same.');
 
 // Item 30: the Dominion's flotilla rule.
 say('');
 const fl = variant('aiflot', [['aiBuildsFlotilla: false,', 'aiBuildsFlotilla: true,']]);
 say('Item 30, the Dominion building flotillas at ' + Sim.CFG.aiFlotillaEquipment + ' equipment: ' + rulingText(run(fl, RULINGS)) + '.');
+const ft = run(null, ['factories', 'flotilla']);
+const ftc = compare(ft._raw, 'factories', 'flotilla');
+say('- the flotilla report (built first) against factories: median ' + ft.flotilla.median + ' against ' + ft.factories.median + '; ' +
+  ftc.faster + ' faster, ' + ftc.slower + ' slower, ' + ftc.same + ' the same.');
 
 // Item 15: the siege arithmetic, from the sim itself.
 say('');
