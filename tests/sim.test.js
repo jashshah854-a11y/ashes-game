@@ -2091,3 +2091,32 @@ test('river crossing: one province attacked from two origins, across the river a
   assert.strictEqual(Sim.attackPower(s, river.concat(land), 'p5_3'), expect, 'the crossing comes off the river stack only');
   assert.strictEqual(Sim.attackPower(s, land.concat(river), 'p5_3'), expect, 'whatever the order of the units');
 });
+
+// ---------- Cycle 16: coastal control and blockade ----------
+test('coastal control: the side holding more of a sea coast controls it, and its blockade is taken once off the other side coastal steel', () => {
+  const s = Sim.createGame(7);
+  assert.strictEqual(Sim.seaControl(s, 'north'), null, 'five coastal provinces each: open');
+  assert.strictEqual(Sim.seaControl(s, 'south'), null);
+  s.provinces.p5_0.owner = 'player';
+  assert.strictEqual(Sim.seaControl(s, 'north'), 'player', 'six against four');
+  const saved = Sim.CFG.blockadePct;
+  try {
+    Sim.CFG.blockadePct = 50;
+    const coast = [5, 6, 7, 8, 9].filter(x => s.provinces['p' + x + '_0'].owner === 'enemy').reduce((t, x) => t + s.provinces['p' + x + '_0'].steel, 0);
+    const b = Sim.blockade(s, 'enemy');
+    assert.deepStrictEqual(b.north, { steel: coast, lost: coast - Math.round(coast * 0.5), control: 'player' });
+    assert.strictEqual(b.south.lost, 0, 'an open sea blockades nothing');
+    assert.strictEqual(Sim.blockade(s, 'player').north.lost, 0, 'the controlling side loses nothing');
+    const gross = Object.values(s.provinces).filter(p => p.owner === 'enemy').reduce((t, p) => t + p.steel, 0);
+    assert.strictEqual(Sim.steelIncome(s, 'enemy'), gross - b.north.lost, 'income pays the blockade');
+    // The same rule for the other side.
+    const m = Sim.createGame(7);
+    m.provinces.p4_6.owner = 'enemy';
+    const mb = Sim.blockade(m, 'player');
+    assert.strictEqual(Sim.seaControl(m, 'south'), 'enemy');
+    assert.strictEqual(mb.south.lost, mb.south.steel - Math.round(mb.south.steel * 0.5));
+  } finally {
+    Sim.CFG.blockadePct = saved;
+  }
+  assert.strictEqual(Sim.blockade(s, 'enemy').north.lost, 0, 'at 0 percent nothing is lost');
+});

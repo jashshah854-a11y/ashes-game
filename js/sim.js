@@ -83,6 +83,7 @@
     jammingPct: 40,               // percent attack and defense a jammed drone wing loses
     reconRange: { 1: 2, 2: 3, 3: 4 }, // recon range in graph hops, by drone generation
     riverCrossingPct: 15,         // percent attack lost attacking across a river edge (Cycle 14, measured)
+    blockadePct: 0,               // percent of coastal steel lost on a sea the other side controls (0 until measured)
     flotillaCost: 100,            // equipment for a river flotilla, paid when work starts
     flotillaBuildDays: 4,         // days of construction
     aiBuildsFlotilla: false,      // Cycle 14: off; on, it lost rationed seeds 89 and 108 (CYCLE_LOG)
@@ -1420,8 +1421,39 @@
     return nationProvinces(state, nationId).reduce(function (s, p) { return s + p.factoryLevel; }, 0);
   }
 
+  // Coastal control (Cycle 16): each sea is a coastal row (north, y 0;
+  // south, the last row). The side holding more of a sea's coastal
+  // provinces controls it; a tie leaves it open.
+  function seaRows() { return { north: 0, south: CFG.mapH - 1 }; }
+  function seaControl(state, sea) {
+    var y = seaRows()[sea];
+    var count = { player: 0, enemy: 0 };
+    for (var x = 0; x < CFG.mapW; x++) count[state.provinces[provinceId(x, y)].owner] += 1;
+    return count.player > count.enemy ? 'player' : (count.enemy > count.player ? 'enemy' : null);
+  }
+  // Blockade: on a sea the other side controls, a nation's steel from its
+  // coastal provinces there is cut by CFG.blockadePct, taken once off the
+  // sum for that sea, rounded to a whole point. Returns, per sea, the
+  // coastal steel, what is lost, and who controls the sea.
+  function blockade(state, nationId) {
+    var out = {};
+    var rows = seaRows();
+    Object.keys(rows).forEach(function (sea) {
+      var sum = 0;
+      for (var x = 0; x < CFG.mapW; x++) {
+        var p = state.provinces[provinceId(x, rows[sea])];
+        if (p.owner === nationId) sum += p.steel;
+      }
+      var ctl = seaControl(state, sea);
+      var lost = ctl && ctl !== nationId && CFG.blockadePct > 0 ? sum - Math.round(sum * (1 - CFG.blockadePct / 100)) : 0;
+      out[sea] = { steel: sum, lost: lost, control: ctl };
+    });
+    return out;
+  }
   function steelIncome(state, nationId) {
-    return nationProvinces(state, nationId).reduce(function (s, p) { return s + p.steel; }, 0);
+    var gross = nationProvinces(state, nationId).reduce(function (s, p) { return s + p.steel; }, 0);
+    var b = blockade(state, nationId);
+    return gross - Object.keys(b).reduce(function (s, sea) { return s + b[sea].lost; }, 0);
   }
 
   // One day of economy for one nation. Resources gate production: if the
@@ -1880,6 +1912,8 @@
     buildFortification: buildFortification,
     buildAirDefense: buildAirDefense,
     buildFlotilla: buildFlotilla,
+    seaControl: seaControl,
+    blockade: blockade,
     onRiver: onRiver,
     visibleProvinces: visibleProvinces,
     canSee: canSee,

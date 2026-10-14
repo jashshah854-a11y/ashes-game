@@ -1264,3 +1264,9 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 
 ### Cycle 16 Step 0 closed
 All conditions of the Cycle 15 judge are met: BACKLOG (a), the three claims and the histogram (b), the mixed origin test (c), the brief generator's coverage (d), three taste questions (e), crowded tiles and the key (f).
+
+## Cycle 16, Step 1: coastal control, slice 1, at 0 (built after re-reading the log end)
+- Design, one rule for both sides, no new command: two seas, the north coast (row 0) and the south coast (the last row); the side holding more of a sea's ten coastal provinces controls it, a tie leaves it open; on a sea the other side controls, a nation's steel from its coastal provinces there is cut by CFG.blockadePct, taken once off that sea's coastal sum and rounded to a whole point (the walls and crossing precedent).
+- `js/sim.js`: CFG.blockadePct 0; seaControl, blockade (per sea: coastal steel, lost, controller), and steelIncome paying the blockade, so the nation card's income, the economy, and both sides read one function.
+- Test, one new (suite 94 pass, 0 fail), with CFG.blockadePct 50 for its duration: both seas open at the start, six against four controls, the loser's coastal steel cut once, an open sea and the controller untouched, steelIncome paying it, the same rule for the other side, nothing lost at 0. Mutation check, each caught: a tie controlling, the controller blockaded too, income ignoring the blockade.
+- Balance at 0: 8 standard seeds byte identical to tools/baseline-cycle15-step2.txt.
