@@ -2121,3 +2121,22 @@ test('coastal control: the side holding more of a sea coast controls it, and its
     Sim.CFG.blockadePct = saved;
   }
 });
+
+test('blockade: the south sea counts in income, the cut is taken once off the sum, and it follows CFG', () => {
+  const saved = Sim.CFG.blockadePct;
+  try {
+    const s = Sim.createGame(7);
+    const south = Sim.CFG.mapH - 1;
+    s.provinces['p5_' + south].owner = 'player'; // the player holds six of the south coast
+    [6, 7, 8, 9].forEach(x => { s.provinces['p' + x + '_' + south].steel = 1; }); // the Dominion's four: 1 steel each
+    const gross = Object.values(s.provinces).filter(p => p.owner === 'enemy').reduce((t, p) => t + p.steel, 0);
+    Sim.CFG.blockadePct = 50;
+    assert.strictEqual(Sim.seaControl(s, 'south'), 'player');
+    assert.strictEqual(Sim.blockade(s, 'enemy').south.lost, 2, 'once off the sum of 4 keeps 2; rounding each 0.5 up would lose nothing');
+    assert.strictEqual(Sim.steelIncome(s, 'enemy'), gross - 2 - Sim.blockade(s, 'enemy').north.lost, 'income pays the south sea');
+    Sim.CFG.blockadePct = 30;
+    assert.strictEqual(Sim.blockade(s, 'enemy').south.lost, 1, '30 percent of 4 keeps 3');
+  } finally {
+    Sim.CFG.blockadePct = saved;
+  }
+});
