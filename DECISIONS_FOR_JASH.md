@@ -3,44 +3,50 @@
 Taste calls the loop will not make for you. Each one is blocking something
 specific; everything else keeps moving.
 
-## Start here: the five calls that unblock the most (Cycle 14 brief)
+## Start here: the five calls that unblock the most
+
+Refreshed in Cycle 15 from `node tools/brief-numbers.js`, which reruns
+every number below from the current sim over 200 seeds; measured at
+commit f3f0e67 (the game's rules are unchanged since).
 
 Three systems are built and working but change little in play until you
 rule: jamming, recon, and the drone balance. They are tied together, so
-the order below matters. Every number is measured over 200 seeds with the
-committed harness (`node tools/balance.js --seeds 1-200`).
+the order below matters.
 
 1. Item 20, should an all drone army be the fastest way to win? Today an
    all drone script wins at median day 38, mixed production at day 52.
    Options measured: leave it (drones lead by 14 days); drone attack
-   2 / 3 / 4 by generation (drones lead by 9; every ruling still passes;
-   the smallest safe step); 2 / 4 / 6 or infantry attack 5 or fragile
-   drones (each breaks a ruling). Cheaper jamming or a reactive Dominion
-   do not close it. If drones should not lead, say so and the loop lands
-   2 / 3 / 4 as one measured slice.
+   2 / 3 / 4 by generation (drones lead by 12; every ruling still passes;
+   the smallest safe step); 2 / 4 / 6, fragile drones, or infantry attack
+   5 (each breaks a ruling). Cheaper jamming does not move it. If drones
+   should not lead, say so and the loop lands 2 / 3 / 4 as one measured
+   slice.
 2. Item 27, should the Dominion fly recon and act on it? This is the one
    that makes fog, recon, and jamming matter. Today no decision on either
    side reads beyond its neighbours, so fog changes what you see, not the
    war: a script that acts on recon gains nothing on net against the same
-   script with the rule off. A yes means the loop designs a Dominion that
-   scouts before it attacks, measured against the rulings.
+   script with the rule off (medians 53 and 52, slowest wins both day
+   106). A yes means the loop designs a Dominion that scouts before it
+   attacks, measured against the rulings.
 3. Item 24, how should the drone and jamming race pace? Jamming never
-   reaches a drone in intended play (both sides field Gen 2 on day 21,
-   before Jamming Gen 1 on day 38, and Gen 3 on day 78, before Jamming
-   Gen 2 on day 111). Options: cheaper jamming, Jamming Gen 2 before Gen
-   3 in the Dominion's order, or dearer drone generations. Every clock
-   change measured so far moves a ruling (both jammings first loses
-   rationed seed 108). It matters only after item 27 gives sight a use.
+   reaches a drone in intended play (the Dominion fields Drone Gen 2 on day
+   21, Jamming Gen 1 on day 38, Drone Gen 3 on day 78, Jamming Gen 2 on
+   day 111, and you research on the same clock; 0 of 9,088 recon flights
+   blinded). With both sides researching jamming first, 3,880 of 10,498
+   flights are blinded, yet that changes almost nothing until item 27
+   gives sight a use.
 4. Item 25, should recon cost something? Today it is free and unlimited:
    one Gen 2 wing at the front lifts the fog three provinces deep every
    day. Only matters once item 27 makes sight count.
-5. Item 15, the siege. Most wins end at a walled Khessograd (twelve units
-   behind level 2 walls defend at 66; an attack needs 99). Should
-   something break walls (drones, a siege unit), or is the siege the war?
+5. Item 15, the siege. Most wins end at a walled Khessograd (twelve
+   infantry behind level 2 walls defend at 72; an attack needs 108).
+   Should something break walls (drones, a siege unit), or is the siege
+   the war?
 
 Everything else below waits on you too, but nothing else stalls a system.
-The loop keeps building around all of it; next is the navy, starting with
-river crossings.
+The loop keeps building around all of it; river crossings and the river
+flotilla are in (item 30), and coastal control comes after this
+consolidation.
 
 LORE WRITTEN BY THE LOOP, OPEN FOR YOUR REWRITE OR VETO (Cycle 7). Under
 the lore rule the loop wrote the world's first lore itself rather than
@@ -177,8 +183,9 @@ was invented by the loop, not by you:
     and from which cycle?
 
 15. The siege. Most winning wars now end at a walled Khessograd: twelve
-    units behind level 2 walls defend at 66, and an attack needs 99 to
-    clear the Dominion's own 1.5x rule. Is that the war you want, or
+    infantry behind level 2 walls defend at 72, and an attack needs 108 to
+    clear the Dominion's own 1.5x rule (tools/brief-numbers.js at f3f0e67;
+    an earlier version of this item said 66 and 99). Is that the war you want, or
     should something break walls (drones, a siege unit)?
 
 16. Walls on capture. Today a captured fortification loses one level.
@@ -222,31 +229,29 @@ was invented by the loop, not by you:
     jamming, but jamming alone cannot close it: per steel a Gen 2 drone
     wing has 2.5 times infantry's attack, 1.5 times its defense, and the
     same strength, and it arrives on day 20, long before any jamming that
-    reaches it. Measured over 200 seeds (drone median against mixed
-    median, the target being 5 days or less):
-    - Today (drone attack 3 / 5 / 7 by generation): 38 against 52.
-    - A Dominion that researches jamming first when your army is mostly
-      drones: 32 against 41 (it delays its own Gen 2 and gets weaker).
-    - Cheaper jamming (30 and 60 points): 38 against 52; with the
-      reactive rule, 32 against 49, or 37 against 62 at 30 and 40.
-    - Infantry attack 5: 38 against 52, and it breaks the rulings (rationed
-      wins 188 of 200, the reckless direct script wins 1).
-    - Drone attack 2 / 3 / 4: 49 against 58, rulings pass. Attack 2 / 4 / 6:
-      49 against 58, rulings break (rationed 198 of 200). Attack 2 / 3 / 4
-      with defense 1 / 2 / 3: 43 against 52, rulings break (rationed 199,
-      reckless direct wins 9). Gen 2 and Gen 3 adding attack only (2 / 3 / 4,
-      defense 2 / 2 / 3): 44 against 57, rulings not measured.
-    - Rulings for the other rows: today and cheaper jamming pass; the
-      reactive rule rows were measured on two profiles only. The Cycle 11
-      judge also found drone attack 2 / 3 / 4 with slower or dearer drones
-      breaks the rulings.
-    - Massing by strength instead of unit count (a harness change, to
-      test whether cheap fast units only win by count): drones 22 against
-      50, so the edge is real power, not a counting artifact.
+    reaches it. Measured over 200 seeds at commit f3f0e67 by tools/brief-numbers.js
+    (drone median against mixed median, the lead, and the rulings; the
+    target being a lead of 5 days or less):
+    - Today (drone attack 3 / 5 / 7 by generation): 38 against 52, lead 14;
+      rulings pass.
+    - Drone attack 2 / 3 / 4: 49 against 61, lead 12; rulings pass.
+    - Drone attack 2 / 4 / 6: 49 against 59, lead 10; rulings break
+      (rationed loses seed 51).
+    - Drone attack 2 / 3 / 4 with defense 1 / 2 / 3: 43 against 54, lead 11;
+      rulings break (rationed loses seed 21).
+    - Infantry attack 5: 38 against 52, lead 14; rulings break (rationed
+      loses 11 seeds).
+    - Cheaper jamming (30 and 60 points): 38 against 52, lead 14; rulings
+      pass.
+    Measured earlier, before the river crossing (Cycle 11), and not rerun
+    by the script: a Dominion researching jamming first when your army is
+    mostly drones made it worse (32 against 41); massing by strength instead
+    of unit count gave drones 22 against 50, so the edge is real power.
     None reaches 5 days without reshaping the whole game. The builder has
     not changed the drone numbers: whether drones are meant to be the
     strongest unit is yours. If they should not lead, drone attack 2 / 3 / 4
-    is the smallest measured step (9 days instead of 14).
+    is the smallest measured step that keeps every ruling (12 days instead
+    of 14).
 
 21. Should the attack preview say how many interceptors the Dominion can
     pay for? It does today, which tells you roughly how much steel it
@@ -313,8 +318,10 @@ was invented by the loop, not by you:
 
 30. Should the Dominion build river flotillas? The command exists for both
     sides, but the Dominion's rule is off: on (at 450 equipment), it cost
-    the rationed script seeds 89 and 108 over 200; at 800 equipment, or
-    with the rationed script building its own flotilla too, it still lost
+    the rationed script seeds 89 and 108 over 200 when measured in Cycle
+    14; with the crossing taken once off the stack (Cycle 15) it costs seed
+    89 only (tools/brief-numbers.js at f3f0e67). At 800 equipment, or with
+    the rationed script building its own flotilla too, Cycle 14 still lost
     seed 108, the seesaw seed that tips on every Dominion gain. Leaving it
     off keeps a tool only you use, and as the report profile uses it, it
     buys you almost nothing (built in 50 of 200 campaigns, carrying 7 of
