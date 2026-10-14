@@ -240,11 +240,12 @@ was invented by the loop, not by you:
     because nothing yet acts on what recon sees (item 27). Changing the
     clock alone will not make jamming matter. Cycle 13 measured a script
     that does act on recon (it holds when it sees a counterattack waiting
-    behind its target): against a Dominion that researches jamming first,
-    3,889 of 10,409 flights were blinded, yet switching blinding off moved
-    only its best end strength (361.1 against 358.3 percent); win days and
-    medians did not move. Sight now matters a little; blinding still
-    barely does.
+    behind its target). Against its control, the same recon with the hold
+    off, acting on sight gains nothing on net (the same win days; 7
+    campaigns faster, 49 slower). With both sides researching jamming
+    first, 3,889 of 10,409 of its flights were blinded and switching
+    blinding off moved only its best end strength. So sight matters only
+    once a real decision in the game reads it, which is item 27.
 
 25. Should recon cost something (steel, the wing's defense that day, or
     a cooldown)? Today any drone wing can fly every day for free, so one
