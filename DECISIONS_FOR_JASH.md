@@ -356,13 +356,19 @@ was invented by the loop, not by you:
     the codes either way.
 
 34. How should the sea matter? Today sea control follows who holds more of
-    a coast, and a blockade cuts the other side's coastal steel by half.
-    Nobody fights for the coasts (the war runs along the capital row), and
-    the coasts carry little steel, so even a deliberate coastal raid that
-    blockades the Dominion almost every day costs it 0.3 percent of its
-    income. Making the sea count needs a design call: ships that contest
-    sea control on their own, a richer coast (ports, trade), or a blockade
-    that hits more than coastal steel.
+    a coast, and a blockade cuts the other side's coastal steel there by
+    half. Under that majority rule the blockaded side holds at most 4 of a
+    coast's 10 provinces, and winning the coast usually means taking all of
+    them, so there is little or nothing left to cut: in a report where one
+    infantry takes the Dominion's whole north coast by about day 10, the
+    sea is held against the Dominion on 94 percent of days, but steel is
+    cut on only 5.7 percent (on 8,951 of 9,653 held days it has no coastal
+    steel there at all), at most 10 steel in a campaign. Nobody else fights
+    for the coasts. Making the sea count needs a design call: should
+    controlling a sea hit something beyond the coast (rail, imports, the
+    whole economy), or should ships contest the sea instead of land? And
+    should the Dominion defend its rear, which one infantry takes unopposed?
+    The 50 percent in the game today is a placeholder under this item.
 
 Nothing here blocks the loop. Cycles 9 to 15 passed their judges (10 to
 15 with conditions, each closed in the next cycle's step 0); nothing
