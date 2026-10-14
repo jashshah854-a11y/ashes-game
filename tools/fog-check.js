@@ -111,6 +111,9 @@ async function fogMatches(page) {
     check('the preview leaves out a unit ordered elsewhere and says a click orders one unit',
       /^Drone Wing/.test(pv) && !!pp && Number(pp[1]) === expectPower && expectPower === 3 &&
       /\(1 unit here is ordered elsewhere and left out\)/.test(pv) && /A click orders only the selected unit\./.test(pv), (pp && pp[1]) + ' vs ' + expectPower);
+    check('the preview names the river crossing with the sim number, and the hint states it',
+      pv.indexOf('(includes -' + CFG.riverCrossingPct + '% for attacking across the river)') !== -1 &&
+      (await page.textContent('#river-pct')) === String(CFG.riverCrossingPct));
     await page.close();
 
     // Run 1b: the war on days 6 to 8 while the Dominion builds in fog.

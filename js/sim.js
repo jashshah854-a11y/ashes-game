@@ -82,7 +82,7 @@
     },
     jammingPct: 40,               // percent attack and defense a jammed drone wing loses
     reconRange: { 1: 2, 2: 3, 3: 4 }, // recon range in graph hops, by drone generation
-    riverCrossingPct: 0,          // percent attack lost attacking across a river edge (0 until measured)
+    riverCrossingPct: 15,         // percent attack lost attacking across a river edge (Cycle 14, measured)
     // The Dominion buys the first project in this list it has not finished,
     // as soon as it has the points; it never skips ahead.
     aiResearchOrder: ['droneGen2', 'jamming1', 'droneGen3', 'jamming2']

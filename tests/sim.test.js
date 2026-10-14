@@ -927,14 +927,14 @@ test('simultaneous battles: every engagement kind is order independent, and orde
   assert.match(msgs, /columns meet on the road/, 'the scenario includes a meeting battle');
   assert.match(msgs, /Columns clash at|win the clash for/, 'the scenario includes a clash');
   // The defenders ordered north were drawn into the defense of p5_3:
-  // a battle was fought there, both took damage, and neither marched to p5_2.
+  // a battle was fought there, the defense took damage, and neither marched
+  // to p5_2. (Damage soaks into the first defender; since Cycle 14 the
+  // attack crosses the river at a penalty, so the second can come out whole.)
   const p53 = a.provinces.p5_3.name;
   assert.ok(new RegExp('(destroyed at|attack on|capture) ' + p53).test(msgs), 'a province battle is fought at ' + p53);
-  [10, 11].forEach(id => {
-    const u = a.units.find(x => x.id === id);
-    assert.ok(u.strength < u.maxStrength, 'defender ' + id + ' fought');
-    assert.notStrictEqual(u.provinceId, 'p5_2', 'defender ' + id + ' did not march away');
-  });
+  const defs = [10, 11].map(id => a.units.find(x => x.id === id));
+  assert.ok(defs.reduce((t, u) => t + u.strength, 0) < defs.reduce((t, u) => t + u.maxStrength, 0), 'the defense fought');
+  defs.forEach(u => assert.notStrictEqual(u.provinceId, 'p5_2', 'defender ' + u.id + ' did not march away'));
   // Every order the phase touched is cleared.
   assert.ok(a.units.every(u => u.order === null));
 });
@@ -1437,8 +1437,10 @@ test('interception: a full wing survives one launch at 2, and launches stop when
   assert.strictEqual(full.s.ledger.enemy.launches, 1);
   assert.ok(full.s.log.some(e => /launches 1 interceptor \(20 steel\)\. 1 wing gets through untouched: not enough steel to launch\./.test(e.msg)));
   // Nobody is downed by a launch on a full wing, so the estimate is the plain attack.
+  // (The same target, so the river crossing counts on both sides; the
+  // Dominion's steel is spent, so this estimate makes no launch.)
   const plain = Sim.stackPower(full.s, [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'),
-    mkU(3, 'player', 'drone', 'p4_3'), mkU(4, 'player', 'drone', 'p4_3')], 'attack');
+    mkU(3, 'player', 'drone', 'p4_3'), mkU(4, 'player', 'drone', 'p4_3')], 'attack', 'p5_3');
   assert.strictEqual(full.est, plain);
   const broke = interceptScenario({ wings: [4, 4], ad: true, steel: 0 });
   assert.strictEqual(broke.spent, 0);
@@ -1644,7 +1646,7 @@ test('launch reserve: air defense finished today fires from tomorrow, and says s
   s.nations.enemy.steel = 200;
   const stack = s.units.filter(u => u.nation === 'player');
   const est = Sim.stackPower(s, stack, 'attack', 'p5_3');
-  assert.strictEqual(est, Sim.stackPower(s, stack, 'attack'), 'nothing stands yet, so the estimate counts no launch');
+  assert.strictEqual(est, stack.reduce((t, u) => t + Sim.unitStats(s, u, 'p5_3').attack, 0), 'nothing stands yet, so the estimate counts no launch');
   stack.forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
   Sim.tick(s);
   assert.strictEqual(s.ledger.enemy.launches, 0, 'no launch on the day it is finished');

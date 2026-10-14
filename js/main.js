@@ -22,7 +22,7 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'stat-jamming', 'research-list', 'research-explain', 'stat-enemy-jam', 'stat-enemy-research', 'ai-research-order', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'btn-ad', 'stat-enemy-ad',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'river-pct', 'btn-ad', 'stat-enemy-ad',
    'xc-you', 'xc-them', 'xc-ratio', 'xc-you-lost', 'xc-you-launch', 'xc-them-lost', 'xc-them-launch', 'xc-explain', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
    'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
@@ -206,6 +206,7 @@
     el.statEnemyFactories.textContent = Sim.factoryLevels(state, 'enemy');
     el.aiFortEq.textContent = Sim.CFG.aiFortifyEquipment;
     el.aiAdEq.textContent = Sim.CFG.aiAirDefenseEquipment;
+    el.riverPct.textContent = Sim.CFG.riverCrossingPct;
     var forts = Object.keys(state.provinces).map(function (k) { return state.provinces[k]; })
       .filter(function (p) { return p.owner === 'enemy' && (p.fortLevel > 0 || p.fortBuild); })
       .map(function (p) { return p.name + ' ' + (p.fortLevel || 0) + (p.fortBuild ? ' (to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd)' : ''); });
@@ -613,7 +614,10 @@
       // The units that can join this attack: free, or already ordered here.
       var group = stack.filter(function (x) { return !x.order || x.order.target === np.id; });
       var elsewhere = stack.length - group.length;
-      var groupPower = Sim.stackPower(state, group, 'attack');
+      // Before interception, with the river crossing counted, so the
+      // "before interception" figure differs from the power only by launches.
+      var groupPower = group.reduce(function (t, x) { return t + Sim.unitStats(state, x, np.id).attack; }, 0);
+      var meetPower = Sim.stackPower(state, group, 'attack'); // a road meeting is no crossing
       // Air defense there strikes your drone wings before the fight; the
       // power below is what is left after the launches it can pay for.
       var hit = Sim.interceptPlan(state, group, np.id);
@@ -638,10 +642,11 @@
         (vsHere !== groupPower ? ' (' + groupPower + ' before interception)' : '') +
         (elsewhere ? ' (' + elsewhere + (elsewhere === 1 ? ' unit here is' : ' units here are') + ' ordered elsewhere and left out)' : '') +
         (group.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? ' (includes -' + Sim.CFG.jammingPct + '% on your jammed drone wings)' : '') +
+        (group.some(function (x) { return Sim.unitStats(state, x, np.id).riverPct > 0; }) ? ' (includes -' + Sim.CFG.riverCrossingPct + '% for attacking across the river)' : '') +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
         (defs.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? '; includes -' + Sim.CFG.jammingPct + '% on their jammed drone wings' : '') +
         (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').' + adText;
-      preview += '<br>If they march out and meet you on the road: your attack ' + groupPower +
+      preview += '<br>If they march out and meet you on the road: your attack ' + meetPower +
         ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
       // If taking this province would start rail conversions, say so
       // before the player commits, never as a surprise after the fact.
