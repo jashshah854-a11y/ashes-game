@@ -1079,3 +1079,8 @@ The rest is accepted as measured.
 
 ## Cycle 14, Step 0: the judge's conditions, CLAIMED (2026-10-14)
 Claimed by the Claude Code builder session after re-reading the log end. Parts (a) to (e), each its own commit.
+
+### Step 0 (a): the preview counts only the units that can join each attack
+- `js/main.js`: for each target, the attack preview counts the units here that are free to march or already ordered to that target (and not on recon), names how many are ordered elsewhere and left out, and the card says a click orders only the selected unit and each unit must be ordered to attack together; interception, jamming notes, and the road meeting line use the same group. `index.html`'s hint says so too.
+- `tools/fog-check.js` (19 checks): the judge's repro (seed 7 day 1, the infantry ordered to p4_2, the wing selected) reads stack power 3, equal to stackPower of the units that can join, with "1 unit here is ordered elsewhere and left out".
+- Suite 87 pass, 0 fail; all six browser checks pass; UI only.

@@ -90,6 +90,26 @@ async function fogMatches(page) {
     check('the doctrine says the Dominion sees by the same rule', /decides only on what it sees, and flies no recon/.test(await page.textContent('#enemy-card')));
     await page.close();
 
+    // Run 1a (Cycle 14): a unit ordered elsewhere is left out of the attack preview.
+    page = await newPage();
+    await serveSim(page);
+    await page.goto(URL);
+    await page.click('#btn-pause');
+    await page.click('[data-prov="p4_3"]'); // picks the infantry
+    await page.click('[data-prov="p4_2"]'); // orders it to p4_2
+    await page.click('[data-prov="p4_3"]'); // picks the drone wing
+    const pv = await page.textContent('#unit-details');
+    const expectPower = await page.evaluate(() => {
+      const S = window.AshesSim, s = window.__state, t = S.provinceId(S.CFG.mapW / 2, 3);
+      const g = S.unitsIn(s, 'p4_3').filter((x) => x.nation === 'player' && (!x.order || x.order.target === t));
+      return S.stackPower(s, g, 'attack', t);
+    });
+    const pp = pv.match(/your stack power (\d+)/);
+    check('the preview leaves out a unit ordered elsewhere and says a click orders one unit',
+      /^Drone Wing/.test(pv) && !!pp && Number(pp[1]) === expectPower && expectPower === 3 &&
+      /\(1 unit here is ordered elsewhere and left out\)/.test(pv) && /A click orders only the selected unit\./.test(pv), (pp && pp[1]) + ' vs ' + expectPower);
+    await page.close();
+
     // Run 1b: the war on days 6 to 8 while the Dominion builds in fog.
     page = await newPage();
     await serveSim(page);

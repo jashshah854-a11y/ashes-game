@@ -591,20 +591,26 @@
     var here = Sim.unitsIn(state, u.provinceId).filter(function (x) { return x.nation === 'player'; });
     var stack = here.filter(function (x) { return x.reconDay !== state.day; });
     var scouting = here.length - stack.length;
-    var myPower = Sim.stackPower(state, stack, 'attack');
     var preview = scouting ? '<br>' + scouting + (scouting === 1 ? ' drone wing here flew' : ' drone wings here flew') +
       ' recon today and cannot march; the attack numbers below leave ' + (scouting === 1 ? 'it' : 'them') + ' out.' : '';
+    var previewNote = '<br>A click orders only the selected unit. Each attack below counts the units here that are free to march or already ordered there; order each of them to attack together.';
+    var anyTarget = false;
     Sim.neighborsOf(state, state.provinces[u.provinceId]).forEach(function (np) {
       if (np.owner !== 'enemy') return;
       var defs = (Sim.seenUnitsIn(state, 'player', np.id) || []).filter(function (d) { return d.nation === 'enemy'; });
       if (!defs.length) return;
+      anyTarget = true;
+      // The units that can join this attack: free, or already ordered here.
+      var group = stack.filter(function (x) { return !x.order || x.order.target === np.id; });
+      var elsewhere = stack.length - group.length;
+      var groupPower = Sim.stackPower(state, group, 'attack');
       // Air defense there strikes your drone wings before the fight; the
       // power below is what is left after the launches it can pay for.
-      var hit = Sim.interceptPlan(state, stack, np.id);
-      var vsHere = Sim.stackPower(state, stack, 'attack', np.id);
+      var hit = Sim.interceptPlan(state, group, np.id);
+      var vsHere = Sim.stackPower(state, group, 'attack', np.id);
       var adText = '';
       if (np.airDefense > 0) {
-        var wings = stack.filter(function (x) { return x.type === 'drone'; }).length;
+        var wings = group.filter(function (x) { return x.type === 'drone'; }).length;
         var downed = hit.filter(function (x) { return x.strength <= Sim.CFG.interceptStrength; }).length;
         var survive = hit.length - downed;
         adText = ' Their air defense there launches one interceptor per drone wing (' + Sim.CFG.interceptorSteel +
@@ -619,12 +625,13 @@
         }
       }
       preview += '<br>Attack ' + np.name + ': your stack power ' + vsHere +
-        (vsHere !== myPower ? ' (' + myPower + ' before interception)' : '') +
-        (stack.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? ' (includes -' + Sim.CFG.jammingPct + '% on your jammed drone wings)' : '') +
+        (vsHere !== groupPower ? ' (' + groupPower + ' before interception)' : '') +
+        (elsewhere ? ' (' + elsewhere + (elsewhere === 1 ? ' unit here is' : ' units here are') + ' ordered elsewhere and left out)' : '') +
+        (group.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? ' (includes -' + Sim.CFG.jammingPct + '% on your jammed drone wings)' : '') +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
         (defs.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? '; includes -' + Sim.CFG.jammingPct + '% on their jammed drone wings' : '') +
         (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').' + adText;
-      preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
+      preview += '<br>If they march out and meet you on the road: your attack ' + groupPower +
         ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
       // If taking this province would start rail conversions, say so
       // before the player commits, never as a surprise after the fact.
@@ -646,7 +653,7 @@
       (st.jamming > 0 ? ' (includes -' + st.jamming + '% from Dominion Jamming Gen ' + state.nations.enemy.jamming + ')' : '') + '<br>' +
       'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days on a production line.<br>' +
       supplyText + '<br>' +
-      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + reconButton(u) + preview;
+      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + reconButton(u) + (anyTarget ? previewNote : '') + preview;
   }
 
   function renderLog() {
