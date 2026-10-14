@@ -1590,8 +1590,10 @@ test('interception: the Dominion attack estimate counts the launches it would fa
   const aiAttacks = (ad) => {
     const s = Sim.createGame(5);
     s.day = Sim.CFG.aiMobilizationDays + 1;
-    // Two damaged wings (attack 3 each) against one infantry (defense 4): 6 clears 1.5 x 4 in the open.
-    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3', 4), mkU(3, 'enemy', 'drone', 'p5_3', 4)];
+    // Three damaged wings (attack 3 each, 9 less the river crossing taken once: 8) against one
+    // infantry (defense 4): 8 clears 1.5 x 4 in the open; air defense downs all three.
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3', 4), mkU(3, 'enemy', 'drone', 'p5_3', 4),
+      mkU(4, 'enemy', 'drone', 'p5_3', 4)];
     s.provinces.p4_3.airDefense = ad ? 1 : 0;
     s.nations.player.steel = 1000;
     s.nations.enemy.equipment = 0;
@@ -1599,8 +1601,8 @@ test('interception: the Dominion attack estimate counts the launches it would fa
     return s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group|air defense at/.test(e.msg)) ||
       s.units.some(u => u.nation === 'enemy' && u.provinceId === 'p4_3');
   };
-  assert.strictEqual(aiAttacks(false), true, 'two wings attack one infantry in the open');
-  assert.strictEqual(aiAttacks(true), false, 'the same two hold when the launches would down both');
+  assert.strictEqual(aiAttacks(false), true, 'three wings attack one infantry in the open');
+  assert.strictEqual(aiAttacks(true), false, 'the same three hold when the launches would down all of them');
 });
 
 test('launch reserve: launches are paid from the steel the attacker saw at dawn, through a real tick', () => {
@@ -1646,7 +1648,7 @@ test('launch reserve: air defense finished today fires from tomorrow, and says s
   s.nations.enemy.steel = 200;
   const stack = s.units.filter(u => u.nation === 'player');
   const est = Sim.stackPower(s, stack, 'attack', 'p5_3');
-  assert.strictEqual(est, stack.reduce((t, u) => t + Sim.unitStats(s, u, 'p5_3').attack, 0), 'nothing stands yet, so the estimate counts no launch');
+  assert.strictEqual(est, Sim.attackPower(s, stack, 'p5_3'), 'nothing stands yet, so the estimate counts no launch');
   stack.forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
   Sim.tick(s);
   assert.strictEqual(s.ledger.enemy.launches, 0, 'no launch on the day it is finished');
@@ -1927,12 +1929,16 @@ test('river crossing: one modifier in unitStats, read by stackPower and combat, 
     const s = Sim.createGame(5);
     const inf = mkU(1, 'player', 'infantry', 'p4_3');
     assert.strictEqual(Sim.edgeBetween(s, 'p4_3', 'p5_3').terrain, 'river');
-    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').attack, 2, 'attack 4 at -50% across the river');
-    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').riverPct, 50);
-    assert.strictEqual(Sim.unitStats(s, inf, 'p3_3').attack, 4, 'no penalty across land');
-    assert.strictEqual(Sim.unitStats(s, inf).attack, 4, 'no target, no penalty');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').riverPct, 50, 'unitStats names the crossing');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').attack, 4, 'and leaves the unit attack whole: it is taken once off the stack');
+    assert.strictEqual(Sim.attackPower(s, [inf], 'p5_3'), 2, 'attack 4 at -50% across the river');
+    assert.strictEqual(Sim.attackPower(s, [inf], 'p3_3'), 4, 'no penalty across land');
+    assert.strictEqual(Sim.attackPower(s, [inf], null), 4, 'no target, no penalty');
     assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').defense, 4, 'defense never changes');
     assert.strictEqual(Sim.stackPower(s, [inf], 'attack', 'p5_3'), 2, 'the estimate and preview see it');
+    // Once off the sum: three Gen 1 wings (3 each) lose 50% of 9, not 50% of each rounded.
+    const wings = [1, 2, 3].map(i => mkU(10 + i, 'player', 'drone', 'p4_3'));
+    assert.strictEqual(Sim.attackPower(s, wings, 'p5_3'), Math.round(9 * 0.5));
     // Combat: the same battle, same rolls, with and without the penalty.
     const fight = (pct) => {
       Sim.CFG.riverCrossingPct = pct;
@@ -1972,7 +1978,7 @@ test('river flotilla: one command, refusals, timing, it carries crossings from i
   assert.strictEqual(n.equipment, 1000 - Sim.CFG.flotillaCost);
   assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p4_3').reason, 'flotilla already under construction');
   const inf = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'infantry');
-  const crossing = Sim.unitStats(s, inf, 'p5_3').attack;
+  const crossing = Sim.attackPower(s, [inf], 'p5_3');
   for (let d = 1; d < Sim.CFG.flotillaBuildDays; d++) { Sim.tick(s); assert.strictEqual(s.provinces.p4_3.flotilla, 0, 'not yet on day ' + d); }
   Sim.tick(s);
   assert.strictEqual(s.provinces.p4_3.flotilla, 1);
@@ -1980,7 +1986,7 @@ test('river flotilla: one command, refusals, timing, it carries crossings from i
   const here = mkU(50, 'player', 'infantry', 'p4_3');
   assert.strictEqual(crossing, Math.round(4 * (1 - Sim.CFG.riverCrossingPct / 100)), 'before: the crossing costs attack');
   assert.strictEqual(Sim.unitStats(s, here, 'p5_3').riverPct, 0, 'the flotilla carries the crossing');
-  assert.strictEqual(Sim.unitStats(s, here, 'p5_3').attack, 4, 'full attack across the river');
+  assert.strictEqual(Sim.attackPower(s, [here], 'p5_3'), 4, 'full attack across the river');
   // A unit crossing elsewhere still pays.
   assert.strictEqual(Sim.unitStats(s, mkU(51, 'player', 'infantry', 'p4_2'), 'p5_2').riverPct, Sim.CFG.riverCrossingPct);
   // An enemy unit standing in your flotilla province gets nothing from it.

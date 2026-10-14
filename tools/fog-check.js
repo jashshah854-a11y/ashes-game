@@ -111,8 +111,10 @@ async function fogMatches(page) {
     check('the preview leaves out a unit ordered elsewhere and says a click orders one unit',
       /^Drone Wing/.test(pv) && !!pp && Number(pp[1]) === expectPower && expectPower === 3 &&
       /\(1 unit here is ordered elsewhere and left out\)/.test(pv) && /A click orders only the selected unit\./.test(pv), (pp && pp[1]) + ' vs ' + expectPower);
-    check('the preview names the river crossing with the sim number, and the hint states it',
-      pv.indexOf('(includes -' + CFG.riverCrossingPct + '% for attacking across the river)') !== -1 &&
+    // The lone wing's attack 3 loses nothing to the crossing once rounded
+    // (3 x 0.85 = 2.55 rounds to 3), so the preview must not claim a cut.
+    check('a crossing that costs nothing after rounding is not claimed, and the hint states the rule',
+      pv.indexOf('for attacking across the river') === -1 && Math.max(1, Math.round(3 * (1 - CFG.riverCrossingPct / 100))) === 3 &&
       (await page.textContent('#river-pct')) === String(CFG.riverCrossingPct));
     await page.close();
 

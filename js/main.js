@@ -642,7 +642,7 @@
       var elsewhere = stack.length - group.length;
       // Before interception, with the river crossing counted, so the
       // "before interception" figure differs from the power only by launches.
-      var groupPower = group.reduce(function (t, x) { return t + Sim.unitStats(state, x, np.id).attack; }, 0);
+      var groupPower = Sim.attackPower(state, group, np.id);
       var meetPower = Sim.stackPower(state, group, 'attack'); // a road meeting is no crossing
       // Air defense there strikes your drone wings before the fight; the
       // power below is what is left after the launches it can pay for.
@@ -668,7 +668,8 @@
         (vsHere !== groupPower ? ' (' + groupPower + ' before interception)' : '') +
         (elsewhere ? ' (' + elsewhere + (elsewhere === 1 ? ' unit here is' : ' units here are') + ' ordered elsewhere and left out)' : '') +
         (group.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? ' (includes -' + Sim.CFG.jammingPct + '% on your jammed drone wings)' : '') +
-        (group.some(function (x) { return Sim.unitStats(state, x, np.id).riverPct > 0; }) ? ' (includes -' + Sim.CFG.riverCrossingPct + '% for attacking across the river)' : '') +
+        (groupPower < Sim.attackPower(state, group, null) ? ' (includes -' + Sim.CFG.riverCrossingPct + '% for attacking across the river, taken once off the stack: ' +
+          Sim.attackPower(state, group, null) + ' to ' + groupPower + ')' : '') +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
         (defs.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? '; includes -' + Sim.CFG.jammingPct + '% on their jammed drone wings' : '') +
         (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').' + adText;

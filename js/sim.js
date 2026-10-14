@@ -634,9 +634,11 @@
     // side's jamming reaches. Applied after supply, before walls.
     var jam = gen > 0 && state.nations[otherNation(unit.nation)].jamming >= gen ? CFG.jammingPct : 0;
     if (jam > 0) { atk = jammedValue(atk); def = jammedValue(def); }
-    // River crossing: a named modifier on attack only, after jamming.
+    // River crossing: a named modifier on attack only. It is reported here
+    // and applied once to a stack's summed attack (attackPower), as walls
+    // are to summed defense: rounding it unit by unit made "15%" anything
+    // from 0 to 25 percent (found by the Cycle 14 judge).
     var river = riverPenaltyFor(state, unit, attackTarget);
-    if (river > 0) atk = Math.max(1, Math.round(atk * (1 - river / 100)));
     // Fortification: a named modifier on defense only, for a unit standing
     // in a fortified province its own nation holds. Applied after supply.
     var fortBonus = fortBonusFor(state, unit);
@@ -709,6 +711,23 @@
   // The one shared power estimate. Combat resolution, the AI's attack
   // decisions, and the player's attack preview all call this, so a
   // number the player sees is the number the war is fought with.
+  // A stack's attack into a province: unit attacks summed by the river
+  // crossing that applies to them (none, or CFG.riverCrossingPct; a
+  // flotilla where a unit stands carries it), the crossing taken once off
+  // each sum. Used by stackPower and by the battle itself.
+  function attackPower(state, units, targetId) {
+    var byRiver = {};
+    units.forEach(function (u) {
+      if (u.strength <= 0) return;
+      var r = riverPenaltyFor(state, u, targetId);
+      byRiver[r] = (byRiver[r] || 0) + unitStats(state, u).attack;
+    });
+    return Object.keys(byRiver).reduce(function (s, r) {
+      var sum = byRiver[r];
+      return s + (Number(r) > 0 ? Math.max(1, Math.round(sum * (1 - Number(r) / 100))) : sum);
+    }, 0);
+  }
+
   // With a target province, attack power counts the interceptions that
   // province's air defense would make first: a drone wing the launches
   // would down adds nothing, so combat, the AI's estimate, and the
@@ -721,9 +740,7 @@
           if (u.strength <= CFG.interceptStrength) downed[u.id] = true;
         });
       }
-      return units.reduce(function (s, u) {
-        return u.strength > 0 && !downed[u.id] ? s + unitStats(state, u, targetId).attack : s;
-      }, 0);
+      return attackPower(state, units.filter(function (u) { return !downed[u.id]; }), targetId);
     }
     // Defense: walls multiply the summed defense of the units sharing a
     // fortification bonus, once, so the stated percent holds for a whole
@@ -963,7 +980,7 @@
     while (aliveList(sideA).length > 0 && aliveList(sideB).length > 0 && round < 12) {
       round++;
       var powA = modeA === 'attack' && targetA
-        ? aliveList(sideA).reduce(function (s, u) { return s + unitStats(state, u, targetA).attack; }, 0)
+        ? attackPower(state, aliveList(sideA), targetA)
         : stackPower(state, aliveList(sideA), modeA);
       var powB = stackPower(state, aliveList(sideB), modeB);
       var dmgToB = Math.max(1, Math.round(powA * (0.7 + rng() * 0.6)));
@@ -1891,6 +1908,7 @@
     droneStatLine: droneStatLine,
     unitStats: unitStats,
     stackPower: stackPower,
+    attackPower: attackPower,
     unitsIn: unitsIn,
     unitsOf: unitsOf,
     neighborsOf: neighborsOf,

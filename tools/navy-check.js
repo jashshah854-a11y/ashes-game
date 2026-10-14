@@ -110,7 +110,8 @@ async function buildAndRun(page, label) {
       (await page.isDisabled('#btn-flotilla')) && (await page.textContent('#btn-flotilla')) === 'Build river flotilla (' + CFG.flotillaCost + ' eq, ' + CFG.flotillaBuildDays +
         ' days; attacks from here across the river keep full attack): need ' + CFG.flotillaCost + ', you have ' + have, await page.textContent('#btn-flotilla'));
     const pv = await page.textContent('#unit-details');
-    check('the preview names the crossing', pv.indexOf('(includes -' + CFG.riverCrossingPct + '% for attacking across the river)') !== -1);
+    const pm = pv.match(new RegExp('your stack power (\\d+) .*?\\(includes -' + CFG.riverCrossingPct + '% for attacking across the river, taken once off the stack: (\\d+) to (\\d+)\\)'));
+    check('the preview names the crossing with the real before and after numbers', !!pm && pm[1] === pm[3] && Number(pm[3]) === Math.max(1, Math.round(Number(pm[2]) * (1 - CFG.riverCrossingPct / 100))), pm ? pm.slice(1).join(' ') : pv.slice(0, 200));
     await page.click('[data-prov="p3_3"]');
     check('a province off the river says so', (await page.textContent('#btn-flotilla')) === 'River flotilla (only provinces on the river)');
     check('the doctrine says the Dominion builds none', /It builds no river flotilla, so its attacks across the river always pay the crossing\./.test(await page.textContent('#enemy-card')));
