@@ -1171,3 +1171,8 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - `js/main.js`: each attack's group now includes the selected unit whatever its current order, since one click on that target reorders it; other units ordered elsewhere stay out and are named.
 - `tools/fog-check.js` (24 checks): the judge's repro (the infantry ordered to p4_2 and kept selected) reads power 6, equal to attackPower of both units across the river, with nothing "left out"; the earlier assertion (the wing selected, the infantry ordered elsewhere: 3, one left out) still holds.
 - UI only; the other browser checks pass.
+
+### Step 0 (d): the river drawn on the map
+- `js/main.js`, `css/style.css`, `index.html`: a blue band on the east side of every province whose eastern edge is a river, inside the tile (a first version hung 3 px outside and the tile's overflow clipped it to a sliver; caught before commit by switching the check to a hit test), with a tooltip naming the crossing cost; the hint names the blue band and says the cost comes off the attacking stack's attack.
+- `tools/navy-check.js` (19 checks): at 1400 px a band is drawn on all 7 river edges and nowhere else, each visible by hit test near its top (above the rail bar); at 390 px all 7 are visible. A 390 px screenshot reads correctly.
+- UI only; all browser checks pass.

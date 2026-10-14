@@ -114,6 +114,20 @@ async function buildAndRun(page, label) {
     check('the preview names the crossing with the real before and after numbers', !!pm && pm[1] === pm[3] && Number(pm[3]) === Math.max(1, Math.round(Number(pm[2]) * (1 - CFG.riverCrossingPct / 100))), pm ? pm.slice(1).join(' ') : pv.slice(0, 200));
     await page.click('[data-prov="p3_3"]');
     check('a province off the river says so', (await page.textContent('#btn-flotilla')) === 'River flotilla (only provinces on the river)');
+    const rv = await page.evaluate(() => {
+      const S = window.AshesSim, s = window.__state;
+      const westBank = s.edgeList.filter((e) => e.terrain === 'river').map((e) => (s.provinces[e.a].x < s.provinces[e.b].x ? e.a : e.b));
+      const drawn = westBank.filter((id) => {
+        const b = document.querySelector('[data-prov="' + id + '"] .river-bar');
+        if (!b) return false;
+        b.scrollIntoView({ block: 'center' });
+        const r = b.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height * 0.08);
+        return r.width >= 4 && r.height > 20 && hit === b;
+      });
+      return { edges: westBank.length, drawn: drawn.length, extra: document.querySelectorAll('.river-bar').length };
+    });
+    check('1400: the river is drawn on every river edge and nowhere else', rv.edges === 7 && rv.drawn === rv.edges && rv.extra === rv.edges, JSON.stringify(rv));
     check('the doctrine says the Dominion builds none', /It builds no river flotilla, so its attacks across the river always pay the crossing\./.test(await page.textContent('#enemy-card')));
     await page.close();
 
@@ -138,6 +152,12 @@ async function buildAndRun(page, label) {
     await buildAndRun(page, '390: ');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('390: no horizontal scroll', w <= 390, 'document width ' + w);
+    const rv390 = await page.evaluate(() => Array.prototype.filter.call(document.querySelectorAll('.river-bar'), (b) => {
+      b.scrollIntoView({ block: 'center' });
+      const r = b.getBoundingClientRect();
+      return r.width >= 4 && r.height > 20 && document.elementFromPoint(r.left + r.width / 2, r.top + r.height * 0.08) === b;
+    }).length);
+    check('390: the river is drawn on all 7 river edges', rv390 === 7, String(rv390));
     await page.close();
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {

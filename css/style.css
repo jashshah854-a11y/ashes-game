@@ -250,3 +250,9 @@ button.linkish:hover { background: none; color: #fff2c4; }
   background: rgba(10, 50, 70, 0.85); color: #bfe9ff; border: 1px solid #6fb6d6; font-weight: bold;
 }
 .fleet-badge.building { font-weight: normal; border-style: dashed; }
+
+/* Cycle 15: the river line, drawn on the east side of the west bank tiles. */
+.river-bar {
+  position: absolute; top: 0; bottom: 0; right: 0; width: 5px; z-index: 1;
+  background: repeating-linear-gradient(180deg, #4f9fd8 0 6px, #2f6f9f 6px 12px);
+}

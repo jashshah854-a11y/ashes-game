@@ -145,6 +145,10 @@
         if (p.flotillaBuild) html += ' <span class="fleet-badge building">Fleet ' + p.flotillaBuild.daysLeft + 'd</span>';
         if (p.airDefense > 0) html += ' <span class="ad-badge">AD</span>';
         if (p.airDefenseBuild) html += ' <span class="ad-badge building">AD in ' + p.airDefenseBuild.daysLeft + 'd</span>';
+        // The river line: a band on the east side of each province whose
+        // eastern edge is a river.
+        var eastEdge = x + 1 < state.mapW ? Sim.edgeBetween(state, p.id, Sim.provinceId(x + 1, y)) : null;
+        if (eastEdge && eastEdge.terrain === 'river') html += '<span class="river-bar" title="River: attacks across it lose ' + Sim.CFG.riverCrossingPct + '% attack"></span>';
         if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
         if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
         var units = fogged ? [] : Sim.unitsIn(state, p.id);
