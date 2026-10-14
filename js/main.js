@@ -64,6 +64,51 @@
   }
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 
+  // ---------- Demo options for Jash (Cycle 17) ----------
+  // A fixed list of the measured alternatives the DECISIONS items describe,
+  // switched on from the address (for example ?drones=234&crossing=25).
+  // Only these keys and values are read; each applies to CFG before the
+  // first game and is shown on screen with its measured effect. Without
+  // any of them the standard game runs unchanged.
+  var DEMO_OPTIONS = [
+    { key: 'drones', value: '234', item: 20, apply: function (C) { C.unitTypes.drone.attack = 2; C.droneGen2.attack = 3; C.droneGen3.attack = 4; },
+      label: 'Drone attack 2 / 3 / 4 by generation (item 20): over 200 seeds an all drone army then leads mixed production by 12 days instead of 14, and every ruling still passes.' },
+    { key: 'aiflotilla', value: '1', item: 30, apply: function (C) { C.aiBuildsFlotilla = true; },
+      label: 'The Dominion builds river flotillas (item 30): over 200 seeds the rationed script then loses seed 89.' },
+    { key: 'crossing', value: '0', item: 31, apply: function (C) { C.riverCrossingPct = 0; },
+      label: 'No river crossing cost (item 31): the game before Cycle 14; every ruling passes.' },
+    { key: 'crossing', value: '25', item: 31, apply: function (C) { C.riverCrossingPct = 25; },
+      label: 'River crossing 25 percent (item 31): over 200 seeds the rationed script then loses seed 189 on day 40.' },
+    { key: 'crossing', value: '35', item: 31, apply: function (C) { C.riverCrossingPct = 35; },
+      label: 'River crossing 35 percent (item 31): over 200 seeds the rationed script then loses seeds 152 and 189.' },
+    { key: 'blockade', value: '0', item: 34, apply: function (C) { C.blockadePct = 0; },
+      label: 'No blockade (item 34): the game before Cycle 16; every ruling passes.' },
+    { key: 'blockade', value: '100', item: 34, apply: function (C) { C.blockadePct = 100; },
+      label: 'Blockade 100 percent (item 34): every ruling passes over 200 seeds; it bites only when a side loses part of a coast it still holds.' }
+  ];
+  var activeOptions = (function () {
+    var q = window.location.search || '';
+    return DEMO_OPTIONS.filter(function (o) {
+      var m = new RegExp('[?&]' + o.key + '=([^&]*)').exec(q);
+      return m && m[1] === o.value;
+    });
+  })();
+  activeOptions.forEach(function (o) { o.apply(Sim.CFG); });
+  function renderDemo() {
+    var card = document.getElementById('demo-card');
+    var list = document.getElementById('demo-list');
+    if (activeOptions.length) {
+      card.classList.remove('hidden');
+      list.innerHTML = activeOptions.map(function (o) { return '<li>' + o.label + '</li>'; }).join('');
+    } else {
+      card.classList.add('hidden');
+    }
+    var seedPart = urlSeed != null ? 'seed=' + urlSeed + '&' : '';
+    document.getElementById('demo-links').innerHTML = DEMO_OPTIONS.map(function (o) {
+      return '<li><a href="?' + seedPart + o.key + '=' + o.value + '">' + o.key + '=' + o.value + '</a>: ' + o.label + '</li>';
+    }).join('') + '<li><a href="?' + seedPart.replace(/&$/, '') + '">the standard game</a></li>';
+  }
+
   // A first game may be replayed with ?seed=N in the address (used by
   // tools/lore-check.js); New Game always draws a fresh random seed.
   var urlSeed = (function () {
@@ -977,5 +1022,6 @@
     if (selectedProvinceId) { Sim.buildFactory(state, 'player', selectedProvinceId); render(); }
   });
 
+  renderDemo();
   newGame();
 })();

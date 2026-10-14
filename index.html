@@ -51,6 +51,11 @@
   </section>
 
   <aside class="panel">
+    <div class="card demo-card hidden" id="demo-card">
+      <h2>Options in play</h2>
+      <p class="explain">This is not the standard game: the address switches on these measured alternatives, and every number on screen uses them.</p>
+      <ul id="demo-list" class="demo-list"></ul>
+    </div>
     <div class="card" id="nation-card">
       <h2>The Vessari Compact (you)</h2>
       <div class="stat-row"><span>Equipment stockpile</span><strong id="stat-equipment">0</strong></div>
@@ -125,6 +130,12 @@
       the points, and never changes that order for what you research. It sees by the same rule as
       you (its provinces and the provinces next to them), decides only on what it sees, and flies no recon.
       It builds no river flotilla, so its attacks across the river always pay the crossing.</p>
+    </div>
+
+    <div class="card" id="demo-try">
+      <h2>Try a measured option</h2>
+      <p class="explain">Each link reloads the game with one alternative from DECISIONS_FOR_JASH.md, labelled with its measured effect. Options combine in the address (for example ?drones=234&amp;crossing=25).</p>
+      <ul id="demo-links" class="demo-list"></ul>
     </div>
 
     <div class="card log-card">

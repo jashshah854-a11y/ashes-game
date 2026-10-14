@@ -292,3 +292,8 @@ button.linkish:hover { background: none; color: #fff2c4; }
   .badge-strip { gap: 1px; }
   .badge-strip .rail-tag { font-size: 8px; padding: 0 2px; }
 }
+
+/* Cycle 17: demo options. */
+.demo-card { border-color: #e8c87a; }
+.demo-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+.demo-list a { color: #e8c87a; }

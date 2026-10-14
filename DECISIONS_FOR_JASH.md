@@ -46,6 +46,19 @@ the order below matters.
    Should something break walls (drones, a siege unit), or is the siege
    the war?
 
+### Try the options yourself
+
+Open index.html with an option in the address, and the game runs with that
+alternative, labelled on screen with its measured effect; the Try a
+measured option card in the game links each one. Options combine.
+- `?drones=234`: drone attack 2 / 3 / 4 by generation (item 20).
+- `?aiflotilla=1`: the Dominion builds river flotillas (item 30).
+- `?crossing=0`, `?crossing=25`, `?crossing=35`: the river crossing cost (item 31).
+- `?blockade=0`, `?blockade=100`: the blockade (item 34).
+For example `index.html?seed=7&drones=234&crossing=25`. Without any option
+the standard game runs unchanged. Next day (while paused) plays one day,
+and Escape clears the selected unit.
+
 Everything else below waits on you too, but nothing else stalls a system.
 The loop keeps working around all of it: river crossings, the river
 flotilla (item 30), and coastal control with the blockade (item 34) are
