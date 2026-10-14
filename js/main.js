@@ -637,8 +637,9 @@
       var defs = (Sim.seenUnitsIn(state, 'player', np.id) || []).filter(function (d) { return d.nation === 'enemy'; });
       if (!defs.length) return;
       anyTarget = true;
-      // The units that can join this attack: free, or already ordered here.
-      var group = stack.filter(function (x) { return !x.order || x.order.target === np.id; });
+      // The units that can join this attack: free, already ordered here, or
+      // the selected unit itself (one click on the target reorders it).
+      var group = stack.filter(function (x) { return !x.order || x.order.target === np.id || x.id === u.id; });
       var elsewhere = stack.length - group.length;
       // Before interception, with the river crossing counted, so the
       // "before interception" figure differs from the power only by launches.

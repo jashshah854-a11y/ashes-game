@@ -111,6 +111,17 @@ async function fogMatches(page) {
     check('the preview leaves out a unit ordered elsewhere and says a click orders one unit',
       /^Drone Wing/.test(pv) && !!pp && Number(pp[1]) === expectPower && expectPower === 3 &&
       /\(1 unit here is ordered elsewhere and left out\)/.test(pv) && /A click orders only the selected unit\./.test(pv), (pp && pp[1]) + ' vs ' + expectPower);
+    // The judge's repro (Cycle 14): the infantry ordered to p4_2 and kept
+    // selected counts in its own preview, since one click reorders it.
+    await page.click('[data-prov="p4_3"]'); // back to the infantry
+    const own = await page.textContent('#unit-details');
+    const ownExpect = await page.evaluate(() => {
+      const S = window.AshesSim, s = window.__state, t = S.provinceId(S.CFG.mapW / 2, 3);
+      return S.attackPower(s, S.unitsIn(s, 'p4_3').filter((x) => x.nation === 'player'), t);
+    });
+    const op = own.match(/your stack power (\d+)/);
+    check('the selected unit counts in its own preview though it is ordered elsewhere',
+      /^Infantry Division/.test(own) && !!op && Number(op[1]) === ownExpect && own.indexOf('ordered elsewhere and left out') === -1, (op && op[1]) + ' vs ' + ownExpect);
     // The lone wing's attack 3 loses nothing to the crossing once rounded
     // (3 x 0.85 = 2.55 rounds to 3), so the preview must not claim a cut.
     check('a crossing that costs nothing after rounding is not claimed, and the hint states the rule',

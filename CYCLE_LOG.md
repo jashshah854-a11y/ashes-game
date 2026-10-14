@@ -1166,3 +1166,8 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - Tests: the river test asserts unitStats names the crossing and leaves the unit attack whole, attackPower takes it once (three Gen 1 wings at 50 percent: 9 to 5, not 3 by 3); three tests moved from per unit to stack attack, one for a stated reason (two damaged Dominion wings, 6 attack in the open, become 5 once the crossing is taken off the sum and no longer clear 6, so the test uses three wings: 9 to 8). `tools/fog-check.js` (23 checks): the lone wing's preview claims no cut, since 3 rounds back to 3; `tools/navy-check.js` (17): the note's before and after numbers match the rule.
 - Balance, 8 standard seeds: every ruling passes; 2 output lines move. Seeds 1 to 200: every ruling passes (factories, fortress, rationed 200 of 200; passive 30 to 45; both reckless never survive). New reference: tools/baseline-cycle15-step0b.txt.
 - Suite 90 pass, 0 fail; all seven browser checks pass.
+
+### Step 0 (c): the selected unit counts in its own previews
+- `js/main.js`: each attack's group now includes the selected unit whatever its current order, since one click on that target reorders it; other units ordered elsewhere stay out and are named.
+- `tools/fog-check.js` (24 checks): the judge's repro (the infantry ordered to p4_2 and kept selected) reads power 6, equal to attackPower of both units across the river, with nothing "left out"; the earlier assertion (the wing selected, the infantry ordered elsewhere: 3, one left out) still holds.
+- UI only; the other browser checks pass.
