@@ -315,7 +315,11 @@ was invented by the loop, not by you:
     the rationed script seeds 89 and 108 over 200; at 800 equipment, or
     with the rationed script building its own flotilla too, it still lost
     seed 108, the seesaw seed that tips on every Dominion gain. Leaving it
-    off keeps a tool only you use.
+    off keeps a tool only you use, and as the report profile uses it, it
+    buys you almost nothing (built in 50 of 200 campaigns, carrying 7 of
+    208 crossings, changing 3 results, all slower). With no crossing rule
+    at all every ruling passes: the losses come from the pair, you paying
+    the crossing while a Dominion flotilla lets it skip it.
 
 Nothing here blocks the loop. Cycles 9 to 12 passed their judges (10, 11,
 and 12 with conditions, each closed in the next cycle's step 0); nothing
