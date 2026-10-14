@@ -1916,3 +1916,43 @@ test('AI: its orders and a whole campaign do not depend on the order of the unit
   assert.strictEqual(firstDiff, -1, 'units diverge on tick ' + (firstDiff + 1));
   assert.deepStrictEqual([a.winner, a.day, a.log], [b.winner, b.day, b.log]);
 });
+
+// ---------- Cycle 14: river crossings ----------
+test('river crossing: one modifier in unitStats, read by stackPower and combat, for attacks across a river edge only', () => {
+  const saved = Sim.CFG.riverCrossingPct;
+  try {
+    Sim.CFG.riverCrossingPct = 50;
+    const s = Sim.createGame(5);
+    const inf = mkU(1, 'player', 'infantry', 'p4_3');
+    assert.strictEqual(Sim.edgeBetween(s, 'p4_3', 'p5_3').terrain, 'river');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').attack, 2, 'attack 4 at -50% across the river');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').riverPct, 50);
+    assert.strictEqual(Sim.unitStats(s, inf, 'p3_3').attack, 4, 'no penalty across land');
+    assert.strictEqual(Sim.unitStats(s, inf).attack, 4, 'no target, no penalty');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').defense, 4, 'defense never changes');
+    assert.strictEqual(Sim.stackPower(s, [inf], 'attack', 'p5_3'), 2, 'the estimate and preview see it');
+    // Combat: the same battle, same rolls, with and without the penalty.
+    const fight = (pct) => {
+      Sim.CFG.riverCrossingPct = pct;
+      const g = Sim.createGame(5);
+      g.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'), mkU(9, 'enemy', 'infantry', 'p5_3')];
+      Sim.issueOrder(g, 1, 'p5_3'); Sim.issueOrder(g, 2, 'p5_3');
+      Sim.movementPhase(g);
+      return g.units.filter(u => u.nation === 'player').reduce((a, u) => a + u.strength, 0);
+    };
+    // The defender falls either way; weaker blows mean a longer fight and more attackers lost.
+    assert.ok(fight(50) < fight(0), 'the crossing costs the attackers in battle: ' + fight(0) + ' left open, ' + fight(50) + ' left across the river');
+    // Columns that meet on the road fight without it.
+    const meet = (pct) => {
+      Sim.CFG.riverCrossingPct = pct;
+      const g = Sim.createGame(5);
+      g.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(9, 'enemy', 'infantry', 'p5_3')];
+      Sim.issueOrder(g, 1, 'p5_3'); Sim.issueOrder(g, 9, 'p4_3');
+      Sim.movementPhase(g);
+      return JSON.stringify(g.units.map(u => u.strength));
+    };
+    assert.strictEqual(meet(50), meet(0), 'a road meeting is not a crossing');
+  } finally {
+    Sim.CFG.riverCrossingPct = saved;
+  }
+});

@@ -82,6 +82,7 @@
     },
     jammingPct: 40,               // percent attack and defense a jammed drone wing loses
     reconRange: { 1: 2, 2: 3, 3: 4 }, // recon range in graph hops, by drone generation
+    riverCrossingPct: 0,          // percent attack lost attacking across a river edge (0 until measured)
     // The Dominion buys the first project in this list it has not finished,
     // as soon as it has the points; it never skips ahead.
     aiResearchOrder: ['droneGen2', 'jamming1', 'droneGen3', 'jamming2']
@@ -598,7 +599,16 @@
   // penalty is a named modifier: it lives on the unit, accrues and
   // recovers in the supply phase, and is applied here so every consumer
   // (combat, the AI, the player's preview) sees the same numbers.
-  function unitStats(state, unit) {
+  // Attacking across a river edge: the percent of attack lost, for a unit
+  // attacking from where it stands into attackTarget. Province battles and
+  // clashes only; columns meeting on the road pass no target.
+  function riverPenaltyFor(state, unit, attackTarget) {
+    if (!attackTarget || !(CFG.riverCrossingPct > 0)) return 0;
+    var e = edgeBetween(state, unit.provinceId, attackTarget);
+    return e && e.terrain === 'river' ? CFG.riverCrossingPct : 0;
+  }
+
+  function unitStats(state, unit, attackTarget) {
     var base = CFG.unitTypes[unit.type];
     var atk = base.attack, def = base.defense;
     var gen = unit.type === 'drone' ? droneGeneration(state, unit.nation) : 0;
@@ -614,6 +624,9 @@
     // side's jamming reaches. Applied after supply, before walls.
     var jam = gen > 0 && state.nations[otherNation(unit.nation)].jamming >= gen ? CFG.jammingPct : 0;
     if (jam > 0) { atk = jammedValue(atk); def = jammedValue(def); }
+    // River crossing: a named modifier on attack only, after jamming.
+    var river = riverPenaltyFor(state, unit, attackTarget);
+    if (river > 0) atk = Math.max(1, Math.round(atk * (1 - river / 100)));
     // Fortification: a named modifier on defense only, for a unit standing
     // in a fortified province its own nation holds. Applied after supply.
     var fortBonus = fortBonusFor(state, unit);
@@ -622,6 +635,7 @@
     // Kept off the enumerable fields so the stats object stays the one the
     // panels show; stackPower reads it to apply walls once per stack.
     Object.defineProperty(stats, 'defenseBeforeWalls', { value: def, enumerable: false });
+    Object.defineProperty(stats, 'riverPct', { value: river, enumerable: false });
     return stats;
   }
 
@@ -698,7 +712,7 @@
         });
       }
       return units.reduce(function (s, u) {
-        return u.strength > 0 && !downed[u.id] ? s + unitStats(state, u).attack : s;
+        return u.strength > 0 && !downed[u.id] ? s + unitStats(state, u, targetId).attack : s;
       }, 0);
     }
     // Defense: walls multiply the summed defense of the units sharing a
@@ -919,11 +933,16 @@
   // The shared round math. Side A deals damage from its modeA power,
   // side B from its modeB power. Simultaneous rounds until one side is
   // gone or 12 rounds pass. A's roll is drawn before B's every round.
-  function fightRounds(state, sideA, sideB, modeA, modeB, rng) {
+  // targetA, when side A attacks a province, is that province: it is read
+  // for the river crossing modifier (interception is already applied to
+  // the clones, so stackPower's own interception plan is not used here).
+  function fightRounds(state, sideA, sideB, modeA, modeB, rng, targetA) {
     var round = 0;
     while (aliveList(sideA).length > 0 && aliveList(sideB).length > 0 && round < 12) {
       round++;
-      var powA = stackPower(state, aliveList(sideA), modeA);
+      var powA = modeA === 'attack' && targetA
+        ? aliveList(sideA).reduce(function (s, u) { return s + unitStats(state, u, targetA).attack; }, 0)
+        : stackPower(state, aliveList(sideA), modeA);
       var powB = stackPower(state, aliveList(sideB), modeB);
       var dmgToB = Math.max(1, Math.round(powA * (0.7 + rng() * 0.6)));
       var dmgToA = Math.max(1, Math.round(powB * (0.7 + rng() * 0.6)));
@@ -1164,7 +1183,8 @@
     engagements.forEach(function (e) {
       if (e.kind === 'move') return;
       var rng = engagementRng(state, e.key);
-      e.result = fightRounds(state, e.aClones, e.bClones, 'attack', e.kind === 'meeting' ? 'attack' : 'defense', rng);
+      e.result = fightRounds(state, e.aClones, e.bClones, 'attack', e.kind === 'meeting' ? 'attack' : 'defense', rng,
+        e.kind === 'meeting' ? null : e.target);
     });
     engagements.forEach(function (e) {
       if (e.kind === 'move') return;
