@@ -3,6 +3,7 @@
 (function () {
   'use strict';
   var Sim = window.AshesSim;
+  var Lore = window.AshesLore;
 
   var state = null;
   var selectedProvinceId = null;
@@ -10,14 +11,24 @@
   var paused = false;
   var speed = 1; // 1x or 2x
   var timer = null;
+  // Lore overlays. A card or the codex pauses the war; closing the last
+  // one puts the pause back the way the player had it.
+  var shownBeats = {};       // beat ids whose card has been shown this game
+  var cardQueue = [];        // beat ids waiting for their card
+  var pauseBeforeOverlay = null;
+  var codexEntryId = 'ashwater';
 
   var el = {};
-  ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
+  ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-step', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
-   'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'prov-explain', 'unit-details',
+   'stat-drone-gen', 'stat-jamming', 'research-list', 'research-explain', 'stat-enemy-jam', 'stat-enemy-research', 'ai-research-order', 'prov-name', 'prov-details',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'ai-ad-eq', 'river-pct', 'btn-flotilla', 'stat-seas', 'stat-enemy-blockade', 'blockade-pct', 'btn-ad', 'stat-enemy-ad',
+   'xc-you', 'xc-them', 'xc-ratio', 'xc-you-lost', 'xc-you-launch', 'xc-them-lost', 'xc-them-launch', 'xc-explain', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
-   'prod-summary', 'production-lines'
+   'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
+   'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
+   'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
+   'codex-article', 'btn-codex-close'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -30,7 +41,7 @@
 
   function reachableIds() {
     var u = selectedUnit();
-    if (!u) return {};
+    if (!u || u.reconDay === state.day) return {}; // a wing that flew recon holds today
     var out = {};
     Sim.neighborsOf(state, state.provinces[u.provinceId]).forEach(function (p) { out[p.id] = true; });
     return out;
@@ -41,21 +52,84 @@
     var ms = speed === 1 ? 900 : 300;
     timer = setInterval(function () {
       if (paused || state.gameOver) return;
-      Sim.tick(state);
-      render();
-      if (state.gameOver) showBanner();
+      advanceDay();
     }, ms);
+  }
+  // One day of war: the same path for the timer and the Next day button.
+  function advanceDay() {
+    Sim.tick(state);
+    render();
+    if (state.gameOver) showBanner();
+    else checkBeats(); // no card over the end banner; the codex still lists the beat
   }
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 
+  // ---------- Demo options for Jash (Cycle 17) ----------
+  // A fixed list of the measured alternatives the DECISIONS items describe,
+  // switched on from the address (for example ?drones=234&crossing=25).
+  // Only these keys and values are read; each applies to CFG before the
+  // first game and is shown on screen with its measured effect. Without
+  // any of them the standard game runs unchanged.
+  var DEMO_OPTIONS = [
+    { key: 'drones', value: '234', item: 20, apply: function (C) { C.unitTypes.drone.attack = 2; C.droneGen2.attack = 3; C.droneGen3.attack = 4; },
+      label: 'Drone attack 2 / 3 / 4 by generation (item 20): over 200 seeds an all drone army then leads mixed production by 12 days instead of 14, and every ruling still passes.' },
+    { key: 'aiflotilla', value: '1', item: 30, apply: function (C) { C.aiBuildsFlotilla = true; },
+      label: 'The Dominion builds river flotillas (item 30): over 200 seeds the rationed script then loses seed 89.' },
+    { key: 'crossing', value: '0', item: 31, apply: function (C) { C.riverCrossingPct = 0; },
+      label: 'No river crossing cost (item 31): the game before Cycle 14; every ruling passes.' },
+    { key: 'crossing', value: '25', item: 31, apply: function (C) { C.riverCrossingPct = 25; },
+      label: 'River crossing 25 percent (item 31): over 200 seeds the rationed script then loses seed 189 on day 40.' },
+    { key: 'crossing', value: '35', item: 31, apply: function (C) { C.riverCrossingPct = 35; },
+      label: 'River crossing 35 percent (item 31): over 200 seeds the rationed script then loses seeds 152 and 189.' },
+    { key: 'blockade', value: '0', item: 34, apply: function (C) { C.blockadePct = 0; },
+      label: 'No blockade (item 34): the game before Cycle 16; every ruling passes.' },
+    { key: 'blockade', value: '100', item: 34, apply: function (C) { C.blockadePct = 100; },
+      label: 'Blockade 100 percent (item 34): every ruling passes over 200 seeds; it bites only when a side loses part of a coast it still holds.' }
+  ];
+  var activeOptions = (function () {
+    var q = window.location.search || '';
+    return DEMO_OPTIONS.filter(function (o) {
+      var m = new RegExp('[?&]' + o.key + '=([^&]*)').exec(q);
+      return m && m[1] === o.value;
+    });
+  })();
+  activeOptions.forEach(function (o) { o.apply(Sim.CFG); });
+  function renderDemo() {
+    var card = document.getElementById('demo-card');
+    var list = document.getElementById('demo-list');
+    if (activeOptions.length) {
+      card.classList.remove('hidden');
+      list.innerHTML = activeOptions.map(function (o) { return '<li>' + o.label + '</li>'; }).join('');
+    } else {
+      card.classList.add('hidden');
+    }
+    var seedPart = urlSeed != null ? 'seed=' + urlSeed + '&' : '';
+    document.getElementById('demo-links').innerHTML = DEMO_OPTIONS.map(function (o) {
+      return '<li><a href="?' + seedPart + o.key + '=' + o.value + '">' + o.key + '=' + o.value + '</a>: ' + o.label + '</li>';
+    }).join('') + '<li><a href="?' + seedPart.replace(/&$/, '') + '">the standard game</a></li>';
+  }
+
+  // A first game may be replayed with ?seed=N in the address (used by
+  // tools/lore-check.js); New Game always draws a fresh random seed.
+  var urlSeed = (function () {
+    var m = /[?&]seed=(\d{1,9})(?:&|$)/.exec(window.location.search || '');
+    return m ? parseInt(m[1], 10) : null;
+  })();
+
   function newGame() {
-    var seed = Math.floor(Math.random() * 100000);
+    var seed = urlSeed != null ? urlSeed : Math.floor(Math.random() * 100000);
+    urlSeed = null;
     state = Sim.createGame(seed);
     selectedProvinceId = null;
     selectedUnitId = null;
     paused = false;
     el.btnPause.textContent = 'Pause';
     el.banner.classList.add('hidden');
+    shownBeats = {};
+    cardQueue = [];
+    pauseBeforeOverlay = null;
+    el.eventOverlay.classList.add('hidden');
+    el.codexOverlay.classList.add('hidden');
     render();
     startTimer();
   }
@@ -78,23 +152,27 @@
   // Rail state of the edge from this province toward a neighbor id, as a
   // little track bar on the shared border. Presentation only: the rules
   // all live in the graph inside sim.js.
+  // Returns the bar (drawn on the tile edge) and, for rail under work, a
+  // tag that goes in the tile's badge strip.
   function railBar(p, neighborId, side) {
     var e = Sim.edgeBetween(state, p.id, neighborId);
-    if (!e || !e.rail) return '';
+    if (!e || !e.rail) return { bar: '', tag: '' };
     if (e.rail.daysLeft > 0) {
-      return '<span class="rail-bar ' + side + ' building"></span>' +
-        '<span class="rail-tag">Rail ' + e.rail.daysLeft + 'd</span>';
+      return { bar: '<span class="rail-bar ' + side + ' building"></span>',
+        tag: '<span class="rail-tag"><span class="b-long">Rail ' + e.rail.daysLeft + 'd</span><span class="b-short">R' + e.rail.daysLeft + '</span></span>' };
     }
     if (e.rail.converting) {
-      return '<span class="rail-bar ' + side + ' building"></span>' +
-        '<span class="rail-tag">Converting ' + e.rail.converting.daysLeft + 'd</span>';
+      return { bar: '<span class="rail-bar ' + side + ' building"></span>',
+        tag: '<span class="rail-tag"><span class="b-long">Converting ' + e.rail.converting.daysLeft + 'd</span><span class="b-short">C' + e.rail.converting.daysLeft + '</span></span>' };
     }
-    return '<span class="rail-bar ' + side + '"></span>';
+    return { bar: '<span class="rail-bar ' + side + '"></span>', tag: '' };
   }
 
   function renderMap() {
     var reach = reachableIds();
     var playerSupply = Sim.computeSupply(state, 'player');
+    var seen = Sim.visibleProvinces(state, 'player');
+    var lit = (state.recon && state.recon.player) || {};
     var html = '';
     for (var y = 0; y < state.mapH; y++) {
       for (var x = 0; x < state.mapW; x++) {
@@ -103,20 +181,48 @@
         if (p.id === selectedProvinceId) cls += ' selected';
         if (reach[p.id]) cls += ' reachable';
         if (p.owner === 'player' && playerSupply[p.id] && !playerSupply[p.id].supplied) cls += ' unsupplied';
+        var fogged = !seen[p.id];
+        if (fogged) cls += ' fogged';
+        else if (lit[p.id] >= state.day && p.owner !== 'player' && !Sim.neighborsOf(state, p).some(function (np) { return np.owner === 'player'; })) cls += ' lit';
         html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '">';
+        // Badges carry a long label and a short one for phone widths.
+        var two = function (long, short) { return '<span class="b-long">' + long + '</span><span class="b-short">' + short + '</span>'; };
+        // The badge strip: walls, air defense, fleet, and rail work, in one
+        // row at the top of the tile that flows with the content, so no
+        // badge can sit over the name (Cycle 17; pinned badges covered it).
+        var strip = '';
+        // Walls: one badge, so standing walls are never hidden under work on the next level.
+        if (p.fortLevel > 0 && p.fortBuild) strip += '<span class="fort-badge lvl' + p.fortLevel + ' building">' + two('Fort ' + p.fortLevel + ', to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortLevel + '>' + p.fortBuild.toLevel) + '</span>';
+        else if (p.fortLevel > 0) strip += '<span class="fort-badge lvl' + p.fortLevel + '">' + two('Fort ' + p.fortLevel, 'F' + p.fortLevel) + '</span>';
+        else if (p.fortBuild) strip += '<span class="fort-badge building">' + two('Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortBuild.toLevel + '..') + '</span>';
+        if (p.airDefense > 0) strip += '<span class="ad-badge">AD</span>';
+        if (p.airDefenseBuild) strip += '<span class="ad-badge building">' + two('AD in ' + p.airDefenseBuild.daysLeft + 'd', 'AD..') + '</span>';
+        if (p.flotilla > 0) strip += '<span class="fleet-badge">' + two('Fleet', 'Fl') + '</span>';
+        if (p.flotillaBuild) strip += '<span class="fleet-badge building">' + two('Fleet ' + p.flotillaBuild.daysLeft + 'd', 'Fl..') + '</span>';
+        var railR = x + 1 < state.mapW ? railBar(p, Sim.provinceId(x + 1, y), 'r') : { bar: '', tag: '' };
+        var railB = y + 1 < state.mapH ? railBar(p, Sim.provinceId(x, y + 1), 'b') : { bar: '', tag: '' };
+        strip += railR.tag + railB.tag;
+        if (strip) html += '<span class="badge-strip">' + strip + '</span>';
         html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
-        html += '<span class="steel">Steel ' + p.steel + '</span>';
+        html += '<span class="steel"><span class="b-long">Steel ' + p.steel + '</span><span class="b-short">S' + p.steel + '</span></span>';
         if (p.factoryLevel > 0) {
-          html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
+          html += '<span class="factory-badge lvl' + p.factoryLevel + '"><span class="b-long">Factory ' + p.factoryLevel +
+            '</span><span class="b-short">Fa' + p.factoryLevel + '</span></span>';
         }
-        if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
-        if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
-        var units = Sim.unitsIn(state, p.id);
+        // The river line: a band on the east side of each province whose
+        // eastern edge is a river.
+        var eastEdge = x + 1 < state.mapW ? Sim.edgeBetween(state, p.id, Sim.provinceId(x + 1, y)) : null;
+        if (eastEdge && eastEdge.terrain === 'river') html += '<span class="river-bar" title="River: attacks across it lose ' + Sim.CFG.riverCrossingPct + '% attack"></span>';
+        html += railR.bar + railB.bar;
+        var units = fogged ? [] : Sim.unitsIn(state, p.id);
+        if (fogged) html += '<span class="fog-tag"><span class="fog-long">Unseen</span><span class="fog-short">?</span></span>';
         if (units.length) {
           html += '<span class="units">';
           units.forEach(function (u) {
             var st = Sim.unitStats(state, u);
-            var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack;
+            // A compact label on phones: type initial and strength.
+            var label = '<span class="b-long">' + (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack + '</span>' +
+              '<span class="b-short">' + (u.type === 'drone' ? 'D' : 'I') + u.strength + '</span>';
             if (st.supplyPenalty > 0) label += ' <span class="sup-tag">-' + st.supplyPenalty + '%</span>';
             var c = 'unit-chip ' + (u.nation === 'player' ? 'mine' : 'theirs');
             if (u.id === selectedUnitId) c += ' picked';
@@ -137,22 +243,59 @@
     var n = state.nations.player;
     el.statEquipment.textContent = n.equipment;
     el.statSteel.textContent = n.steel;
-    el.statSteelIncome.textContent = Sim.steelIncome(state, 'player');
-    el.statFactories.textContent = Sim.factoryLevels(state, 'player');
+    var myBlock = Sim.blockade(state, 'player');
+    var myLost = myBlock.north.lost + myBlock.south.lost;
+    el.statSteelIncome.textContent = Sim.steelIncome(state, 'player') + (myLost ? ' (blockade takes ' + myLost + ')' : '');
+    el.statSeas.textContent = seaText(myBlock, 'player');
+    var theirBlock = Sim.blockade(state, 'enemy');
+    var theirLost = theirBlock.north.lost + theirBlock.south.lost;
+    el.statEnemyBlockade.textContent = theirLost ? 'your seas cut its coastal steel by ' + theirLost + ' a day' : 'none';
+    el.blockadePct.textContent = Sim.CFG.blockadePct;
+    var idle = n.factoryLevelsIdle || 0;
+    el.statFactories.textContent = Sim.factoryLevels(state, 'player') +
+      (idle > 0 ? ' (' + idle + ' idle today: production lines are paid first and the steel ran out)' : '');
     el.statResearch.textContent = n.researchPoints;
-    el.statDroneGen.textContent = n.droneGen2 ? 'Gen 2' : 'Gen 1';
-    el.btnResearch.disabled = n.droneGen2 || n.researchPoints < Sim.CFG.droneGen2Cost;
-    el.btnResearch.textContent = n.droneGen2
-      ? 'Drone Gen 2 fielded'
-      : 'Research Drone Gen 2 (' + Sim.CFG.droneGen2Cost + ' pts)';
+    el.statDroneGen.textContent = droneGenText('player');
+    el.statJamming.textContent = jammingText('player');
+    renderResearch();
 
     var e = state.nations.enemy;
     var enemyProvs = Object.keys(state.provinces).filter(function (k) {
       return state.provinces[k].owner === 'enemy';
     }).length;
     el.statEnemyProvs.textContent = enemyProvs;
-    el.statEnemyUnits.textContent = Sim.unitsOf(state, 'enemy').length;
-    el.statEnemyGen.textContent = e.droneGen2 ? 'Gen 2' : 'Gen 1';
+    var seenEnemy = Sim.unitsOf(state, 'enemy').filter(function (x) { return Sim.canSee(state, 'player', x.provinceId); }).length;
+    el.statEnemyUnits.textContent = seenEnemy + ' seen; units in provinces you cannot see are unknown';
+    el.statEnemyGen.textContent = droneGenText('enemy');
+    el.statEnemyJam.textContent = jammingText('enemy');
+    var aiNext = Sim.CFG.aiResearchOrder.filter(function (id) { return !Sim.hasResearched(state, 'enemy', id); })[0];
+    el.statEnemyResearch.textContent = aiNext
+      ? Sim.CFG.research[aiNext].label + ' at ' + Sim.CFG.research[aiNext].cost + ' points (it has ' + e.researchPoints + ', gaining ' +
+        Sim.CFG.researchPerDay + ' a day): ' + (function () {
+          var k = daysToAfford(e.researchPoints, Sim.CFG.research[aiNext].cost);
+          return k === 0 ? 'it buys it at the start of day ' + state.day : 'day ' + (state.day + k) + ', in ' + k + (k === 1 ? ' day' : ' days');
+        })()
+      : 'all researched';
+    el.aiResearchOrder.textContent = Sim.CFG.aiResearchOrder.map(function (id) { return Sim.CFG.research[id].label; }).join(', then ');
+    // The Dominion opens lines by the same factory thresholds you do, so its
+    // factory total says when its next line arrives.
+    var enemyLines = (e.productionLines || []).length;
+    var enemyNext = Sim.lineLockInfo(state, 'enemy', enemyLines + 1);
+    el.statEnemyFactories.textContent = Sim.factoryLevels(state, 'enemy');
+    el.aiFortEq.textContent = Sim.CFG.aiFortifyEquipment;
+    el.aiAdEq.textContent = Sim.CFG.aiAirDefenseEquipment;
+    el.riverPct.textContent = Sim.CFG.riverCrossingPct;
+    var forts = Object.keys(state.provinces).map(function (k) { return state.provinces[k]; })
+      .filter(function (p) { return p.owner === 'enemy' && (p.fortLevel > 0 || p.fortBuild); })
+      .map(function (p) { return p.name + ' ' + (p.fortLevel || 0) + (p.fortBuild ? ' (to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd)' : ''); });
+    el.statEnemyForts.textContent = forts.length ? forts.join(', ') : 'none';
+    var ads = Object.keys(state.provinces).map(function (k) { return state.provinces[k]; })
+      .filter(function (p) { return p.owner === 'enemy' && (p.airDefense > 0 || p.airDefenseBuild); })
+      .map(function (p) { return p.name + (p.airDefenseBuild ? ' (building, ' + p.airDefenseBuild.daysLeft + 'd)' : ''); });
+    el.statEnemyAd.textContent = ads.length ? ads.join(', ') : 'none';
+    renderExchange();
+    el.statEnemyLines.textContent = enemyLines + ' of ' + Sim.CFG.maxProductionLines +
+      (enemyNext ? ' (next at ' + enemyNext.required + ' factory levels)' : '');
 
     renderProduction();
     renderProvinceCard();
@@ -217,6 +360,7 @@
       var qBtn = document.createElement('button');
       qBtn.type = 'button';
       qBtn.textContent = 'Queue ' + t.label + ' (+1)';
+      qBtn.setAttribute('data-queue-line', line.id);
       qBtn.disabled = line.queue >= Sim.CFG.maxQueuePerLine;
       qBtn.addEventListener('click', function () {
         Sim.queueProduction(state, 'player', line.id);
@@ -256,6 +400,213 @@
     }
   }
 
+  // The line unlock rule in plain words, built from the same CFG thresholds
+  // the sim uses, for example "Line 3 opens at 16, line 4 opens at 24".
+  function lineUnlockText() {
+    var parts = [];
+    for (var id = 1; id <= Sim.CFG.maxProductionLines; id++) {
+      var need = Sim.CFG.lineUnlockFactoryLevels[id - 1];
+      if (need > 0) parts.push((parts.length ? 'line ' : 'Line ') + id + ' opens at ' + need);
+    }
+    if (!parts.length) return '';
+    return 'Your total factory levels across all provinces also unlock production lines: ' +
+      parts.join(', ') + ' (you have ' + Sim.factoryLevels(state, 'player') + '). ' +
+      'An unlocked line stays open even if you later lose factories.';
+  }
+
+  // Fortification in plain words: level, the exact bonus, work under way.
+  function fortLine(p) {
+    var lvl = p.fortLevel || 0;
+    var holder = p.owner === 'player' ? 'your' : 'Dominion';
+    var line = 'Fortification: level ' + lvl + ' of ' + Sim.CFG.fortMaxLevel;
+    if (lvl > 0) line += ', +' + (lvl * Sim.CFG.fortDefensePctPerLevel) + '% defense for ' + holder + ' units defending here';
+    if (p.fortBuild) line += '. Being raised to level ' + p.fortBuild.toLevel + ', ' + p.fortBuild.daysLeft + (p.fortBuild.daysLeft === 1 ? ' day' : ' days') + ' left';
+    return line;
+  }
+
+  // ---------- Research and jamming, in plain words from CFG ----------
+  function otherSide(id) { return id === 'player' ? 'enemy' : 'player'; }
+  function projectEffect(id) {
+    var C = Sim.CFG;
+    if (id === 'droneGen2') return 'Every drone wing fights at attack ' + C.droneGen2.attack + ', defense ' + C.droneGen2.defense +
+      ' (Gen 1 is attack ' + C.unitTypes.drone.attack + ', defense ' + C.unitTypes.drone.defense + ').';
+    if (id === 'droneGen3') return 'Every drone wing fights at attack ' + C.droneGen3.attack + ', defense ' + C.droneGen3.defense +
+      ', and no jamming reaches Gen 3.';
+    if (id === 'jamming1' || id === 'jamming2') {
+      var reach = id === 'jamming1' ? 1 : 2;
+      var theirs = Sim.droneGeneration(state, 'enemy');
+      return 'Enemy drone wings of Gen ' + (reach === 1 ? '1' : '1 and 2') + ' fight at -' + C.jammingPct + '% attack and defense, rounded (' +
+        'a Gen ' + reach + ' wing: ' + jammedChange(reach) + '). ' +
+        (theirs <= reach ? 'Their wings are Gen ' + theirs + ' now: this would jam them.' : 'Their wings are Gen ' + theirs + ' now: this would not reach them.');
+    }
+    return '';
+  }
+  // Is this side's drone generation reached by the other side's jamming?
+  function jammedBy(id) {
+    var gen = Sim.droneGeneration(state, id);
+    return (state.nations[otherSide(id)].jamming || 0) >= gen;
+  }
+  // The real jammed numbers, rounded the way combat rounds them.
+  function jammedChange(gen) {
+    var b = Sim.droneStatLine(gen);
+    return 'attack ' + b.attack + ' to ' + Sim.jammedValue(b.attack) + ', defense ' + b.defense + ' to ' + Sim.jammedValue(b.defense);
+  }
+  function droneGenText(id) {
+    var gen = Sim.droneGeneration(state, id);
+    return 'Gen ' + gen + (jammedBy(id) ? ' (jammed: ' + jammedChange(gen) + ')' : '');
+  }
+  // Days until a side holding pts points, gaining researchPerDay a day, can
+  // pay cost. Points arrive in each day's economy, after the day's
+  // decisions, so a project is bought at the start of the day after.
+  function daysToAfford(pts, cost) { return pts >= cost ? 0 : Math.ceil((cost - pts) / Sim.CFG.researchPerDay); }
+  function jammingText(id) {
+    var lvl = state.nations[id].jamming || 0;
+    if (!lvl) return 'none';
+    var reaches = jammedBy(otherSide(id));
+    return 'Gen ' + lvl + (reaches ? ', jamming ' + (id === 'player' ? 'their' : 'your') + ' Gen ' + Sim.droneGeneration(state, otherSide(id)) + ' wings'
+      : ', ' + (id === 'player' ? 'their' : 'your') + ' Gen ' + Sim.droneGeneration(state, otherSide(id)) + ' wings are beyond it');
+  }
+  function renderResearch() {
+    var n = state.nations.player;
+    var html = '';
+    Object.keys(Sim.CFG.research).forEach(function (id) {
+      var p = Sim.CFG.research[id];
+      var done = Sim.hasResearched(state, 'player', id);
+      var label = 'Research (' + p.cost + ' pts)', disabled = false;
+      if (done) { label = 'Fielded'; disabled = true; }
+      else if (p.requires && !Sim.hasResearched(state, 'player', p.requires)) { label = 'Needs ' + Sim.CFG.research[p.requires].label + ' first'; disabled = true; }
+      else if (n.researchPoints < p.cost) {
+        var wait = daysToAfford(n.researchPoints, p.cost);
+        label = 'Research (' + p.cost + ' pts): need ' + p.cost + ', you have ' + n.researchPoints + ' (affordable in ' + wait + (wait === 1 ? ' day' : ' days') + ')';
+        disabled = true;
+      }
+      html += '<div class="research-item' + (done ? ' done' : '') + '"><div class="research-title">' + p.label + ' <span class="research-cost">' +
+        p.cost + ' pts</span></div><div class="research-effect">' + projectEffect(id) + '</div>' +
+        '<button type="button" data-project="' + id + '" id="research-' + id + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button></div>';
+    });
+    el.researchList.innerHTML = html;
+    el.researchExplain.textContent = 'You gain ' + Sim.CFG.researchPerDay + ' research points a day, as the Dominion does (you have ' + n.researchPoints + '). ' +
+      'Each project is bought once, one at a time, from the points you have. Jamming of a generation works against enemy drone wings of that ' +
+      'generation or lower; the Dominion researches in its stated order, shown on its card.';
+  }
+
+  // The steel exchange: what each side has bled, from the sim's ledger,
+  // rounded to whole steel for display only.
+  function bled(id) { var l = state.ledger[id]; return Math.round(l.lostSteel + l.launchSteel); }
+  function renderExchange() {
+    var you = bled('player'), them = bled('enemy');
+    el.xcYou.textContent = you;
+    el.xcThem.textContent = them;
+    var ratio = 'No steel bled yet.';
+    if (you > 0 && them > 0) {
+      ratio = them >= you
+        ? 'The Dominion bleeds ' + (them / you).toFixed(1) + ' steel for every 1 of yours.'
+        : 'You bleed ' + (you / them).toFixed(1) + ' steel for every 1 of theirs.';
+    } else if (you > 0) {
+      ratio = 'Only you have bled so far.';
+    } else if (them > 0) {
+      ratio = 'Only the Dominion has bled so far.';
+    }
+    el.xcRatio.textContent = ratio;
+    el.xcYouLost.textContent = Math.round(state.ledger.player.lostSteel);
+    var launches = function (n) { return n + (n === 1 ? ' launch' : ' launches'); };
+    el.xcYouLaunch.textContent = state.ledger.player.launchSteel + ' (' + launches(state.ledger.player.launches) + ')';
+    el.xcThemLost.textContent = Math.round(state.ledger.enemy.lostSteel);
+    el.xcThemLaunch.textContent = state.ledger.enemy.launchSteel + ' (' + launches(state.ledger.enemy.launches) + ')';
+    var per = Object.keys(Sim.CFG.unitTypes).map(function (k) {
+      var t = Sim.CFG.unitTypes[k];
+      var name = t.label.toLowerCase();
+      return (/^[aeiou]/.test(name) ? 'an ' : 'a ') + name + ' of ' + t.strength + ' strength costs ' + t.steelCost + ' steel, so ' +
+        (t.steelCost / t.strength) + ' a point';
+    });
+    el.xcExplain.textContent = 'Who bleeds steel faster. Every point of strength a unit loses, in battle, to interceptors, ' +
+      'or to attrition, is counted at its share of the unit\'s steel cost (' + per.join('; ') + '). Interceptor launches ' +
+      'count the steel they burn, ' + Sim.CFG.interceptorSteel + ' each. The header shows both totals, rounded. ' +
+      'The scoreboard informs; it does not decide the war.';
+  }
+
+  // The river flotilla in plain words, and its button.
+  function flotillaLine(p) {
+    if (!Sim.onRiver(state, p.id)) return '';
+    var who = p.owner === 'player' ? 'your' : 'Dominion';
+    if (p.flotillaBuild) return 'River flotilla: being built, ' + p.flotillaBuild.daysLeft + (p.flotillaBuild.daysLeft === 1 ? ' day' : ' days') + ' left<br>';
+    if (p.flotilla > 0) return 'River flotilla: standing. ' + (who === 'your' ? 'Your' : 'Dominion') + ' attacks from here across the river keep full attack (no -' + Sim.CFG.riverCrossingPct + '%). Lost if the province falls<br>';
+    return 'River flotilla: none. Attacks from here across the river lose ' + Sim.CFG.riverCrossingPct + '% attack<br>';
+  }
+  function renderFlotillaButton(p, mine) {
+    var b = el.btnFlotilla, cost = Sim.CFG.flotillaCost;
+    if (!Sim.onRiver(state, p.id)) { b.disabled = true; b.textContent = 'River flotilla (only provinces on the river)'; return; }
+    if (!mine) { b.disabled = true; b.textContent = 'River flotilla (only your own provinces)'; return; }
+    if (p.flotilla > 0) { b.disabled = true; b.textContent = 'River flotilla standing'; return; }
+    if (p.flotillaBuild) { b.disabled = true; b.textContent = 'Building river flotilla: ' + p.flotillaBuild.daysLeft + ' days left'; return; }
+    var have = state.nations.player.equipment;
+    b.disabled = have < cost;
+    b.textContent = 'Build river flotilla (' + cost + ' eq, ' + Sim.CFG.flotillaBuildDays + ' days; attacks from here across the river keep full attack)' +
+      (have < cost ? ': need ' + cost + ', you have ' + have : '');
+  }
+
+  // The two seas in plain words: who holds each, and what the blockade takes.
+  function seaText(b, id) {
+    return ['north', 'south'].map(function (sea) {
+      var c = b[sea].control, h = Sim.seaHolding(state, sea), mine = h[id], theirs = h[id === 'player' ? 'enemy' : 'player'];
+      var who = c === null ? 'open (' + mine + ' of ' + h.of + ' each)' :
+        (c === id ? 'yours (' + mine + ' of ' + h.of + ')' : 'theirs (' + theirs + ' of ' + h.of + '), -' + b[sea].lost + ' steel a day');
+      return (sea === 'north' ? 'North ' : 'South ') + who;
+    }).join('; ');
+  }
+  // A coastal province's sea line on its card.
+  function coastLine(p) {
+    var sea = Sim.seaOf(state, p.id);
+    if (!sea) return '';
+    var c = Sim.seaControl(state, sea);
+    var name = sea === 'north' ? 'north sea' : 'south sea';
+    var line = 'Coast: on the ' + name + ', ' + (c === null ? 'open' : (c === 'player' ? 'held by you' : 'held by the Dominion'));
+    if (c && c !== p.owner) line += '. Its steel is cut ' + Sim.CFG.blockadePct + '% with the rest of ' + (p.owner === 'player' ? 'your' : 'their') + ' coast on this sea';
+    return line + '<br>';
+  }
+
+  // How you see this province, in plain words.
+  function sightLine(p) {
+    if (p.owner === 'player') return 'Sight: your province';
+    if (Sim.neighborsOf(state, p).some(function (np) { return np.owner === 'player'; })) return 'Sight: next to your ground, always seen';
+    var until = state.recon && state.recon.player ? state.recon.player[p.id] : null;
+    if (until != null && until >= state.day) return 'Sight: lit by your recon through day ' + until;
+    return 'Sight: unseen. Units here are unknown';
+  }
+
+  // Air defense in plain words: what stands, what it does, what it costs.
+  function airDefenseLine(p) {
+    var holder = p.owner === 'player' ? 'your' : 'the Dominion\'s';
+    if (p.airDefenseBuild) return 'Air defense: being built, ' + p.airDefenseBuild.daysLeft + (p.airDefenseBuild.daysLeft === 1 ? ' day' : ' days') + ' left';
+    if (!(p.airDefense > 0)) return 'Air defense: none';
+    return 'Air defense: standing. When enemy drone wings attack troops here, it launches one interceptor per wing before the fight, ' +
+      Sim.CFG.interceptorSteel + ' steel each from ' + holder + ' stockpile, -' + Sim.CFG.interceptStrength +
+      ' strength per wing hit, while that steel lasts. It is lost if the province falls';
+  }
+
+  function renderAirDefenseButton(p, mine) {
+    var b = el.btnAd, cost = Sim.CFG.airDefenseCost;
+    if (!mine) { b.disabled = true; b.textContent = 'Air defense (only your own provinces)'; return; }
+    if (p.airDefense > 0) { b.disabled = true; b.textContent = 'Air defense standing'; return; }
+    if (p.airDefenseBuild) { b.disabled = true; b.textContent = 'Building air defense: ' + p.airDefenseBuild.daysLeft + ' days left'; return; }
+    var have = state.nations.player.equipment;
+    b.disabled = have < cost;
+    b.textContent = 'Build air defense (' + cost + ' eq, ' + Sim.CFG.airDefenseBuildDays + ' days; ' + Sim.CFG.interceptorSteel +
+      ' steel per launch)' + (have < cost ? ': need ' + cost + ', you have ' + have : '');
+  }
+
+  function renderFortButton(p, mine) {
+    var b = el.btnFort, lvl = p.fortLevel || 0;
+    var cost = Sim.CFG.fortCostPerLevel * (lvl + 1);
+    if (!mine) { b.disabled = true; b.textContent = 'Fortify (only your own provinces)'; return; }
+    if (lvl >= Sim.CFG.fortMaxLevel) { b.disabled = true; b.textContent = 'Fortification at max level'; return; }
+    if (p.fortBuild) { b.disabled = true; b.textContent = 'Fortifying: ' + p.fortBuild.daysLeft + ' days left'; return; }
+    var have = state.nations.player.equipment;
+    b.disabled = have < cost;
+    b.textContent = 'Fortify to level ' + (lvl + 1) + ' (' + cost + ' eq, ' + Sim.CFG.fortBuildDays + ' days, +' +
+      Sim.CFG.fortDefensePctPerLevel + '% defense)' + (have < cost ? ': need ' + cost + ', you have ' + have : '');
+  }
+
   function renderProvinceCard() {
     var p = selectedProvinceId ? state.provinces[selectedProvinceId] : null;
     var btnF = el.btnFactory;
@@ -263,6 +614,12 @@
       el.provName.textContent = 'No province selected';
       el.provDetails.textContent = 'Click any province to inspect it.';
       btnF.disabled = true;
+      el.btnFort.disabled = true;
+      el.btnFort.textContent = 'Fortify';
+      el.btnAd.disabled = true;
+      el.btnAd.textContent = 'Build air defense';
+      el.btnFlotilla.disabled = true;
+      el.btnFlotilla.textContent = 'Build river flotilla';
       el.provExplain.textContent = '';
       el.railActions.innerHTML = '';
       return;
@@ -282,8 +639,15 @@
       'Owner: ' + ownerName + '<br>' +
       'Steel output: ' + p.steel + ' per day<br>' +
       'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
+      fortLine(p) + '<br>' +
+      airDefenseLine(p) + '<br>' +
+      flotillaLine(p) +
+      coastLine(p) +
+      sightLine(p) + '<br>' +
       supplyLine + '<br>' +
-      'Units here: ' + Sim.unitsIn(state, p.id).length;
+      (Sim.canSee(state, 'player', p.id)
+        ? 'Units here: ' + Sim.unitsIn(state, p.id).length
+        : 'Units here: unknown. You see your provinces, the provinces next to them, and what your recon lights.');
     renderRailActions(p);
     var mine = p.owner === 'player';
     var cost = Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1);
@@ -291,8 +655,13 @@
     btnF.textContent = p.factoryLevel >= Sim.CFG.maxFactoryLevel
       ? 'Factory at max level'
       : 'Build / Upgrade Factory (' + cost + ' eq)';
+    renderFortButton(p, mine);
+    renderAirDefenseButton(p, mine);
+    renderFlotillaButton(p, mine);
     el.provExplain.textContent = mine
-      ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more.'
+      ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
+        'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
+        lineUnlockText()
       : 'Enemy province. March a unit in to take it.';
   }
 
@@ -307,6 +676,7 @@
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = 'Build rail to ' + ne.province.name + ' (' + Sim.CFG.railCostSteel + ' steel, ' + Sim.CFG.railBuildDays + ' days)';
+      btn.setAttribute('data-rail-to', ne.province.id);
       btn.disabled = state.nations.player.steel < Sim.CFG.railCostSteel;
       btn.addEventListener('click', function () {
         Sim.buildRail(state, 'player', p.id, ne.province.id);
@@ -314,6 +684,21 @@
       });
       el.railActions.appendChild(btn);
     });
+  }
+
+  // Recon for a drone wing: range, how long it lights, and whether
+  // Dominion jamming would blind it, before the click.
+  function reconButton(u) {
+    if (u.type !== 'drone') return '';
+    var gen = Sim.droneGeneration(state, 'player');
+    var range = Sim.CFG.reconRange[gen];
+    var foeJam = state.nations.enemy.jamming || 0;
+    var label = 'Fly recon (Gen ' + gen + ': lights every province within ' + range + ' hops through tomorrow; the wing holds today)';
+    var disabled = false;
+    if (u.order) { label = 'Fly recon: this wing is already ordered to march today'; disabled = true; }
+    else if (u.reconDay === state.day) { label = 'Fly recon: this wing already flew today'; disabled = true; }
+    else if (foeJam >= gen) label += '. Warning: Dominion Jamming Gen ' + foeJam + ' reaches Gen ' + gen + ' drones, so the flight would be blinded';
+    return '<br><button type="button" id="btn-recon" data-unit="' + u.id + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>';
   }
 
   function renderUnitCard() {
@@ -324,8 +709,12 @@
     }
     var st = Sim.unitStats(state, u);
     var base = Sim.CFG.unitTypes[u.type];
-    var orderText = 'Holding position.';
-    if (u.order) orderText = 'Marching to ' + state.provinces[u.order.target].name + ' at dawn.';
+    var orderText = u.reconDay === state.day ? 'Flew recon today; it holds this province until tomorrow.' : 'Holding position.';
+    if (u.order) {
+      orderText = 'Marching to ' + state.provinces[u.order.target].name + ' at dawn. ' +
+        'If an enemy column marches on ' + state.provinces[u.provinceId].name +
+        ' the same day, this unit stays to defend it and the order is cancelled.';
+    }
     var supplyText = 'In supply. The rail net feeds this unit.';
     if ((u.daysOut || 0) > 0) {
       supplyText = 'OUT OF SUPPLY for ' + u.daysOut + (u.daysOut === 1 ? ' day' : ' days') +
@@ -334,16 +723,57 @@
     }
     // Attack preview: the same stackPower the combat and the AI use, so
     // the numbers here are the numbers the war is fought with.
-    var stack = Sim.unitsIn(state, u.provinceId).filter(function (x) { return x.nation === 'player'; });
-    var myPower = Sim.stackPower(state, stack, 'attack');
-    var preview = '';
+    // Only units that can march today attack: a wing that flew recon holds.
+    var here = Sim.unitsIn(state, u.provinceId).filter(function (x) { return x.nation === 'player'; });
+    var stack = here.filter(function (x) { return x.reconDay !== state.day; });
+    var scouting = here.length - stack.length;
+    var preview = scouting ? '<br>' + scouting + (scouting === 1 ? ' drone wing here flew' : ' drone wings here flew') +
+      ' recon today and cannot march; the attack numbers below leave ' + (scouting === 1 ? 'it' : 'them') + ' out.' : '';
+    var previewNote = '<br>A click orders only the selected unit. Each attack below counts the units here that are free to march or already ordered there; order each of them to attack together.';
+    var anyTarget = false;
     Sim.neighborsOf(state, state.provinces[u.provinceId]).forEach(function (np) {
       if (np.owner !== 'enemy') return;
-      var defs = Sim.unitsIn(state, np.id).filter(function (d) { return d.nation === 'enemy'; });
+      var defs = (Sim.seenUnitsIn(state, 'player', np.id) || []).filter(function (d) { return d.nation === 'enemy'; });
       if (!defs.length) return;
-      preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
-        ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included).';
-      preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
+      anyTarget = true;
+      // The units that can join this attack: free, already ordered here, or
+      // the selected unit itself (one click on the target reorders it).
+      var group = stack.filter(function (x) { return !x.order || x.order.target === np.id || x.id === u.id; });
+      var elsewhere = stack.length - group.length;
+      // Before interception, with the river crossing counted, so the
+      // "before interception" figure differs from the power only by launches.
+      var groupPower = Sim.attackPower(state, group, np.id);
+      var meetPower = Sim.stackPower(state, group, 'attack'); // a road meeting is no crossing
+      // Air defense there strikes your drone wings before the fight; the
+      // power below is what is left after the launches it can pay for.
+      var hit = Sim.interceptPlan(state, group, np.id);
+      var vsHere = Sim.stackPower(state, group, 'attack', np.id);
+      var adText = '';
+      if (np.airDefense > 0) {
+        var wings = group.filter(function (x) { return x.type === 'drone'; }).length;
+        var downed = hit.filter(function (x) { return x.strength <= Sim.CFG.interceptStrength; }).length;
+        var survive = hit.length - downed;
+        adText = ' Their air defense there launches one interceptor per drone wing (' + Sim.CFG.interceptorSteel +
+          ' steel each, -' + Sim.CFG.interceptStrength + ' strength) while their steel lasts: ';
+        if (!wings) {
+          adText += 'it strikes only drone wings, and this stack has none.';
+        } else {
+          adText += hit.length + ' of your ' + wings + (wings === 1 ? ' wing' : ' wings') + ' would be hit' +
+            (hit.length ? ' (' + (hit.length * Sim.CFG.interceptorSteel) + ' of their steel)' : '') +
+            (downed ? ', ' + downed + ' downed before the fight' : '') +
+            (survive ? ', ' + survive + (survive === 1 ? ' fights on' : ' fight on') + ' at lower strength with full attack' : '') + '.';
+        }
+      }
+      preview += '<br>Attack ' + np.name + ': your stack power ' + vsHere +
+        (vsHere !== groupPower ? ' (' + groupPower + ' before interception)' : '') +
+        (elsewhere ? ' (' + elsewhere + (elsewhere === 1 ? ' unit here is' : ' units here are') + ' ordered elsewhere and left out)' : '') +
+        (group.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? ' (includes -' + Sim.CFG.jammingPct + '% on your jammed drone wings)' : '') +
+        (groupPower < Sim.attackPower(state, group, null) ? ' (includes -' + Sim.CFG.riverCrossingPct + '% for attacking across the river, taken once off the stack: ' +
+          Sim.attackPower(state, group, null) + ' to ' + groupPower + ')' : '') +
+        ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
+        (defs.some(function (x) { return Sim.unitStats(state, x).jamming > 0; }) ? '; includes -' + Sim.CFG.jammingPct + '% on their jammed drone wings' : '') +
+        (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').' + adText;
+      preview += '<br>If they march out and meet you on the road: your attack ' + meetPower +
         ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
       // If taking this province would start rail conversions, say so
       // before the player commits, never as a surprise after the fact.
@@ -360,17 +790,157 @@
     el.unitDetails.innerHTML =
       base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
       'Attack ' + st.attack + ', Defense ' + st.defense +
-      (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
+      (st.fortBonus > 0 ? ' (includes +' + st.fortBonus + '% from fortifications here)' : '') +
+      (u.type === 'drone' ? ' (Drone Gen ' + Sim.droneGeneration(state, 'player') + ')' : '') +
+      (st.jamming > 0 ? ' (includes -' + st.jamming + '% from Dominion Jamming Gen ' + state.nations.enemy.jamming + ')' : '') + '<br>' +
       'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days on a production line.<br>' +
       supplyText + '<br>' +
-      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
+      'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + reconButton(u) + (anyTarget ? previewNote : '') + preview;
   }
 
   function renderLog() {
-    var items = state.log.slice(-12).reverse();
+    // Your log leaves out lines about Dominion units you could not see.
+    var items = state.log.filter(function (e) { return !(e.hiddenFrom && e.hiddenFrom.indexOf('player') !== -1); }).slice(-12).reverse();
     el.log.innerHTML = items.map(function (entry) {
       return '<li><span class="day-tag">Day ' + entry.day + '</span>' + entry.msg + '</li>';
     }).join('');
+  }
+
+  // ---------- Lore: event cards and the codex ----------
+  function setPaused(p) {
+    paused = p;
+    el.btnPause.textContent = paused ? 'Resume' : 'Pause';
+    el.btnStep.disabled = !paused;
+  }
+  function overlayOpen() {
+    return !el.eventOverlay.classList.contains('hidden') || !el.codexOverlay.classList.contains('hidden');
+  }
+  // The player's own pause is remembered once, when the first overlay of a
+  // run opens, and kept until the last one closes; a second card on the
+  // same day or the codex opened from a card must not overwrite it.
+  function openOverlayPause() {
+    if (pauseBeforeOverlay === null) pauseBeforeOverlay = paused;
+    setPaused(true);
+  }
+  function closeOverlayPause() {
+    if (overlayOpen()) return;
+    if (pauseBeforeOverlay !== null) setPaused(pauseBeforeOverlay);
+    pauseBeforeOverlay = null;
+  }
+
+  var WHO = {
+    player: 'The Vessari reached it first.',
+    enemy: 'The Khessites reached it first.',
+    both: 'Both sides reached it on the same day.'
+  };
+
+  // Turning points come from the sim (state.beats); their words come from
+  // js/lore.js. A beat recorded this tick queues its card once.
+  function checkBeats() {
+    var beats = state.beats || {};
+    Sim.BEAT_IDS.forEach(function (id) {
+      if (beats[id] && !shownBeats[id]) { shownBeats[id] = true; cardQueue.push(id); }
+    });
+    if (cardQueue.length && el.eventOverlay.classList.contains('hidden')) showNextCard();
+  }
+
+  function showNextCard() {
+    var id = cardQueue.shift();
+    var beat = state.beats[id];
+    var text = Lore.beats[id];
+    el.eventKicker.textContent = 'Turning point, day ' + beat.day;
+    el.eventTitle.textContent = text.title;
+    el.eventBody.textContent = text.variants[beat.by];
+    el.eventWhy.innerHTML = '';
+    var label = document.createElement('span');
+    label.className = 'why-label';
+    label.textContent = 'Why this card: ';
+    el.eventWhy.appendChild(label);
+    el.eventWhy.appendChild(document.createTextNode('on day ' + beat.day + ' ' + text.trigger + '. ' + WHO[beat.by]));
+    el.eventNoeffect.textContent = Lore.noEffect;
+    openOverlayPause();
+    el.eventOverlay.classList.remove('hidden');
+    el.btnEventContinue.focus();
+  }
+
+  function closeCard() {
+    el.eventOverlay.classList.add('hidden');
+    if (cardQueue.length) { showNextCard(); return; }
+    closeOverlayPause();
+  }
+
+  function openCodex(entryId) {
+    if (entryId) codexEntryId = entryId;
+    el.eventOverlay.classList.add('hidden');
+    openOverlayPause();
+    el.codexOverlay.classList.remove('hidden');
+    renderCodex();
+    el.btnCodexClose.focus();
+  }
+
+  function closeCodex() {
+    el.codexOverlay.classList.add('hidden');
+    if (cardQueue.length) { showNextCard(); return; } // cards waiting behind the codex
+    closeOverlayPause();
+  }
+
+  function renderCodex() {
+    el.codexNav.innerHTML = '';
+    var head = textDiv('kicker', 'History');
+    el.codexNav.appendChild(head);
+    Lore.codexOrder.forEach(function (id) {
+      var entry = Lore.entries[id];
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'codex-entry';
+      b.setAttribute('aria-pressed', id === codexEntryId ? 'true' : 'false');
+      var t = document.createElement('span'); t.className = 'entry-title'; t.textContent = entry.title;
+      var k = document.createElement('span'); k.className = 'entry-kind'; k.textContent = entry.kind;
+      b.appendChild(t); b.appendChild(k);
+      b.addEventListener('click', function () { codexEntryId = id; renderCodex(); });
+      el.codexNav.appendChild(b);
+    });
+    el.codexNav.appendChild(textDiv('kicker later', 'Turning points so far'));
+    // Reached turning points in the order they happened, then the rest.
+    var beats = state.beats || {};
+    Sim.BEAT_IDS.slice().sort(function (a, b) {
+      var da = beats[a] ? beats[a].day : Infinity, db = beats[b] ? beats[b].day : Infinity;
+      return da - db || Sim.BEAT_IDS.indexOf(a) - Sim.BEAT_IDS.indexOf(b);
+    }).forEach(function (id) {
+      var beat = beats[id];
+      if (!beat) {
+        el.codexNav.appendChild(textDiv('codex-beat pending', Lore.beats[id].title + ': not yet'));
+        return;
+      }
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'codex-entry';
+      b.setAttribute('aria-pressed', codexEntryId === 'beat:' + id ? 'true' : 'false');
+      var t = document.createElement('span'); t.className = 'entry-title';
+      var d = document.createElement('span'); d.className = 'beat-day'; d.textContent = 'Day ' + beat.day + ' ';
+      t.appendChild(d); t.appendChild(document.createTextNode(Lore.beats[id].title));
+      var k = document.createElement('span'); k.className = 'entry-kind'; k.textContent = WHO[beat.by];
+      b.appendChild(t); b.appendChild(k);
+      b.addEventListener('click', function () { codexEntryId = 'beat:' + id; renderCodex(); });
+      el.codexNav.appendChild(b);
+    });
+    var entry;
+    if (codexEntryId.indexOf('beat:') === 0) {
+      var bid = codexEntryId.slice(5), rec = beats[bid], lb = Lore.beats[bid];
+      entry = { kind: 'Turning point, day ' + rec.day, title: lb.title,
+        text: [lb.variants[rec.by], 'Why this card: on day ' + rec.day + ' ' + lb.trigger + '. ' + WHO[rec.by], Lore.noEffect] };
+    } else {
+      entry = Lore.entries[codexEntryId];
+    }
+    el.codexArticle.innerHTML = '';
+    el.codexArticle.appendChild(textDiv('kicker', entry.kind));
+    var h = document.createElement('h3'); h.textContent = entry.title;
+    el.codexArticle.appendChild(h);
+    el.codexArticle.appendChild(textDiv('rule', ''));
+    entry.text.forEach(function (para) {
+      var p = document.createElement('p'); p.textContent = para;
+      el.codexArticle.appendChild(p);
+    });
   }
 
   // ---------- Interaction ----------
@@ -396,10 +966,26 @@
     render();
   }
 
-  el.btnPause.addEventListener('click', function () {
-    paused = !paused;
-    el.btnPause.textContent = paused ? 'Resume' : 'Pause';
+  // Next day: while paused, play exactly one day.
+  el.btnStep.addEventListener('click', function () {
+    if (!paused || overlayOpen() || state.gameOver) return;
+    advanceDay();
   });
+  // Escape clears the selected unit, so a click on a neighbouring
+  // province selects there instead of ordering the unit.
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape' || overlayOpen()) return;
+    selectedUnitId = null;
+    render();
+  });
+  el.btnPause.addEventListener('click', function () {
+    if (overlayOpen()) return; // a card or the codex holds the pause until closed
+    setPaused(!paused);
+  });
+  el.btnCodex.addEventListener('click', function () { openCodex(); });
+  el.btnCodexClose.addEventListener('click', closeCodex);
+  el.btnEventContinue.addEventListener('click', closeCard);
+  el.btnEventCodex.addEventListener('click', function () { openCodex('ashwater'); });
   el.btnSpeed1.addEventListener('click', function () {
     speed = 1;
     el.btnSpeed1.classList.add('active'); el.btnSpeed2.classList.remove('active');
@@ -411,13 +997,31 @@
     startTimer();
   });
   el.btnNew.addEventListener('click', newGame);
-  el.btnResearch.addEventListener('click', function () {
-    Sim.researchDroneGen2(state, 'player');
+  el.unitDetails.addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('#btn-recon') : null;
+    if (!b || b.disabled) return;
+    Sim.reconFlight(state, 'player', Number(b.getAttribute('data-unit')));
     render();
+  });
+  el.researchList.addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('button[data-project]') : null;
+    if (!b || b.disabled) return;
+    Sim.research(state, 'player', b.getAttribute('data-project'));
+    render();
+  });
+  el.btnFort.addEventListener('click', function () {
+    if (selectedProvinceId) { Sim.buildFortification(state, 'player', selectedProvinceId); render(); }
+  });
+  el.btnFlotilla.addEventListener('click', function () {
+    if (selectedProvinceId) { Sim.buildFlotilla(state, 'player', selectedProvinceId); render(); }
+  });
+  el.btnAd.addEventListener('click', function () {
+    if (selectedProvinceId) { Sim.buildAirDefense(state, 'player', selectedProvinceId); render(); }
   });
   el.btnFactory.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildFactory(state, 'player', selectedProvinceId); render(); }
   });
 
+  renderDemo();
   newGame();
 })();

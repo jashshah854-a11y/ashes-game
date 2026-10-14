@@ -7,7 +7,7 @@
 // the live factory total shown in the nation panel: lines with a
 // threshold above the total must render as locked rows with the exact
 // condition text and zero buttons, earned lines must render live.
-// Usage: node tools/browser-check.js
+// Usage: node tools/browser-check.js   (CHROME=/path/to/chrome to pick a browser)
 // Exit 0 when every gating check passes, 1 on a check failure, 2 on error.
 const { spawn } = require('child_process');
 const http = require('http');
@@ -16,7 +16,10 @@ const path = require('path');
 
 const REPO = path.join(__dirname, '..');
 const PORT = 9337;
-const THRESHOLDS = [0, 0, 16, 24]; // CFG.lineUnlockFactoryLevels in js/sim.js
+const THRESHOLDS = require('../js/sim.js').CFG.lineUnlockFactoryLevels; // read from the sim so it cannot drift
+// Chromium: CHROME if set, else the first known install that exists.
+const CHROME = process.env.CHROME ||
+  ['/opt/meta-chromium/chrome', '/opt/pw-browsers/chromium'].find((p) => fs.existsSync(p));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function getJson(url) {
@@ -30,7 +33,8 @@ function getJson(url) {
 }
 
 (async () => {
-  const chrome = spawn('/opt/meta-chromium/chrome', [
+  if (!CHROME) throw new Error('no Chromium found; set CHROME to its path');
+  const chrome = spawn(CHROME, [
     '--headless=new', '--no-sandbox', '--disable-gpu',
     '--user-data-dir=/tmp/chrome-ashes-browser-check', '--remote-debugging-address=127.0.0.1',
     '--remote-debugging-port=' + PORT, '--window-size=1500,1100',

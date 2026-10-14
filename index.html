@@ -14,9 +14,13 @@
   </div>
   <div class="controls">
     <div class="day-box">Day <span id="day-counter">1</span> / <span id="day-max">150</span></div>
+    <div class="day-box exchange-box" id="exchange-box">Steel bled: you <strong id="xc-you">0</strong>,
+      Dominion <strong id="xc-them">0</strong>. <span id="xc-ratio">No steel bled yet.</span></div>
     <button id="btn-pause" type="button">Pause</button>
+    <button id="btn-step" type="button" disabled title="Play one day while paused">Next day</button>
     <button id="btn-speed1" type="button" class="speed active">Speed 1x</button>
     <button id="btn-speed2" type="button" class="speed">Speed 2x</button>
+    <button id="btn-codex" type="button">Codex</button>
     <button id="btn-new" type="button">New Game</button>
   </div>
 </header>
@@ -26,25 +30,54 @@
     <div id="map" class="map" aria-label="Province map"></div>
     <p class="hint">
       Click one of your units to select it, then click a highlighted neighboring
-      province to march or attack. Blue is yours, red is the Dominion.
+      province to march or attack. A click orders only that unit: to attack with a
+      stack, order each unit; clicking the province again picks the next unit there.
+      Press Escape to clear the selection. While paused, Next day plays one day. Blue is yours, red is the Dominion.
       A star marks a capital. Take theirs before the campaign ends.
+      Dominion provinces you cannot see are drawn dark: you see your provinces, the
+      provinces next to them, and what your drone recon lights, which is outlined in green.
+      Attacking across the river line (the blue band down the middle of the map) costs
+      <span id="river-pct">15</span>% of the attacking stack's attack, for both sides.
       Rail is supply: provinces off your rail net show hatched, and units there
       weaken every day. Build rail from the province card to feed new ground.
     </p>
+    <p class="hint" id="map-key">Map key: Factory N is a factory level (Fa N on phones);
+      Fort N is walls (F N on phones, F1>2 while raising level 1 to 2); AD is air defense;
+      Fleet is a river flotilla (Fl on phones); a dashed badge is work in progress. Unit chips
+      read type, strength, and attack (on phones I or D and strength). The top and bottom
+      rows are coasts: whoever holds more of a coast controls that sea, and a sea held
+      against you cuts the steel from your coastal provinces there by <span id="blockade-pct">50</span>%.</p>
     <div id="banner" class="banner hidden"></div>
   </section>
 
   <aside class="panel">
+    <div class="card demo-card hidden" id="demo-card">
+      <h2>Options in play</h2>
+      <p class="explain">This is not the standard game: the address switches on these measured alternatives, and every number on screen uses them.</p>
+      <ul id="demo-list" class="demo-list"></ul>
+    </div>
     <div class="card" id="nation-card">
       <h2>The Vessari Compact (you)</h2>
       <div class="stat-row"><span>Equipment stockpile</span><strong id="stat-equipment">0</strong></div>
       <div class="stat-row"><span>Steel stockpile</span><strong id="stat-steel">0</strong></div>
       <div class="stat-row"><span>Steel income / day</span><strong id="stat-steel-income">0</strong></div>
+      <div class="stat-row"><span>Seas</span><strong id="stat-seas">open</strong></div>
       <div class="stat-row"><span>Factory levels</span><strong id="stat-factories">0</strong></div>
       <div class="stat-row"><span>Research points</span><strong id="stat-research">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-drone-gen">Gen 1</strong></div>
-      <button id="btn-research" type="button">Research Drone Gen 2 (60 pts)</button>
-      <p class="explain" id="research-explain">Gen 2 raises every drone wing to attack 5, defense 3.</p>
+      <div class="stat-row"><span>Jamming</span><strong id="stat-jamming">none</strong></div>
+      <h3 class="sub-head">Research</h3>
+      <div id="research-list" class="research-list"></div>
+      <p class="explain" id="research-explain"></p>
+    </div>
+
+    <div class="card" id="exchange-card">
+      <h2>Steel exchange</h2>
+      <div class="stat-row"><span>Steel you lost in units</span><strong id="xc-you-lost">0</strong></div>
+      <div class="stat-row"><span>Steel you spent on interceptors</span><strong id="xc-you-launch">0</strong></div>
+      <div class="stat-row"><span>Steel the Dominion lost in units</span><strong id="xc-them-lost">0</strong></div>
+      <div class="stat-row"><span>Steel the Dominion spent on interceptors</span><strong id="xc-them-launch">0</strong></div>
+      <p class="explain" id="xc-explain">Who bleeds steel faster.</p>
     </div>
 
     <div class="card" id="production-card">
@@ -52,8 +85,8 @@
       <div id="prod-summary" class="prod-summary"></div>
       <div id="production-lines" class="production-lines"></div>
       <p class="explain" id="prod-explain">Lines build one unit at a time and drain steel every day
-      while they work. If the steel stockpile cannot pay a line for a day, that line stalls and
-      makes no progress. A finished unit deploys at your capital. Retooling a line to the other
+      while they work. Lines are paid before factories. If the steel stockpile cannot pay a line
+      for a day, that line stalls and makes no progress. A finished unit deploys at your capital. Retooling a line to the other
       template scraps the unit in progress, and the steel already spent on it is lost.</p>
     </div>
 
@@ -62,6 +95,9 @@
       <div id="prov-details" class="prov-details">Click any province to inspect it.</div>
       <div class="btn-col">
         <button id="btn-factory" type="button" disabled>Build / Upgrade Factory</button>
+        <button id="btn-fort" type="button" disabled>Fortify</button>
+        <button id="btn-ad" type="button" disabled>Build air defense</button>
+        <button id="btn-flotilla" type="button" disabled>Build river flotilla</button>
       </div>
       <div class="btn-col" id="rail-actions"></div>
       <p class="explain" id="prov-explain"></p>
@@ -77,10 +113,29 @@
       <div class="stat-row"><span>Provinces held</span><strong id="stat-enemy-provs">0</strong></div>
       <div class="stat-row"><span>Units in the field</span><strong id="stat-enemy-units">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-enemy-gen">Gen 1</strong></div>
+      <div class="stat-row"><span>Jamming</span><strong id="stat-enemy-jam">none</strong></div>
+      <div class="stat-row"><span>Next research</span><strong id="stat-enemy-research">Drone Gen 2</strong></div>
+      <div class="stat-row"><span>Factory levels</span><strong id="stat-enemy-factories">0</strong></div>
+      <div class="stat-row"><span>Production lines open</span><strong id="stat-enemy-lines">2</strong></div>
+      <div class="stat-row"><span>Fortified provinces</span><strong id="stat-enemy-forts">none</strong></div>
+      <div class="stat-row"><span>Air defense</span><strong id="stat-enemy-ad">none</strong></div>
+      <div class="stat-row"><span>Blockade on it</span><strong id="stat-enemy-blockade">none</strong></div>
       <p class="explain">Dominion doctrine: it masses for 10 days, attacks only at clear
       superiority (about 1.5x your defense), and never attacks while its own units are
       out of supply. Starve its rail and it stalls. It always keeps a garrison of three
-      units on its capital.</p>
+      units on its capital. It fortifies its capital, then its Spine province facing the
+      river, whenever it holds <span id="ai-fort-eq">300</span> equipment. After that it builds
+      air defense at its capital whenever it holds <span id="ai-ad-eq">400</span> equipment.
+      It researches <span id="ai-research-order">in a fixed order</span>, each as soon as it has
+      the points, and never changes that order for what you research. It sees by the same rule as
+      you (its provinces and the provinces next to them), decides only on what it sees, and flies no recon.
+      It builds no river flotilla, so its attacks across the river always pay the crossing.</p>
+    </div>
+
+    <div class="card" id="demo-try">
+      <h2>Try a measured option</h2>
+      <p class="explain">Each link reloads the game with one alternative from DECISIONS_FOR_JASH.md, labelled with its measured effect. Options combine in the address (for example ?drones=234&amp;crossing=25).</p>
+      <ul id="demo-links" class="demo-list"></ul>
     </div>
 
     <div class="card log-card">
@@ -90,7 +145,41 @@
   </aside>
 </main>
 
+<div id="event-overlay" class="overlay hidden">
+  <div class="event-card" role="dialog" aria-modal="true" aria-labelledby="event-title">
+    <div class="event-head"><span id="event-kicker" class="kicker"></span><span class="kicker">The game is paused</span></div>
+    <h2 id="event-title"></h2>
+    <div class="rule"></div>
+    <p id="event-body" class="event-body"></p>
+    <div class="event-why">
+      <div id="event-why"></div>
+      <div id="event-noeffect" class="noeffect"></div>
+    </div>
+    <div class="event-actions">
+      <button id="btn-event-codex" type="button" class="linkish">Read the history in the codex</button>
+      <button id="btn-event-continue" type="button" class="primary">Continue the war</button>
+    </div>
+  </div>
+</div>
+
+<div id="codex-overlay" class="overlay hidden">
+  <div class="codex" role="dialog" aria-modal="true" aria-labelledby="codex-title">
+    <div class="codex-head">
+      <div>
+        <h2 id="codex-title">Codex</h2>
+        <div class="codex-sub">The world before the war, and the turning points of this one. The game is paused while you read.</div>
+      </div>
+      <button id="btn-codex-close" type="button">Back to the war</button>
+    </div>
+    <div class="codex-body">
+      <nav id="codex-nav" class="codex-nav" aria-label="Codex entries"></nav>
+      <article id="codex-article" class="codex-article"></article>
+    </div>
+  </div>
+</div>
+
 <script src="js/sim.js"></script>
+<script src="js/lore.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

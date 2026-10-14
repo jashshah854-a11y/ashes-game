@@ -18,7 +18,7 @@ header {
 }
 h1 { margin: 0; font-size: 24px; letter-spacing: 1px; color: #e8c87a; }
 .subtitle { margin: 2px 0 0; font-size: 13px; color: #b9b09a; }
-.controls { display: flex; gap: 8px; align-items: center; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .day-box {
   background: #101214; border: 1px solid #4a4232; border-radius: 4px;
   padding: 6px 12px; font-size: 15px;
@@ -129,3 +129,171 @@ main {
 /* Cycle 6: locked production slots, present but unavailable. */
 .prod-line.locked { border: 1px dashed #4a4232; opacity: 0.75; }
 .prod-line .prod-locked { color: #b9b09a; }
+
+/* Cycle 7: event cards and the codex, from the Claude Design mockup. */
+.overlay {
+  position: fixed; inset: 0; z-index: 50; background: rgba(10, 11, 13, 0.62);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.overlay.hidden { display: none; }
+.kicker { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #b9b09a; }
+.event-card {
+  width: 600px; max-width: 100%; max-height: 100%; overflow-y: auto; box-sizing: border-box;
+  background: #22252a; border: 1px solid #6b6250; border-radius: 6px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6); padding: 32px 36px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.event-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.event-card h2, .codex h2 { margin: 0; font-weight: normal; color: #e8c87a; letter-spacing: 0.5px; }
+.event-card h2 { font-size: 34px; }
+.rule { height: 1px; background: #4a4232; }
+.event-body { margin: 0; font-size: 18px; line-height: 1.6; }
+.event-why {
+  display: flex; flex-direction: column; gap: 6px; background: #1c1f23;
+  border: 1px solid #4a4232; border-radius: 4px; padding: 12px 14px; font-size: 14px; line-height: 1.5;
+}
+.event-why .why-label { color: #e8c87a; }
+.noeffect { color: #c9c1ad; }
+.event-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+button.primary { min-height: 44px; background: #6d5a26; color: #fff2c4; border-color: #e8c87a; padding: 10px 22px; font-size: 16px; }
+button.primary:hover { background: #85702f; }
+button.linkish { background: none; border: none; color: #e8c87a; text-decoration: underline; padding: 12px 0; font-size: 15px; }
+button.linkish:hover { background: none; color: #fff2c4; }
+.codex {
+  width: 1100px; max-width: 100%; height: 86vh; box-sizing: border-box; background: #191b1e;
+  border: 1px solid #6b6250; border-radius: 6px; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.codex-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 16px 28px; background: #22252a; border-bottom: 2px solid #4a4232;
+}
+.codex-head h2 { font-size: 26px; letter-spacing: 1px; }
+.codex-sub { font-size: 13px; color: #b9b09a; }
+.codex-head button { min-height: 44px; }
+.codex-body { display: flex; flex-wrap: wrap; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.codex-nav {
+  flex: 1 1 260px; max-width: 320px; box-sizing: border-box; border-right: 1px solid #4a4232;
+  padding: 20px 16px; display: flex; flex-direction: column; gap: 6px; background: #1c1f23;
+}
+.codex-nav .kicker { font-size: 12px; padding: 0 10px 6px; }
+.codex-nav .kicker.later { padding-top: 18px; }
+.codex-entry {
+  min-height: 44px; text-align: left; display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px; background: transparent; border: 1px solid transparent; color: #e8e2d4;
+}
+.codex-entry .entry-title { font-size: 16px; }
+.codex-entry .entry-kind { font-size: 12px; color: #b9b09a; }
+.codex-entry[aria-pressed="true"] { background: #2c2a24; border-color: #6b6250; }
+.codex-entry[aria-pressed="true"] .entry-title { color: #e8c87a; }
+.codex-beat { font-size: 14px; line-height: 1.5; padding: 0 10px; }
+.codex-entry .beat-day { color: #e8c87a; }
+.codex-beat.pending { color: #b9b09a; }
+.codex-article { flex: 999 1 480px; min-width: 0; padding: 36px 48px; display: flex; flex-direction: column; gap: 16px; }
+.codex-article h3 { margin: 0; font-size: 34px; font-weight: normal; color: #e8c87a; }
+.codex-article .rule { max-width: 720px; }
+.codex-article p { margin: 0; max-width: 720px; font-size: 18px; line-height: 1.65; }
+@media (max-width: 700px) {
+  .codex-nav { max-width: none; border-right: none; border-bottom: 1px solid #4a4232; }
+  .codex-article { padding: 24px 16px; }
+  .event-card { padding: 24px 20px; }
+}
+
+/* Cycle 8: fortification badges on the map. */
+.fort-badge {
+  /* Pinned to the tile's top right, where unit chips never reach. */
+  position: absolute; top: 2px; right: 2px; z-index: 1;
+  display: inline-block; padding: 0 4px; border-radius: 2px;
+  background: rgba(0, 0, 0, 0.5); color: #d9d2c0; border: 1px solid #8a8070; font-weight: bold;
+}
+.fort-badge.lvl2 { background: rgba(60, 60, 60, 0.85); color: #fff; border-color: #d9d2c0; }
+.fort-badge.building { font-weight: normal; border-style: dashed; }
+
+/* Cycle 10: air defense badges and the steel exchange. */
+.ad-badge {
+  /* Under the fort badge, still above where unit chips sit. */
+  position: absolute; top: 20px; right: 2px; z-index: 1;
+  display: inline-block; padding: 0 4px; border-radius: 2px;
+  background: rgba(20, 40, 60, 0.8); color: #cfe6ff; border: 1px solid #7fa6cc; font-weight: bold;
+}
+.ad-badge.building { font-weight: normal; border-style: dashed; }
+.exchange-box { font-size: 14px; max-width: 100%; }
+
+/* Cycle 11: the research panel. */
+.sub-head { margin: 10px 0 6px; font-size: 14px; color: #e8c87a; font-weight: normal; }
+.research-list { display: flex; flex-direction: column; gap: 6px; }
+.research-item { background: #1c1f23; border: 1px solid #4a4232; border-radius: 4px; padding: 6px 8px; font-size: 13px; line-height: 1.4; }
+.research-item.done { opacity: 0.7; }
+.research-title { color: #e8c87a; }
+.research-cost { color: #b9b09a; font-size: 12px; }
+.research-effect { color: #d8d0bc; margin: 2px 0 4px; }
+.research-item button { width: 100%; font-size: 13px; padding: 5px 8px; }
+
+/* Cycle 12: fog of war. */
+.province.fogged { filter: brightness(0.55) saturate(0.6); }
+.province.lit { box-shadow: inset 0 0 0 2px rgba(159, 224, 138, 0.7); }
+.fog-tag {
+  position: absolute; bottom: 3px; left: 3px; font-size: 9px; padding: 0 3px;
+  background: rgba(0, 0, 0, 0.6); color: #b9b09a; border-radius: 2px;
+}
+#btn-recon { margin-top: 6px; width: 100%; font-size: 13px; padding: 5px 8px; text-align: left; }
+.fog-short { display: none; }
+@media (max-width: 700px) {
+  .fog-long { display: none; }
+  .fog-short { display: inline; }
+}
+
+/* Cycle 14: river flotilla badges. */
+.fleet-badge {
+  position: absolute; top: 38px; right: 2px; z-index: 1;
+  display: inline-block; padding: 0 4px; border-radius: 2px;
+  background: rgba(10, 50, 70, 0.85); color: #bfe9ff; border: 1px solid #6fb6d6; font-weight: bold;
+}
+.fleet-badge.building { font-weight: normal; border-style: dashed; }
+
+/* Cycle 15: the river line, drawn on the east side of the west bank tiles. */
+.river-bar {
+  position: absolute; top: 0; bottom: 0; right: 0; width: 5px; z-index: 1;
+  background: repeating-linear-gradient(180deg, #4f9fd8 0 6px, #2f6f9f 6px 12px);
+}
+
+/* Cycle 15: badges on phone widths: short labels, a tight column, chips still visible. */
+.b-short { display: none; }
+@media (max-width: 700px) {
+  .b-long { display: none; }
+  .b-short { display: inline; }
+  .fort-badge, .ad-badge, .fleet-badge { font-size: 8px; padding: 0 2px; line-height: 1.3; white-space: nowrap; }
+  .ad-badge { top: 14px; }
+  .fleet-badge { top: 26px; }
+}
+
+/* Cycle 16: crowded tiles stay readable. */
+.province { min-height: 100px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+.unit-chip { line-height: 1.25; }
+@media (max-width: 700px) {
+  .unit-chip { font-size: 8px; padding: 0 2px; line-height: 1.3; }
+  .units { gap: 1px; }
+  .factory-badge { font-size: 8px; padding: 0 2px; }
+}
+.factory-badge { position: absolute; top: 28px; left: 3px; z-index: 1; margin-top: 0; }
+.province .steel { display: block; }
+@media (max-width: 700px) {
+  .factory-badge { top: 26px; }
+}
+
+/* Cycle 17: the badge strip flows at the top of the tile; nothing pinned over the name. */
+.province { min-height: 124px; }
+.badge-strip { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; margin-bottom: 1px; }
+.badge-strip .fort-badge, .badge-strip .ad-badge, .badge-strip .fleet-badge, .badge-strip .rail-tag,
+.province .factory-badge { position: static; top: auto; right: auto; left: auto; z-index: 1; }
+.province .factory-badge { align-self: flex-start; margin-top: 1px; }
+.badge-strip .rail-tag { padding: 0 3px; }
+@media (max-width: 700px) {
+  .badge-strip { gap: 1px; }
+  .badge-strip .rail-tag { font-size: 8px; padding: 0 2px; }
+}
+
+/* Cycle 17: demo options. */
+.demo-card { border-color: #e8c87a; }
+.demo-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+.demo-list a { color: #e8c87a; }

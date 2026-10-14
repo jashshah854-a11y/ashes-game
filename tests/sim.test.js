@@ -121,15 +121,15 @@ test('research: Drone Gen 2 changes drone attack and defense stats', () => {
   const s = Sim.createGame(41);
   const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
   const before = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(before, { attack: 3, defense: 2, supplyPenalty: 0 });
+  assert.deepStrictEqual(before, { attack: 3, defense: 2, supplyPenalty: 0, fortBonus: 0, jamming: 0 });
   s.nations.player.researchPoints = Sim.CFG.droneGen2Cost;
   const res = Sim.researchDroneGen2(s, 'player');
   assert.strictEqual(res.ok, true);
   const after = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(after, { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, supplyPenalty: 0 });
+  assert.deepStrictEqual(after, { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, supplyPenalty: 0, fortBonus: 0, jamming: 0 });
   // Infantry is untouched by drone research.
   const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
-  assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0 });
+  assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0, fortBonus: 0, jamming: 0 });
 });
 
 test('win: capturing the enemy capital ends the game for the player', () => {
@@ -884,4 +884,1259 @@ test('retool: switching a line template resets progress, keeps the queue, refund
   // Total spend from the 100 steel baseline: 10 before retool plus 15 after.
   assert.strictEqual(100 - n.steel, 10 + 15);
   assert.strictEqual(n.steel, 75);
+});
+
+// ---------- Cycle 6 reconciliation: drawn in defenders under reversal ----------
+
+// A busy movement phase with every engagement kind in it: a province
+// battle whose defenders had orders elsewhere, a meeting on a road, a
+// clash over an empty province, and a plain move.
+function busyScenario(reverse) {
+  const s = Sim.createGame(77);
+  const byId = id => s.units.find(u => u.id === id);
+  // Starting ids: player 1 (p3_2 inf), 2 (p3_4 inf), 3 (p4_3 inf), 4 (p4_3 drone),
+  // 5 and 6 (capital inf), 7 (capital drone); enemy 8 (p6_2 inf), 9 (p6_4 inf),
+  // 10 (p5_3 inf), 11 (p5_3 drone), 12 to 14 on its capital.
+  byId(1).provinceId = 'p4_2'; byId(8).provinceId = 'p5_2';
+  byId(9).provinceId = 'p5_4';
+  Sim.issueOrder(s, 3, 'p5_3'); Sim.issueOrder(s, 4, 'p5_3');   // battle
+  Sim.issueOrder(s, 10, 'p5_2'); Sim.issueOrder(s, 11, 'p5_2'); // defenders ordered away
+  Sim.issueOrder(s, 1, 'p5_2'); Sim.issueOrder(s, 8, 'p4_2');   // meeting on the road
+  Sim.issueOrder(s, 2, 'p4_4'); Sim.issueOrder(s, 9, 'p4_4');   // clash over empty ground
+  Sim.issueOrder(s, 7, 'p1_3');                                 // unopposed move
+  if (reverse) s.units.reverse();
+  Sim.movementPhase(s);
+  return s;
+}
+
+function snapshot(s) {
+  return {
+    units: s.units.slice().sort((a, b) => a.id - b.id)
+      .map(u => [u.id, u.provinceId, u.strength, u.order]),
+    owners: Object.keys(s.provinces).sort().map(k => s.provinces[k].owner),
+    log: s.log.map(e => e.msg),
+    over: [s.gameOver, s.winner]
+  };
+}
+
+test('simultaneous battles: every engagement kind is order independent, and ordered defenders still defend', () => {
+  const a = busyScenario(false);
+  const b = busyScenario(true);
+  assert.deepStrictEqual(snapshot(b), snapshot(a));
+  const msgs = a.log.map(e => e.msg).join('\n');
+  assert.match(msgs, /columns meet on the road/, 'the scenario includes a meeting battle');
+  assert.match(msgs, /Columns clash at|win the clash for/, 'the scenario includes a clash');
+  // The defenders ordered north were drawn into the defense of p5_3:
+  // a battle was fought there, the defense took damage, and neither marched
+  // to p5_2. (Damage soaks into the first defender; since Cycle 14 the
+  // attack crosses the river at a penalty, so the second can come out whole.)
+  const p53 = a.provinces.p5_3.name;
+  assert.ok(new RegExp('(destroyed at|attack on|capture) ' + p53).test(msgs), 'a province battle is fought at ' + p53);
+  const defs = [10, 11].map(id => a.units.find(x => x.id === id));
+  assert.ok(defs.reduce((t, u) => t + u.strength, 0) < defs.reduce((t, u) => t + u.maxStrength, 0), 'the defense fought');
+  defs.forEach(u => assert.notStrictEqual(u.provinceId, 'p5_2', 'defender ' + u.id + ' did not march away'));
+  // Every order the phase touched is cleared.
+  assert.ok(a.units.every(u => u.order === null));
+});
+
+test('research clock: with equal points, a player who clicks as soon as the panel allows fields Drone Gen 2 the same day as the AI', () => {
+  const s = Sim.createGame(31337);
+  const fielded = {};
+  while (!s.gameOver && s.day < 40 && !(fielded.player && fielded.enemy)) {
+    // The player's click happens before the tick, on the numbers the UI shows.
+    if (!s.nations.player.droneGen2 && s.nations.player.researchPoints >= Sim.CFG.droneGen2Cost) {
+      Sim.researchDroneGen2(s, 'player');
+    }
+    const day = s.day;
+    Sim.tick(s);
+    ['player', 'enemy'].forEach(n => { if (s.nations[n].droneGen2 && fielded[n] == null) fielded[n] = day; });
+  }
+  assert.ok(fielded.player != null && fielded.enemy != null, 'both nations reach Drone Gen 2');
+  assert.strictEqual(fielded.enemy, fielded.player, 'no side gets a head start from tick order');
+});
+
+test('economy order: production lines are paid before factories, and idle factory levels are counted', () => {
+  const s = Sim.createGame(42);
+  const n = s.nations.player;
+  // Checker edit: no steel income, so the stockpile is the only steel today.
+  Object.values(s.provinces).forEach(p => { if (p.owner === 'player') p.steel = 0; });
+  const levels = Sim.factoryLevels(s, 'player');
+  assert.ok(levels > 0);
+  assert.strictEqual(Sim.queueProduction(s, 'player', 1).ok, true);
+  const drain = Sim.lineSteelPerDay('infantry');
+  n.steel = drain; // exactly one line day, nothing left for any factory
+  const eq = n.equipment;
+  Sim.tick(s);
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).progressDays, 1, 'the line was paid');
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).stalled, false);
+  assert.strictEqual(n.steel, 0);
+  assert.strictEqual(n.equipment, eq, 'no factory ran');
+  assert.strictEqual(n.factoryLevelsIdle, levels, 'every level sat idle and the count says so');
+  // With steel to spare, every level runs and none is idle.
+  n.steel = 1000;
+  Sim.tick(s);
+  assert.strictEqual(n.factoryLevelsIdle, 0);
+  assert.strictEqual(n.equipment, eq + levels * Sim.CFG.equipPerFactoryLevel);
+});
+
+test('simultaneous battles: occupants of a province under attack stay to defend it, mirror cases resolve the same way', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  // West side attacks: occupants of p5_3 were ordered to attack p5_4.
+  const a = Sim.createGame(5);
+  a.provinces.p5_4.owner = 'player';
+  a.units = [mk(1, 'player', 'p4_3'), mk(2, 'player', 'p4_3'), mk(3, 'enemy', 'p5_3'), mk(4, 'player', 'p5_4')];
+  Sim.issueOrder(a, 1, 'p5_3'); Sim.issueOrder(a, 2, 'p5_3'); Sim.issueOrder(a, 3, 'p5_4');
+  Sim.movementPhase(a);
+  // East side attacks, the exact mirror: occupants of p4_3 were ordered to attack p4_4.
+  const b = Sim.createGame(5);
+  b.provinces.p4_4.owner = 'enemy';
+  b.units = [mk(1, 'enemy', 'p5_3'), mk(2, 'enemy', 'p5_3'), mk(3, 'player', 'p4_3'), mk(4, 'enemy', 'p4_4')];
+  Sim.issueOrder(b, 1, 'p4_3'); Sim.issueOrder(b, 2, 'p4_3'); Sim.issueOrder(b, 3, 'p4_4');
+  Sim.movementPhase(b);
+  for (const [s, home, away] of [[a, 'p5_3', 'p5_4'], [b, 'p4_3', 'p4_4']]) {
+    const occ = s.units.find(u => u.id === 3);
+    assert.ok(occ.strength < 12 || occ.provinceId === home, 'the occupant fought at home');
+    assert.notStrictEqual(occ.provinceId, away, 'the occupant did not march out');
+    assert.strictEqual(s.units.find(u => u.id === 4).strength, 12, 'its own attack never happened');
+    assert.ok(s.log.some(e => /after a hard fight|is repelled|destroyed at|cannot advance/.test(e.msg)), 'a battle was fought for ' + home);
+    assert.ok(!s.log.some(e => /unopposed/.test(e.msg)), 'nobody walked into an empty province');
+  }
+});
+
+// ---------- Cycle 7: lore and campaign beats ----------
+
+const Lore = require('../js/lore.js');
+
+// Checker edit used only to set up scenarios: raise a nation's owned
+// factories, lowest levels first, until its total reaches `total`.
+function raiseFactoriesTo(s, nationId, total) {
+  let have = Sim.factoryLevels(s, nationId);
+  while (have < total) {
+    const p = Object.values(s.provinces)
+      .filter(q => q.owner === nationId && q.factoryLevel < Sim.CFG.maxFactoryLevel)
+      .sort((a, b) => a.factoryLevel - b.factoryLevel || (a.id < b.id ? -1 : 1))[0];
+    p.factoryLevel += 1;
+    have += 1;
+  }
+}
+
+test('lore: every codex entry exists, names match the sim, nation histories are 300 to 500 words', () => {
+  const s = Sim.createGame(7);
+  assert.deepStrictEqual(Lore.codexOrder, ['ashwater', 'player', 'enemy', 'vesskar', 'khessograd']);
+  Lore.codexOrder.forEach(id => {
+    const e = Lore.entries[id];
+    assert.ok(e && e.title && e.kind && e.text.length > 0, 'entry ' + id);
+  });
+  assert.strictEqual(Lore.entries.player.title, s.nations.player.name);
+  assert.strictEqual(Lore.entries.enemy.title, s.nations.enemy.name);
+  assert.strictEqual(Lore.entries.vesskar.title, s.provinces[s.nations.player.capitalId].name);
+  assert.strictEqual(Lore.entries.khessograd.title, s.provinces[s.nations.enemy.capitalId].name);
+  for (const id of ['player', 'enemy']) {
+    const words = Lore.entries[id].text.join(' ').split(/\s+/).length;
+    assert.ok(words >= 300 && words <= 500, id + ' history is ' + words + ' words');
+  }
+});
+
+test('lore: every sim beat has a card with all three variants, and no lore copy has an em or en dash', () => {
+  assert.deepStrictEqual(Object.keys(Lore.beats).sort(), Sim.BEAT_IDS.slice().sort());
+  Sim.BEAT_IDS.forEach(id => {
+    const b = Lore.beats[id];
+    assert.ok(b.title && b.trigger, id);
+    ['player', 'enemy', 'both'].forEach(v => assert.ok(b.variants[v] && b.variants[v].length > 40, id + ' ' + v));
+  });
+  assert.ok(/changes nothing in the game/.test(Lore.noEffect));
+  const all = JSON.stringify(Lore);
+  assert.ok(!/[\u2013\u2014]/.test(all), 'no em or en dash anywhere in the lore');
+});
+
+test('beats: a capital row capture is recorded once, on the day it happens, for the side that took it', () => {
+  const s = Sim.createGame(91);
+  assert.deepStrictEqual(s.beats, {});
+  // Clear the first enemy capital row province and march a player infantry in.
+  s.units = s.units.filter(u => u.provinceId !== 'p5_3');
+  const inf = s.units.find(u => u.nation === 'player' && u.provinceId === 'p4_3' && u.type === 'infantry');
+  Sim.tick(s); // day 1: nothing has changed hands yet
+  assert.strictEqual(s.beats.capitalRow, undefined);
+  s.units = s.units.filter(u => u.provinceId !== 'p5_3' || u.nation === 'player');
+  const day = s.day;
+  assert.strictEqual(Sim.issueOrder(s, inf.id, 'p5_3').ok, true);
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p5_3.owner, 'player');
+  assert.deepStrictEqual(s.beats.capitalRow, { day: day, by: 'player' });
+  // Later events never overwrite it.
+  s.provinces.p4_3.owner = 'enemy';
+  Sim.tick(s);
+  assert.deepStrictEqual(s.beats.capitalRow, { day: day, by: 'player' });
+});
+
+test('beats: Drone Gen 2 and line 3 record the first side, or both on the same day', () => {
+  // Drone Gen 2: the player clicks on the day the points arrive, so both field it that tick.
+  const s = Sim.createGame(42);
+  while (!s.beats.droneGen2 && s.day < 40) {
+    if (!s.nations.player.droneGen2 && s.nations.player.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+    Sim.tick(s);
+  }
+  assert.strictEqual(s.beats.droneGen2.by, 'both');
+  // A player who never researches leaves the beat to the Dominion alone.
+  const p = Sim.createGame(42);
+  while (!p.beats.droneGen2 && p.day < 40) Sim.tick(p);
+  assert.strictEqual(p.beats.droneGen2.by, 'enemy');
+  assert.strictEqual(p.beats.droneGen2.day, s.beats.droneGen2.day);
+  // Line 3: whoever reaches 16 factory levels first.
+  const l = Sim.createGame(42);
+  raiseFactoriesTo(l, 'player', Sim.CFG.lineUnlockFactoryLevels[2]);
+  const day = l.day;
+  Sim.tick(l);
+  assert.deepStrictEqual(l.beats.line3, { day: day, by: 'player' });
+});
+
+test('beats: the same seed and the same commands record the same beats', () => {
+  const H = require('../tools/balance.js');
+  const run = () => {
+    const s = Sim.createGame(1234); const mem = {};
+    while (!s.gameOver) { H.PROFILES.factories.play(Sim, s, mem); Sim.tick(s); }
+    return s.beats;
+  };
+  const a = run();
+  assert.deepStrictEqual(Object.keys(a).sort(), Sim.BEAT_IDS.slice().sort(), 'a full campaign reaches all three beats');
+  assert.deepStrictEqual(run(), a);
+});
+
+test('beats: recording them changes nothing else in a full campaign', () => {
+  const H = require('../tools/balance.js');
+  const play = (beatsOn) => {
+    Sim.CFG.campaignBeats = beatsOn;
+    try {
+      const s = Sim.createGame(42); const mem = {};
+      while (!s.gameOver) { H.PROFILES.factories.play(Sim, s, mem); Sim.tick(s); }
+      return s;
+    } finally {
+      Sim.CFG.campaignBeats = true;
+    }
+  };
+  const on = play(true), off = play(false);
+  assert.ok(Object.keys(on.beats).length === 3);
+  assert.deepStrictEqual(off.beats, {});
+  const strip = s => { const c = Object.assign({}, s); delete c.beats; return JSON.stringify(c); };
+  assert.strictEqual(strip(on), strip(off), 'every unit, province, nation, edge, and log line is identical');
+});
+
+// ---------- Cycle 8: fortifications ----------
+
+test('fortify: refusals, equipment paid up front, the level arrives after the build days', () => {
+  const s = Sim.createGame(7);
+  const n = s.nations.player;
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p9_3').reason, 'not your province');
+  n.equipment = 50;
+  const poor = Sim.buildFortification(s, 'player', 'p1_3');
+  assert.strictEqual(poor.ok, false);
+  assert.strictEqual(poor.cost, Sim.CFG.fortCostPerLevel);
+  n.equipment = 1000;
+  const r = Sim.buildFortification(s, 'player', 'p1_3');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(n.equipment, 1000 - Sim.CFG.fortCostPerLevel);
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p1_3').reason, 'fortification already under construction');
+  for (let d = 1; d < Sim.CFG.fortBuildDays; d++) { Sim.tick(s); assert.strictEqual(s.provinces.p1_3.fortLevel, 0, 'not yet on day ' + d); }
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p1_3.fortLevel, 1);
+  assert.strictEqual(s.provinces.p1_3.fortBuild, null);
+  // Level 2 costs twice as much; past the cap is refused.
+  const before = n.equipment;
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p1_3').cost, 2 * Sim.CFG.fortCostPerLevel);
+  assert.strictEqual(n.equipment, before - 2 * Sim.CFG.fortCostPerLevel);
+  for (let d = 0; d < Sim.CFG.fortBuildDays; d++) Sim.tick(s);
+  assert.strictEqual(s.provinces.p1_3.fortLevel, Sim.CFG.fortMaxLevel);
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p1_3').reason, 'fortification at max level');
+});
+
+test('fortify: the bonus is one modifier in unitStats, so stackPower, the battle, and the preview all see it', () => {
+  const s = Sim.createGame(7);
+  const inf = Sim.unitsIn(s, s.nations.player.capitalId).find(u => u.type === 'infantry');
+  const plain = Sim.unitStats(s, inf);
+  const stackBefore = Sim.stackPower(s, [inf], 'defense');
+  s.provinces[s.nations.player.capitalId].fortLevel = 2; // checker edit for a pure stats check
+  const walled = Sim.unitStats(s, inf);
+  assert.strictEqual(walled.fortBonus, 2 * Sim.CFG.fortDefensePctPerLevel);
+  assert.strictEqual(walled.defense, Math.round(plain.defense * (1 + walled.fortBonus / 100)));
+  assert.strictEqual(walled.attack, plain.attack, 'walls never add attack');
+  assert.strictEqual(Sim.stackPower(s, [inf], 'defense'), walled.defense);
+  assert.ok(Sim.stackPower(s, [inf], 'defense') > stackBefore);
+  // An enemy unit standing in that province gets nothing from walls it does not hold.
+  const foe = { id: 900, nation: 'enemy', type: 'infantry', provinceId: s.nations.player.capitalId, strength: 12, maxStrength: 12, order: null };
+  assert.strictEqual(Sim.unitStats(s, foe).fortBonus, 0);
+});
+
+test('fortify: the same attack on a walled province costs the attackers more', () => {
+  const play = (fort) => {
+    const s = Sim.createGame(5);
+    s.units = [];
+    const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+      order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+    s.units.push(mk(1, 'player', 'p4_3'), mk(2, 'player', 'p4_3'), mk(3, 'enemy', 'p5_3'));
+    s.provinces.p5_3.fortLevel = fort;
+    Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p5_3');
+    Sim.movementPhase(s);
+    const left = s.units.filter(u => u.nation === 'player').reduce((a, u) => a + u.strength, 0);
+    return { owner: s.provinces.p5_3.owner, attackersLeft: left };
+  };
+  // Same seed, same tick, same engagement key: the rolls are identical, only the walls differ.
+  const open = play(0), walled = play(Sim.CFG.fortMaxLevel);
+  assert.strictEqual(open.owner, 'player', 'two infantry take an unwalled province from one');
+  assert.ok(walled.attackersLeft < open.attackersLeft, 'walls make the attackers pay more: ' + open.attackersLeft + ' left open, ' + walled.attackersLeft + ' walled');
+});
+
+test('fortify: the AI walls its capital and its river Spine province through the same command', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = Sim.CFG.aiFortifyEquipment + 1000;
+  Sim.tick(s);
+  const cap = s.provinces[s.nations.enemy.capitalId];
+  // Ordered at the start of the tick and worked one day in that tick's
+  // construction phase, exactly like a player's order made before the tick.
+  assert.deepStrictEqual(cap.fortBuild, { toLevel: 1, daysLeft: Sim.CFG.fortBuildDays - 1 });
+  const mine = Sim.createGame(42);
+  mine.nations.player.equipment = 1000;
+  Sim.buildFortification(mine, 'player', mine.nations.player.capitalId);
+  Sim.tick(mine);
+  assert.deepStrictEqual(mine.provinces[mine.nations.player.capitalId].fortBuild, cap.fortBuild, 'same day, same progress for both sides');
+  assert.ok(s.log.some(e => /^Khessite begin fortifying Khessograd to level 1/.test(e.msg)), 'the same command logs the same way');
+  Sim.tick(s);
+  const river = s.provinces[Sim.provinceId(Sim.CFG.mapW / 2, cap.y)];
+  assert.ok(river.fortBuild && river.fortBuild.toLevel === 1, 'next it walls the Spine province facing the river');
+  // Below the threshold it builds nothing new.
+  const p = Sim.createGame(42);
+  // The threshold is checked at the start of the tick, before the day's income; start well below it anyway.
+  p.nations.enemy.equipment = 0;
+  Sim.tick(p);
+  assert.ok(p.nations.enemy.equipment < Sim.CFG.aiFortifyEquipment);
+  assert.ok(!p.provinces[p.nations.enemy.capitalId].fortBuild, 'no walls below the threshold');
+});
+
+test('fortify: capture slights the walls by one level and loses any work in progress', () => {
+  const s = Sim.createGame(5);
+  s.units = [];
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  s.units.push(mk(1, 'player', 'p4_3'));
+  s.provinces.p5_3.fortLevel = 2;
+  s.provinces.p5_3.fortBuild = null;
+  Sim.issueOrder(s, 1, 'p5_3');
+  Sim.movementPhase(s); // empty province: an unopposed capture
+  assert.strictEqual(s.provinces.p5_3.owner, 'player');
+  assert.strictEqual(s.provinces.p5_3.fortLevel, 1);
+  // Work in progress is lost on capture.
+  s.provinces.p5_4.fortLevel = 0;
+  s.provinces.p5_4.fortBuild = { toLevel: 1, daysLeft: 3 };
+  assert.strictEqual(Sim.issueOrder(s, 1, 'p5_4').ok, true);
+  Sim.movementPhase(s);
+  assert.strictEqual(s.provinces.p5_4.owner, 'player');
+  assert.strictEqual(s.provinces.p5_4.fortBuild, null);
+  assert.strictEqual(s.provinces.p5_4.fortLevel, 0);
+});
+
+test('fortify: clash defenders use the walls of the province they enter, not the one they left', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  const clash = (targetWalls, originWalls) => {
+    const s = Sim.createGame(5);
+    s.units = [mk(1, 'player', 'p3_4'), mk(2, 'enemy', 'p5_4')];
+    s.provinces.p4_4.fortLevel = targetWalls;
+    s.provinces.p3_4.fortLevel = originWalls;
+    Sim.issueOrder(s, 1, 'p4_4'); Sim.issueOrder(s, 2, 'p4_4');
+    Sim.movementPhase(s);
+    return JSON.stringify([s.provinces.p4_4.owner, s.units.map(u => u.strength)]);
+  };
+  const open = clash(0, 0);
+  assert.strictEqual(clash(0, 2), open, 'walls back home change nothing in a clash elsewhere');
+  assert.notStrictEqual(clash(2, 0), open, 'walls on the contested province change the clash');
+});
+
+test('fortify: the Dominion attacks an open province but holds against the same province walled', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  const aiAttacks = (walls) => {
+    const s = Sim.createGame(5);
+    s.day = Sim.CFG.aiMobilizationDays + 1; // past mobilization
+    s.units = [mk(1, 'player', 'p4_3'), mk(2, 'enemy', 'p5_3'), mk(3, 'enemy', 'p5_3')];
+    s.provinces.p4_3.fortLevel = walls;
+    s.nations.enemy.equipment = 0; // no wall building of its own this tick
+    Sim.tick(s);
+    return s.units.filter(u => u.nation === 'enemy').some(u => u.provinceId === 'p4_3') ||
+      s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group/.test(e.msg));
+  };
+  // Attack 8 against defense 4 clears the 1.5x gate; behind level 2 walls the defense is 6 and 8 does not reach 9.
+  assert.strictEqual(aiAttacks(0), true, 'two infantry attack one in the open');
+  assert.strictEqual(aiAttacks(Sim.CFG.fortMaxLevel), false, 'the same two hold against level 2 walls');
+});
+
+test('fortify: walls multiply a stack once, so each level adds its stated percent even for hungry defenders', () => {
+  const s = Sim.createGame(5);
+  const hungry = id => ({ id, nation: 'player', type: 'infantry', provinceId: 'p1_3', strength: 12, maxStrength: 12, supplyPenalty: 50 });
+  const stack = [1, 2, 3, 4, 5, 6].map(hungry);
+  const at = L => { s.provinces.p1_3.fortLevel = L; return Sim.stackPower(s, stack, 'defense'); };
+  const open = at(0);
+  assert.strictEqual(open, 12, 'six infantry at the 50 percent supply penalty defend at 2 each');
+  assert.strictEqual(at(1), Math.round(open * (1 + Sim.CFG.fortDefensePctPerLevel / 100)));
+  assert.strictEqual(at(2), Math.round(open * (1 + 2 * Sim.CFG.fortDefensePctPerLevel / 100)));
+  assert.ok(at(2) > at(1), 'the second level always adds defense');
+  // One unit alone reads the same number in its card and in stackPower.
+  s.provinces.p1_3.fortLevel = 2;
+  assert.strictEqual(Sim.stackPower(s, [stack[0]], 'defense'), Sim.unitStats(s, stack[0]).defense);
+});
+
+// ---------- Cycle 9: one clock for both sides ----------
+
+test('one clock: the same order from the player and the AI on the same day starts, pays, and finishes on the same day', () => {
+  // Production: both nations start with idle lines; the player queues
+  // before tick 1, the Dominion queues at the start of tick 1. The first
+  // unit on each line must complete on the same day for both.
+  const p = Sim.createGame(42);
+  [p.nations.player, p.nations.enemy].forEach(n => { n.steel = 1000; });
+  Sim.queueProduction(p, 'player', 1);
+  Sim.queueProduction(p, 'player', 2);
+  const firstDone = { player: {}, enemy: {} };
+  for (let d = 1; d <= Sim.CFG.unitTypes.infantry.buildDays; d++) {
+    const day = p.day, seen = new Set(p.log);
+    Sim.tick(p);
+    p.log.filter(e => !seen.has(e)).forEach(e => {
+      const m = /^(Vessari|Khessite) line (\d) completes/.exec(e.msg);
+      if (m) { const nat = m[1] === 'Vessari' ? 'player' : 'enemy'; if (firstDone[nat][m[2]] == null) firstDone[nat][m[2]] = day; }
+    });
+  }
+  assert.strictEqual(firstDone.player['1'], Sim.CFG.unitTypes.infantry.buildDays, 'the player infantry finishes on its last build day');
+  assert.strictEqual(firstDone.player['2'], Sim.CFG.unitTypes.drone.buildDays, 'the player drone finishes on its last build day');
+  assert.deepStrictEqual(firstDone.enemy, firstDone.player, 'the Dominion first units finish on the same days');
+  // Factories: on a day the Dominion's rule fires (every third day), the
+  // player builds the same level; both count it in that day's output.
+  const f = Sim.createGame(42);
+  while (f.day % 3 !== 0) Sim.tick(f);
+  // 200 equipment: enough for the Dominion's factory rule (140), not for
+  // its wall rule (300); steel to spare so every factory level runs.
+  [f.nations.player, f.nations.enemy].forEach(n => { n.steel = 1000; n.equipment = 200; });
+  const before = { player: Sim.factoryLevels(f, 'player'), enemy: Sim.factoryLevels(f, 'enemy') };
+  const levelsBefore = {}; Object.values(f.provinces).forEach(q => { levelsBefore[q.id] = q.factoryLevel; });
+  const eqBefore = { player: 200, enemy: 200 };
+  const target = Object.values(f.provinces).find(q => q.owner === 'player' && q.factoryLevel === 0);
+  assert.strictEqual(Sim.buildFactory(f, 'player', target.id).ok, true);
+  eqBefore.player = 200; // measure from before the click: the cost is part of the day
+  const fday = f.day;
+  Sim.tick(f);
+  ['player', 'enemy'].forEach(nat => {
+    assert.strictEqual(Sim.factoryLevels(f, nat), before[nat] + 1, nat + ' gained one level on day ' + fday);
+    assert.ok(f.log.some(e => e.day === fday && new RegExp('^' + f.nations[nat].short + ' raise a factory').test(e.msg)), nat + ' logged it on day ' + fday);
+    const raised = Object.values(f.provinces).find(q => q.owner === nat && q.factoryLevel === levelsBefore[q.id] + 1);
+    const cost = Sim.CFG.factoryCostPerLevel * raised.factoryLevel;
+    const output = Sim.CFG.equipPerFactoryLevel * Sim.factoryLevels(f, nat);
+    assert.strictEqual(f.nations[nat].equipment - eqBefore[nat], output - cost,
+      nat + ': the new level already produces on the day it is built');
+  });
+  // Rail: on a day the Dominion's rule fires (every fourth day), the
+  // player lays one edge too; both finish on the same day.
+  const r = Sim.createGame(42);
+  while (r.day % 4 !== 0) Sim.tick(r);
+  [r.nations.player, r.nations.enemy].forEach(n => { n.steel = 1000; });
+  const bare = r.edgeList.find(e => !e.rail && r.provinces[e.a].owner === 'player' && r.provinces[e.b].owner === 'player');
+  assert.strictEqual(Sim.buildRail(r, 'player', bare.a, bare.b).ok, true);
+  const railDay = r.day;
+  const enemyRailsBefore = new Set(r.edgeList.filter(e => e.rail && e.rail.owner === 'enemy').map(e => e.a + e.b));
+  Sim.tick(r);
+  const theirs = r.edgeList.find(e => e.rail && e.rail.owner === 'enemy' && !enemyRailsBefore.has(e.a + e.b));
+  assert.ok(theirs, 'the Dominion laid an edge on day ' + railDay);
+  assert.strictEqual(theirs.rail.daysLeft, bare.rail.daysLeft, 'both rails stand at the same days left after the same tick');
+  while (bare.rail.daysLeft > 0) Sim.tick(r);
+  assert.strictEqual(theirs.rail.daysLeft, 0, 'and finish on the same day');
+});
+
+test('one clock: a new Dominion unit waits a tick before it moves, like a new player unit', () => {
+  const s = Sim.createGame(42);
+  const known = new Set(s.units.map(u => u.id));
+  let fresh = 0;
+  while (!s.gameOver && s.day < 40) {
+    Sim.tick(s);
+    Sim.unitsOf(s, 'enemy').forEach(u => {
+      if (known.has(u.id)) return;
+      known.add(u.id);
+      fresh += 1;
+      assert.strictEqual(u.provinceId, s.nations.enemy.capitalId, 'unit ' + u.id + ' built on day ' + (s.day - 1) + ' is still at the capital that night');
+    });
+    s.units.forEach(u => known.add(u.id));
+  }
+  assert.ok(fresh >= 5, 'the Dominion built units in this window');
+});
+
+// ---------- Cycle 10: air defense, interception, and the steel ledger ----------
+const mkU = (id, nation, type, provinceId, strength) => {
+  const t = Sim.CFG.unitTypes[type];
+  return { id, nation, type, provinceId, strength: strength == null ? t.strength : strength, maxStrength: t.strength,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 };
+};
+
+test('air defense: refusals, equipment paid up front, it stands after the build days, capture loses it', () => {
+  const s = Sim.createGame(7);
+  const n = s.nations.player;
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p9_3').reason, 'not your province');
+  n.equipment = Sim.CFG.airDefenseCost - 1;
+  const poor = Sim.buildAirDefense(s, 'player', 'p1_3');
+  assert.strictEqual(poor.reason, 'not enough equipment');
+  assert.strictEqual(poor.cost, Sim.CFG.airDefenseCost);
+  n.equipment = 1000;
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p1_3').ok, true);
+  assert.strictEqual(n.equipment, 1000 - Sim.CFG.airDefenseCost);
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p1_3').reason, 'air defense already under construction');
+  for (let d = 1; d < Sim.CFG.airDefenseBuildDays; d++) { Sim.tick(s); assert.strictEqual(s.provinces.p1_3.airDefense, 0, 'not yet on day ' + d); }
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p1_3.airDefense, 1);
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', 'p1_3').reason, 'air defense already built');
+  // Capture loses it, and any work in progress.
+  const c = Sim.createGame(5);
+  c.units = [mkU(1, 'player', 'infantry', 'p4_3')];
+  c.provinces.p5_3.airDefense = 1;
+  Sim.issueOrder(c, 1, 'p5_3');
+  Sim.movementPhase(c);
+  assert.strictEqual(c.provinces.p5_3.owner, 'player');
+  assert.strictEqual(c.provinces.p5_3.airDefense, 0);
+});
+
+// Two infantry and two drone wings attack one infantry in p5_3.
+function interceptScenario(opts) {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'), mkU(9, 'enemy', 'infantry', 'p5_3')];
+  if (opts.wings) opts.wings.forEach((str, i) => s.units.push(mkU(3 + i, 'player', 'drone', 'p4_3', str)));
+  s.provinces.p5_3.airDefense = opts.ad ? 1 : 0;
+  s.nations.enemy.steel = opts.steel == null ? 1000 : opts.steel;
+  s.units.filter(u => u.nation === 'player').forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+  const stack = s.units.filter(u => u.nation === 'player');
+  const est = Sim.stackPower(s, stack, 'attack', 'p5_3');
+  const steelBefore = s.nations.enemy.steel;
+  Sim.movementPhase(s);
+  const str = id => { const u = s.units.find(x => x.id === id); return u ? u.strength : 0; };
+  return { s, est, spent: steelBefore - s.nations.enemy.steel, inf: [str(1), str(2), str(9)], wings: [str(3), str(4)] };
+}
+
+test('interception: one launch per wing before the fight, 20 steel each, downed wings fight as if absent', () => {
+  const none = interceptScenario({});
+  const hit = interceptScenario({ wings: [4, 4], ad: true });
+  assert.strictEqual(hit.spent, 2 * Sim.CFG.interceptorSteel);
+  assert.deepStrictEqual(hit.wings, [0, 0], 'two damaged wings of 4 are downed');
+  // Same engagement key, same rolls: the battle is exactly the one without the wings.
+  assert.deepStrictEqual(hit.inf, none.inf);
+  assert.strictEqual(hit.est, none.est, 'stackPower with the target counts the downed wings as nothing');
+  assert.strictEqual(hit.s.ledger.enemy.launchSteel, 2 * Sim.CFG.interceptorSteel);
+  assert.strictEqual(hit.s.ledger.enemy.launches, 2);
+  assert.ok(hit.s.log.some(e => e.msg === 'Khessite air defense at ' + hit.s.provinces.p5_3.name +
+    ' launches 2 interceptors (40 steel), downing 2 drone wings.'), 'the launch is logged with its cost');
+  // Without air defense the same wings fight.
+  const open = interceptScenario({ wings: [4, 4] });
+  assert.strictEqual(open.spent, 0);
+  assert.ok(open.est > none.est);
+});
+
+test('interception: a full wing survives one launch at 2, and launches stop when the steel runs out', () => {
+  const full = interceptScenario({ wings: [6, 6], ad: true, steel: Sim.CFG.interceptorSteel + 5 });
+  assert.strictEqual(full.spent, Sim.CFG.interceptorSteel, 'steel for one launch only');
+  assert.strictEqual(full.s.ledger.enemy.launches, 1);
+  assert.ok(full.s.log.some(e => /launches 1 interceptor \(20 steel\)\. 1 wing gets through untouched: not enough steel to launch\./.test(e.msg)));
+  // Nobody is downed by a launch on a full wing, so the estimate is the plain attack.
+  // (The same target, so the river crossing counts on both sides; the
+  // Dominion's steel is spent, so this estimate makes no launch.)
+  const plain = Sim.stackPower(full.s, [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'),
+    mkU(3, 'player', 'drone', 'p4_3'), mkU(4, 'player', 'drone', 'p4_3')], 'attack', 'p5_3');
+  assert.strictEqual(full.est, plain);
+  const broke = interceptScenario({ wings: [4, 4], ad: true, steel: 0 });
+  assert.strictEqual(broke.spent, 0);
+  assert.ok(broke.s.log.some(e => /air defense at .* cannot launch: an interceptor costs 20 steel\. 2 drone wings get through untouched\./.test(e.msg)));
+  assert.strictEqual(broke.est, interceptScenario({ wings: [4, 4] }).est, 'no steel, no launches in the estimate either');
+});
+
+test('interception: a launch on a full wing strips exactly interceptStrength before the fight', () => {
+  const s = Sim.createGame(5);
+  const wing = mkU(3, 'player', 'drone', 'p4_3');
+  s.provinces.p5_3.airDefense = 1;
+  s.nations.enemy.steel = 1000;
+  const plan = Sim.interceptPlan(s, [wing, mkU(1, 'player', 'infantry', 'p4_3')], 'p5_3');
+  assert.deepStrictEqual(plan.map(u => u.id), [3], 'only drone wings are targeted');
+  assert.strictEqual(Sim.CFG.unitTypes.drone.strength - Sim.CFG.interceptStrength, 2);
+  // Its own wings over its own province are never targeted.
+  assert.deepStrictEqual(Sim.interceptPlan(s, [mkU(5, 'enemy', 'drone', 'p5_3')], 'p5_3'), []);
+});
+
+test('ledger: every strength point lost is priced at its unit steel cost, in battle and to attrition', () => {
+  const r = interceptScenario({ wings: [6, 6] });
+  const price = (type, lost) => lost * Sim.CFG.unitTypes[type].steelCost / Sim.CFG.unitTypes[type].strength;
+  const playerLost = price('infantry', 24 - r.inf[0] - r.inf[1]) + price('drone', 12 - r.wings[0] - r.wings[1]);
+  assert.ok(Math.abs(r.s.ledger.player.lostSteel - playerLost) < 1e-9, r.s.ledger.player.lostSteel + ' vs ' + playerLost);
+  assert.ok(Math.abs(r.s.ledger.enemy.lostSteel - price('infantry', 12 - r.inf[2])) < 1e-9);
+  // Attrition counts too: a unit cut off long enough loses strength, and the ledger sees it.
+  const s = Sim.createGame(7);
+  const corner = Sim.provinceId(0, 0);
+  s.units = [mkU(1, 'player', 'infantry', corner)];
+  s.edgeList.forEach(e => { if (e.a === corner || e.b === corner) e.rail = null; });
+  for (let d = 0; d < 20; d++) Sim.supplyPhase(s);
+  const lost = 12 - s.units[0].strength;
+  assert.ok(lost > 0, 'attrition took strength');
+  assert.ok(Math.abs(s.ledger.player.lostSteel - price('infantry', lost)) < 1e-9);
+});
+
+test('air defense: the Dominion builds it at its capital through the same command, after walls, above its threshold', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = Sim.CFG.aiAirDefenseEquipment + 2 * Sim.CFG.fortCostPerLevel;
+  Sim.tick(s);
+  const cap = s.provinces[s.nations.enemy.capitalId];
+  assert.ok(cap.fortBuild, 'walls first');
+  assert.deepStrictEqual(cap.airDefenseBuild, { daysLeft: Sim.CFG.airDefenseBuildDays - 1 });
+  assert.ok(s.log.some(e => /^Khessite begin building air defense at Khessograd \(120 equipment, 4 days\)\./.test(e.msg)));
+  const p = Sim.createGame(42);
+  p.nations.enemy.equipment = Sim.CFG.aiAirDefenseEquipment - 1;
+  Sim.tick(p);
+  assert.ok(!p.provinces[p.nations.enemy.capitalId].airDefenseBuild, 'nothing below the threshold');
+});
+
+test('air defense parity: the same order from both sides starts, pays, and finishes on the same day, and launches cost the same', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = Sim.CFG.aiAirDefenseEquipment + 2 * Sim.CFG.fortCostPerLevel; // walls take theirs first
+  s.nations.player.equipment = 1000;
+  const playerCap = s.provinces[s.nations.player.capitalId], enemyCap = s.provinces[s.nations.enemy.capitalId];
+  const eqBefore = s.nations.player.equipment;
+  assert.strictEqual(Sim.buildAirDefense(s, 'player', playerCap.id).ok, true);
+  assert.strictEqual(eqBefore - s.nations.player.equipment, Sim.CFG.airDefenseCost);
+  Sim.tick(s);
+  assert.deepStrictEqual(playerCap.airDefenseBuild, enemyCap.airDefenseBuild, 'same progress after the same tick');
+  let days = 1;
+  while (playerCap.airDefenseBuild) { Sim.tick(s); days++; assert.strictEqual(enemyCap.airDefense > 0, playerCap.airDefense > 0); }
+  assert.strictEqual(days, Sim.CFG.airDefenseBuildDays);
+  assert.strictEqual(enemyCap.airDefense, 1);
+  // Mirror launches: Dominion wings into a Vessari province pay the Vessari exactly what the reverse pays the Dominion.
+  const launch = (attacker, defender, from, to) => {
+    const g = Sim.createGame(5);
+    g.units = [mkU(1, attacker, 'drone', from), mkU(2, defender, 'infantry', to)];
+    g.provinces[to].airDefense = 1;
+    g.nations[defender].steel = 100;
+    Sim.issueOrder(g, 1, to);
+    Sim.movementPhase(g);
+    return { spent: 100 - g.nations[defender].steel, launches: g.ledger[defender].launches };
+  };
+  assert.deepStrictEqual(launch('enemy', 'player', 'p5_3', 'p4_3'), launch('player', 'enemy', 'p4_3', 'p5_3'));
+  assert.deepStrictEqual(launch('enemy', 'player', 'p5_3', 'p4_3'), { spent: Sim.CFG.interceptorSteel, launches: 1 });
+});
+
+test('steel exchange: a drone attack into air defense can lose the fight and still bleed the defender more steel', () => {
+  // Three full wings against two infantry behind level 2 walls with air
+  // defense. The launches leave each wing at 2; the walled defense then
+  // kills all of them in the first round on any roll (the least damage it
+  // can deal is 8, against 6 strength left), so this holds for every seed.
+  for (const seed of [1, 7, 42]) {
+    const s = Sim.createGame(seed);
+    s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3'), mkU(3, 'player', 'drone', 'p4_3'),
+      mkU(9, 'enemy', 'infantry', 'p5_3'), mkU(10, 'enemy', 'infantry', 'p5_3')];
+    s.provinces.p5_3.airDefense = 1;
+    s.provinces.p5_3.fortLevel = Sim.CFG.fortMaxLevel;
+    s.nations.enemy.steel = 1000;
+    [1, 2, 3].forEach(id => Sim.issueOrder(s, id, 'p5_3'));
+    Sim.movementPhase(s);
+    const bled = id => s.ledger[id].lostSteel + s.ledger[id].launchSteel;
+    assert.strictEqual(s.provinces.p5_3.owner, 'enemy', 'the attack fails');
+    assert.strictEqual(s.units.filter(u => u.nation === 'player' && u.strength > 0).length, 0, 'every wing is lost');
+    assert.strictEqual(bled('player'), 3 * Sim.CFG.unitTypes.drone.steelCost);
+    assert.ok(bled('enemy') > bled('player'), 'seed ' + seed + ': the Dominion bled ' + bled('enemy') + ' against ' + bled('player'));
+  }
+});
+
+// ---------- Cycle 11 step 0: the interception rules the Cycle 10 judge found untested ----------
+test('interception: a clash for an empty province with air defense draws launches from its owner', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_4', 4), mkU(2, 'enemy', 'infantry', 'p6_4')];
+  s.provinces.p5_4.airDefense = 1; // empty, the Dominion's, and both sides march in
+  s.nations.enemy.steel = 100;
+  Sim.issueOrder(s, 1, 'p5_4'); Sim.issueOrder(s, 2, 'p5_4');
+  Sim.movementPhase(s);
+  assert.strictEqual(s.ledger.enemy.launches, 1, 'the clash defender launches at the incoming wing');
+  assert.strictEqual(s.nations.enemy.steel, 100 - Sim.CFG.interceptorSteel);
+});
+
+test('interception: groups that meet on the road draw no launches, wherever the air defense stands', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p5_3.airDefense = 1;
+  s.provinces.p4_3.airDefense = 1;
+  s.nations.enemy.steel = 100; s.nations.player.steel = 100;
+  Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p4_3');
+  Sim.movementPhase(s);
+  assert.ok(s.log.some(e => /meet on the road|on the road/.test(e.msg)), 'it was a meeting: ' + s.log.slice(-3).map(e => e.msg).join(' / '));
+  assert.strictEqual(s.ledger.enemy.launches + s.ledger.player.launches, 0);
+});
+
+test('interception: when steel is short the lowest unit ids are hit first, whatever the unit array order', () => {
+  const run = (reverse) => {
+    const s = Sim.createGame(5);
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(3, 'player', 'drone', 'p4_3', 4), mkU(4, 'player', 'drone', 'p4_3', 4),
+      mkU(9, 'enemy', 'infantry', 'p5_3')];
+    if (reverse) s.units.reverse();
+    s.provinces.p5_3.airDefense = 1;
+    s.nations.enemy.steel = Sim.CFG.interceptorSteel; // one launch
+    const plan = Sim.interceptPlan(s, s.units.filter(u => u.nation === 'player'), 'p5_3').map(u => u.id);
+    s.units.filter(u => u.nation === 'player').forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+    Sim.movementPhase(s);
+    const wing = id => { const u = s.units.find(x => x.id === id); return u ? u.strength : 0; };
+    return { plan, w3: wing(3), launches: s.ledger.enemy.launches, msgs: s.log.slice(-4).map(e => e.msg).join(' / ') };
+  };
+  const a = run(false), b = run(true);
+  assert.deepStrictEqual(a.plan, [3]);
+  assert.strictEqual(a.launches, 1);
+  assert.deepStrictEqual(a, b, 'reversing the unit array changes nothing');
+  assert.ok(/launches 1 interceptor \(20 steel\), downing 1 drone wing\. 1 wing gets through untouched/.test(a.msgs), a.msgs);
+});
+
+test('interception: the Dominion attack estimate counts the launches it would face', () => {
+  const aiAttacks = (ad) => {
+    const s = Sim.createGame(5);
+    s.day = Sim.CFG.aiMobilizationDays + 1;
+    // Three damaged wings (attack 3 each, 9 less the river crossing taken once: 8) against one
+    // infantry (defense 4): 8 clears 1.5 x 4 in the open; air defense downs all three.
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3', 4), mkU(3, 'enemy', 'drone', 'p5_3', 4),
+      mkU(4, 'enemy', 'drone', 'p5_3', 4)];
+    s.provinces.p4_3.airDefense = ad ? 1 : 0;
+    s.nations.player.steel = 1000;
+    s.nations.enemy.equipment = 0;
+    Sim.tick(s);
+    return s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group|air defense at/.test(e.msg)) ||
+      s.units.some(u => u.nation === 'enemy' && u.provinceId === 'p4_3');
+  };
+  assert.strictEqual(aiAttacks(false), true, 'three wings attack one infantry in the open');
+  assert.strictEqual(aiAttacks(true), false, 'the same three hold when the launches would down all of them');
+});
+
+test('launch reserve: launches are paid from the steel the attacker saw at dawn, through a real tick', () => {
+  // The judge's case: two damaged wings and an infantry into air defense, the
+  // Dominion holding 19 then 39 steel at dawn. Its factories eat the steel
+  // the lines leave during the day, so only a reserve set aside at dawn
+  // makes the battle match the estimate.
+  [19, 39, 0, 200].forEach(steel => {
+    const s = Sim.createGame(5);
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3', 4), mkU(3, 'player', 'drone', 'p4_3', 4),
+      mkU(9, 'enemy', 'infantry', 'p5_3')];
+    s.provinces.p5_3.airDefense = 1;
+    s.nations.enemy.steel = steel;
+    s.nations.enemy.equipment = 0;
+    const stack = s.units.filter(u => u.nation === 'player');
+    const planned = Sim.interceptPlan(s, stack, 'p5_3').length;
+    stack.forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+    Sim.tick(s);
+    assert.strictEqual(s.ledger.enemy.launches, planned, 'dawn steel ' + steel + ': the battle launches what the estimate counted');
+    assert.strictEqual(s.provinces.p5_3.launchReserve, null, 'the reserve is cleared after movement');
+  });
+});
+
+test('launch reserve: steel set aside but not used is refunded the same day', () => {
+  // The wing's attack becomes a meeting on the road, so no launch happens.
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p5_3.airDefense = 1;
+  s.nations.enemy.steel = 100;
+  Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p4_3');
+  Sim.reserveLaunches(s, 'player');
+  assert.strictEqual(s.nations.enemy.steel, 100 - Sim.CFG.interceptorSteel, 'set aside at dawn');
+  assert.strictEqual(s.provinces.p5_3.launchReserve, 1);
+  Sim.movementPhase(s);
+  assert.strictEqual(s.ledger.enemy.launches, 0);
+  assert.strictEqual(s.nations.enemy.steel, 100, 'refunded');
+});
+
+test('launch reserve: air defense finished today fires from tomorrow, and says so', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3', 4), mkU(9, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p5_3.airDefenseBuild = { daysLeft: 1 };
+  s.nations.enemy.steel = 200;
+  const stack = s.units.filter(u => u.nation === 'player');
+  const est = Sim.stackPower(s, stack, 'attack', 'p5_3');
+  assert.strictEqual(est, Sim.attackPower(s, stack, 'p5_3'), 'nothing stands yet, so the estimate counts no launch');
+  stack.forEach(u => Sim.issueOrder(s, u.id, 'p5_3'));
+  Sim.tick(s);
+  assert.strictEqual(s.ledger.enemy.launches, 0, 'no launch on the day it is finished');
+  assert.ok(s.log.some(e => /air defense at .* was finished today and fires from tomorrow\. 1 drone wing gets through untouched\./.test(e.msg)));
+});
+
+test('launch reserve: each side reserves on its own decision clock, the same way', () => {
+  // Mirror: Dominion wings into a Vessari province with air defense through a real tick.
+  const s = Sim.createGame(5);
+  s.day = Sim.CFG.aiMobilizationDays + 1;
+  s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3', 4), mkU(3, 'enemy', 'drone', 'p5_3', 4),
+    mkU(4, 'enemy', 'infantry', 'p5_3')];
+  s.provinces.p4_3.airDefense = 1;
+  s.nations.player.steel = Sim.CFG.interceptorSteel; // one launch at dawn
+  s.nations.enemy.equipment = 0;
+  Sim.tick(s);
+  // Attack 10, or 7 after the one launch downs a wing, against defense 4: it attacks either way.
+  assert.ok(s.log.some(e => /^Vessari air defense at .* launches 1 interceptor \(20 steel\), downing 1 drone wing\. 1 wing gets through untouched/.test(e.msg)),
+    s.log.slice(-6).map(e => e.msg).join(' / '));
+  assert.strictEqual(s.ledger.player.launches, 1, 'the one launch its dawn steel paid for');
+  assert.ok(s.nations.player.steel >= 0);
+});
+
+// ---------- Cycle 11: research projects and jamming ----------
+test('research: one command for every project, with prerequisites, costs, and refusals', () => {
+  const s = Sim.createGame(7);
+  const n = s.nations.player;
+  assert.strictEqual(Sim.research(s, 'player', 'nope').reason, 'no such research project');
+  n.researchPoints = 1000;
+  const early = Sim.research(s, 'player', 'droneGen3');
+  assert.strictEqual(early.reason, 'needs Drone Gen 2 first');
+  assert.strictEqual(n.researchPoints, 1000, 'a refusal costs nothing');
+  assert.strictEqual(Sim.research(s, 'player', 'jamming2').reason, 'needs Jamming Gen 1 first');
+  n.researchPoints = Sim.CFG.research.jamming1.cost - 1;
+  assert.deepStrictEqual(Sim.research(s, 'player', 'jamming1'), { ok: false, reason: 'not enough research points', cost: Sim.CFG.research.jamming1.cost });
+  n.researchPoints = 1000;
+  ['droneGen2', 'droneGen3', 'jamming1', 'jamming2'].forEach(id => {
+    const before = n.researchPoints;
+    assert.strictEqual(Sim.research(s, 'player', id).ok, true, id);
+    assert.strictEqual(before - n.researchPoints, Sim.CFG.research[id].cost, id + ' costs its stated points');
+    assert.strictEqual(Sim.hasResearched(s, 'player', id), true);
+    assert.strictEqual(Sim.research(s, 'player', id).reason, 'already researched');
+  });
+  assert.strictEqual(Sim.droneGeneration(s, 'player'), 3);
+  assert.strictEqual(n.jamming, 2);
+  const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
+  assert.strictEqual(Sim.unitStats(s, drone).attack, Sim.CFG.droneGen3.attack);
+  assert.ok(s.log.some(e => e.msg === 'Vessari field Jamming Gen 2. Enemy Gen 1 and Gen 2 drone wings now fight at -40% attack and defense.'));
+});
+
+test('jamming: a named modifier in unitStats against drone generations it reaches, and only those', () => {
+  const s = Sim.createGame(7);
+  const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  const pct = Sim.CFG.jammingPct;
+  const jammed = (a, d) => ({ attack: Math.max(1, Math.round(a * (1 - pct / 100))), defense: Math.max(1, Math.round(d * (1 - pct / 100))) });
+  const at = () => { const st = Sim.unitStats(s, drone); return { attack: st.attack, defense: st.defense, jamming: st.jamming }; };
+  s.nations.enemy.jamming = 1; // Gen 1 wing against Jamming Gen 1
+  assert.deepStrictEqual(at(), Object.assign(jammed(3, 2), { jamming: pct }));
+  s.nations.player.droneGen2 = true; // Gen 2 outranges Jamming Gen 1
+  assert.deepStrictEqual(at(), { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, jamming: 0 });
+  s.nations.enemy.jamming = 2;
+  assert.deepStrictEqual(at(), Object.assign(jammed(Sim.CFG.droneGen2.attack, Sim.CFG.droneGen2.defense), { jamming: pct }));
+  s.nations.player.droneGen3 = true; // Gen 3 outranges Jamming Gen 2
+  assert.deepStrictEqual(at(), { attack: Sim.CFG.droneGen3.attack, defense: Sim.CFG.droneGen3.defense, jamming: 0 });
+  s.nations.player.droneGen3 = false;
+  assert.strictEqual(Sim.stackPower(s, [drone], 'attack'), jammed(Sim.CFG.droneGen2.attack, 1).attack, 'stackPower reads the jammed attack');
+  assert.strictEqual(Sim.unitStats(s, inf).jamming, 0, 'jamming never touches infantry');
+  // Your own jamming never touches your own wings.
+  s.nations.enemy.jamming = 0; s.nations.player.jamming = 2;
+  assert.strictEqual(Sim.unitStats(s, drone).jamming, 0);
+});
+
+test('jamming: the same attack with the defender jamming leaves more defenders standing', () => {
+  // Two wings against three infantry: the wings are destroyed either way, so
+  // the strength they took off the defenders measures their attack.
+  const play = (seed, jam) => {
+    const s = Sim.createGame(seed);
+    s.units = [mkU(1, 'player', 'drone', 'p4_3'), mkU(2, 'player', 'drone', 'p4_3'),
+      mkU(9, 'enemy', 'infantry', 'p5_3'), mkU(10, 'enemy', 'infantry', 'p5_3'), mkU(11, 'enemy', 'infantry', 'p5_3')];
+    s.nations.enemy.jamming = jam;
+    [1, 2].forEach(id => Sim.issueOrder(s, id, 'p5_3'));
+    Sim.movementPhase(s);
+    return s.units.filter(u => u.nation === 'enemy').reduce((a, u) => a + u.strength, 0);
+  };
+  [1, 5, 7, 42].forEach(seed => assert.ok(play(seed, 1) > play(seed, 0), 'seed ' + seed + ': ' + play(seed, 0) + ' left open, ' + play(seed, 1) + ' left jammed'));
+});
+
+test('AI research: the Dominion buys the first unfinished project in its stated order, never skipping ahead', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.researchPoints = 1000;
+  const bought = [];
+  for (let d = 0; d < 6; d++) {
+    Sim.tick(s);
+    Sim.CFG.aiResearchOrder.forEach(id => { if (Sim.hasResearched(s, 'enemy', id) && bought.indexOf(id) === -1) bought.push(id); });
+  }
+  assert.deepStrictEqual(bought, Sim.CFG.aiResearchOrder, 'one project per day, in order');
+  const t = Sim.createGame(42);
+  t.nations.enemy.droneGen2 = true;
+  t.nations.enemy.researchPoints = Sim.CFG.research.droneGen3.cost; // enough for Gen 3, but Jamming Gen 1 is next
+  Sim.tick(t);
+  assert.strictEqual(t.nations.enemy.jamming, 1);
+  assert.strictEqual(t.nations.enemy.droneGen3, false);
+  // Gen 3 is next and costs 120; with 100 points it waits, though Jamming Gen 2 (100) is affordable.
+  const w = Sim.createGame(42);
+  w.nations.enemy.droneGen2 = true; w.nations.enemy.jamming = 1;
+  w.nations.enemy.researchPoints = Sim.CFG.research.jamming2.cost;
+  Sim.tick(w);
+  assert.strictEqual(w.nations.enemy.jamming, 1, 'it saves for Drone Gen 3 instead of skipping ahead');
+  assert.strictEqual(w.nations.enemy.researchPoints, Sim.CFG.research.jamming2.cost + Sim.CFG.researchPerDay);
+  // Same points, same project, same day for both sides: the player's click before the tick, the AI at its start.
+  const u = Sim.createGame(42);
+  ['player', 'enemy'].forEach(id => { u.nations[id].droneGen2 = true; u.nations[id].researchPoints = Sim.CFG.research.jamming1.cost; });
+  Sim.research(u, 'player', 'jamming1');
+  Sim.tick(u);
+  assert.strictEqual(u.nations.player.jamming, u.nations.enemy.jamming);
+  assert.strictEqual(u.nations.player.researchPoints, u.nations.enemy.researchPoints);
+});
+
+test('launch reserve: when steel covers one launch, the lower province id gets it, and the battle there uses it', () => {
+  const s = Sim.createGame(5);
+  s.units = [mkU(1, 'player', 'drone', 'p4_3', 4), mkU(2, 'player', 'drone', 'p4_4', 4),
+    mkU(9, 'enemy', 'infantry', 'p5_3'), mkU(10, 'enemy', 'infantry', 'p5_4')];
+  s.provinces.p5_3.airDefense = 1;
+  s.provinces.p5_4.airDefense = 1;
+  s.nations.enemy.steel = Sim.CFG.interceptorSteel; // one launch for two provinces
+  Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p5_4');
+  Sim.reserveLaunches(s, 'player');
+  assert.strictEqual(s.provinces.p5_3.launchReserve, 1, 'p5_3 sorts first and is served first');
+  assert.strictEqual(s.provinces.p5_4.launchReserve, 0);
+  Sim.movementPhase(s);
+  assert.ok(s.log.some(e => e.msg.indexOf('air defense at ' + s.provinces.p5_3.name + ' launches 1 interceptor') !== -1));
+  assert.ok(s.log.some(e => e.msg.indexOf('air defense at ' + s.provinces.p5_4.name + ' cannot launch') !== -1));
+  assert.strictEqual(s.ledger.enemy.launches, 1);
+});
+
+// ---------- Cycle 12: fog of war and drone recon ----------
+test('fog: a nation sees its provinces and their neighbours, and enemy units only there', () => {
+  const s = Sim.createGame(7);
+  const seen = Sim.visibleProvinces(s, 'player');
+  Object.keys(s.provinces).forEach(pid => {
+    const p = s.provinces[pid];
+    const expect = p.owner === 'player' || Sim.neighborsOf(s, p).some(np => np.owner === 'player');
+    assert.strictEqual(!!seen[pid], expect, pid);
+  });
+  const cap = s.nations.enemy.capitalId;
+  assert.strictEqual(Sim.canSee(s, 'player', cap), false, 'the Dominion capital is deep behind its front');
+  assert.strictEqual(Sim.seenUnitsIn(s, 'player', cap), null, 'unseen is unknown, not an empty list');
+  assert.deepStrictEqual(Sim.seenUnitsIn(s, 'player', 'p5_3').map(u => u.id), Sim.unitsIn(s, 'p5_3').map(u => u.id));
+  // The same rule from the other side.
+  assert.strictEqual(Sim.canSee(s, 'enemy', s.nations.player.capitalId), false);
+  assert.strictEqual(Sim.canSee(s, 'enemy', 'p4_3'), true);
+});
+
+test('recon: one command, range by generation, lit through the end of the next day, and the wing holds', () => {
+  const s = Sim.createGame(7);
+  const wing = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'drone');
+  const inf = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'infantry');
+  assert.strictEqual(Sim.reconFlight(s, 'player', inf.id).reason, 'only drone wings fly recon');
+  assert.strictEqual(Sim.reconFlight(s, 'enemy', wing.id).reason, 'no such unit');
+  Sim.issueOrder(s, wing.id, 'p3_3');
+  assert.strictEqual(Sim.reconFlight(s, 'player', wing.id).reason, 'already ordered to march today');
+  wing.order = null;
+  const r = Sim.reconFlight(s, 'player', wing.id);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.lit, Sim.provincesWithin(s, 'p4_3', Sim.CFG.reconRange[1]));
+  assert.ok(r.lit.indexOf('p6_3') !== -1 && r.lit.indexOf('p7_3') === -1, 'Gen 1 reaches 2 hops');
+  assert.strictEqual(Sim.canSee(s, 'player', 'p6_3'), true);
+  assert.strictEqual(Sim.reconFlight(s, 'player', wing.id).reason, 'already flew recon today');
+  assert.strictEqual(Sim.issueOrder(s, wing.id, 'p3_3').reason, 'flew recon today');
+  const day = s.day;
+  Sim.tick(s);
+  assert.strictEqual(wing.provinceId, 'p4_3', 'the wing held its province');
+  assert.strictEqual(Sim.canSee(s, 'player', 'p6_3'), true, 'still lit the next day');
+  Sim.tick(s);
+  assert.strictEqual(s.day, day + 2);
+  assert.strictEqual(s.recon.player.p6_3, day + 1, 'lit through day ' + (day + 1) + ' only');
+  // Gen 2 reaches 3 hops.
+  const g = Sim.createGame(7);
+  g.nations.player.droneGen2 = true;
+  const w2 = Sim.unitsIn(g, 'p4_3').find(u => u.type === 'drone');
+  assert.ok(Sim.reconFlight(g, 'player', w2.id).lit.indexOf('p7_3') !== -1);
+});
+
+test('recon: jamming at or above the wing generation blinds it, your own jamming never does, and the rule is the same for both', () => {
+  const blinded = (viewer, foeJam, gen) => {
+    const s = Sim.createGame(7);
+    const other = viewer === 'player' ? 'enemy' : 'player';
+    s.nations[other].jamming = foeJam;
+    s.nations[viewer].jamming = 2;
+    if (gen >= 2) s.nations[viewer].droneGen2 = true;
+    const prov = viewer === 'player' ? 'p4_3' : 'p5_3';
+    const w = Sim.unitsIn(s, prov).find(u => u.type === 'drone' && u.nation === viewer);
+    const r = Sim.reconFlight(s, viewer, w.id);
+    return { blinded: r.blinded, lit: r.lit.length, logged: s.log.some(e => /is blinded: .* Jamming Gen \d reaches Gen \d drones\. Nothing is seen\./.test(e.msg)) };
+  };
+  ['player', 'enemy'].forEach(v => {
+    assert.deepStrictEqual(blinded(v, 1, 1), { blinded: true, lit: 0, logged: true }, v + ': Jamming Gen 1 blinds Gen 1');
+    assert.strictEqual(blinded(v, 1, 2).blinded, false, v + ': Gen 2 outranges Jamming Gen 1');
+    assert.strictEqual(blinded(v, 2, 2).blinded, true, v + ': Jamming Gen 2 blinds Gen 2');
+    assert.strictEqual(blinded(v, 0, 1).blinded, false, v + ': its own Jamming Gen 2 never blinds it');
+  });
+});
+
+test('fog: log lines about units in a province you cannot see are hidden from you, and only from you', () => {
+  const s = Sim.createGame(7);
+  const line = (nation) => (s.nations[nation].productionLines || [])[0].id;
+  Sim.queueProduction(s, 'enemy', line('enemy'));
+  Sim.queueProduction(s, 'player', line('player'));
+  const theirs = s.log.filter(e => /^Khessite queue/.test(e.msg)).pop();
+  const mine = s.log.filter(e => /^Vessari queue/.test(e.msg)).pop();
+  assert.deepStrictEqual(theirs.hiddenFrom, ['player'], 'their capital is unseen');
+  assert.deepStrictEqual(mine.hiddenFrom, ['enemy'], 'yours is unseen by them too');
+  // Seen by recon, the same line is public.
+  s.recon.player[s.nations.enemy.capitalId] = s.day;
+  Sim.queueProduction(s, 'enemy', line('enemy'));
+  assert.strictEqual(s.log.filter(e => /^Khessite queue/.test(e.msg)).pop().hiddenFrom, undefined);
+  // Structures and research stay public.
+  s.nations.enemy.researchPoints = 100;
+  Sim.research(s, 'enemy', 'droneGen2');
+  assert.strictEqual(s.log[s.log.length - 1].hiddenFrom, undefined);
+});
+
+test('recon: a lit province is unseen again two days on, Gen 3 reaches 4 hops, and your recon never lights the Dominion view', () => {
+  const s = Sim.createGame(7);
+  const wing = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'drone');
+  // p7_3 is three hops from p4_3 and next to nothing the player owns, so only Gen 2 recon (3 hops) lights it.
+  s.nations.player.droneGen2 = true;
+  const enemyBefore = JSON.stringify(Sim.visibleProvinces(s, 'enemy'));
+  Sim.reconFlight(s, 'player', wing.id);
+  assert.strictEqual(JSON.stringify(Sim.visibleProvinces(s, 'enemy')), enemyBefore, 'the Dominion sees nothing new');
+  const day = s.day;
+  assert.strictEqual(Sim.canSee(s, 'player', 'p7_3'), true, 'lit today');
+  s.day = day + 1;
+  assert.strictEqual(Sim.canSee(s, 'player', 'p7_3'), true, 'still lit tomorrow');
+  s.day = day + 2;
+  assert.strictEqual(Sim.canSee(s, 'player', 'p7_3'), false, 'unseen the day after');
+  // Gen 3 reaches exactly 4 hops.
+  const g = Sim.createGame(7);
+  g.nations.player.droneGen2 = true; g.nations.player.droneGen3 = true;
+  const w3 = Sim.unitsIn(g, 'p4_3').find(u => u.type === 'drone');
+  const lit = Sim.reconFlight(g, 'player', w3.id).lit;
+  assert.deepStrictEqual(lit, Sim.provincesWithin(g, 'p4_3', 4));
+  assert.ok(lit.indexOf('p8_3') !== -1 && lit.indexOf('p9_3') === -1, 'p8_3 is 4 hops, p9_3 is 5');
+});
+
+test('map: province names are unique on every seed', () => {
+  // That naming still draws the same random numbers is shown by the balance
+  // output staying byte identical (Cycle 13 step 1 in CYCLE_LOG).
+  for (let seed = 1; seed <= 300; seed++) {
+    const names = Object.values(Sim.createGame(seed).provinces).map(p => p.name);
+    assert.strictEqual(new Set(names).size, names.length, 'seed ' + seed);
+  }
+});
+
+test('AI: its orders and a whole campaign do not depend on the order of the unit array', () => {
+  const play = (reverse) => {
+    const s = Sim.createGame(42);
+    const snaps = [];
+    while (!s.gameOver && s.day <= 60) {
+      if (reverse) s.units.reverse();
+      Sim.tick(s);
+      snaps.push(JSON.stringify(s.units.slice().sort((a, b) => a.id - b.id).map(u => [u.id, u.provinceId, u.strength])));
+    }
+    return { snaps, winner: s.winner, day: s.day, log: s.log.map(e => e.msg).join('|') };
+  };
+  const a = play(false), b = play(true);
+  const firstDiff = a.snaps.findIndex((x, i) => x !== b.snaps[i]);
+  assert.strictEqual(firstDiff, -1, 'units diverge on tick ' + (firstDiff + 1));
+  assert.deepStrictEqual([a.winner, a.day, a.log], [b.winner, b.day, b.log]);
+});
+
+// ---------- Cycle 14: river crossings ----------
+test('river crossing: one modifier in unitStats, read by stackPower and combat, for attacks across a river edge only', () => {
+  const saved = Sim.CFG.riverCrossingPct;
+  try {
+    Sim.CFG.riverCrossingPct = 50;
+    const s = Sim.createGame(5);
+    const inf = mkU(1, 'player', 'infantry', 'p4_3');
+    assert.strictEqual(Sim.edgeBetween(s, 'p4_3', 'p5_3').terrain, 'river');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').riverPct, 50, 'unitStats names the crossing');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').attack, 4, 'and leaves the unit attack whole: it is taken once off the stack');
+    assert.strictEqual(Sim.attackPower(s, [inf], 'p5_3'), 2, 'attack 4 at -50% across the river');
+    assert.strictEqual(Sim.attackPower(s, [inf], 'p3_3'), 4, 'no penalty across land');
+    assert.strictEqual(Sim.attackPower(s, [inf], null), 4, 'no target, no penalty');
+    assert.strictEqual(Sim.unitStats(s, inf, 'p5_3').defense, 4, 'defense never changes');
+    assert.strictEqual(Sim.stackPower(s, [inf], 'attack', 'p5_3'), 2, 'the estimate and preview see it');
+    // Once off the sum: three Gen 1 wings (3 each) lose 50% of 9, not 50% of each rounded.
+    const wings = [1, 2, 3].map(i => mkU(10 + i, 'player', 'drone', 'p4_3'));
+    assert.strictEqual(Sim.attackPower(s, wings, 'p5_3'), Math.round(9 * 0.5));
+    // Combat: the same battle, same rolls, with and without the penalty.
+    const fight = (pct) => {
+      Sim.CFG.riverCrossingPct = pct;
+      const g = Sim.createGame(5);
+      g.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'), mkU(9, 'enemy', 'infantry', 'p5_3')];
+      Sim.issueOrder(g, 1, 'p5_3'); Sim.issueOrder(g, 2, 'p5_3');
+      Sim.movementPhase(g);
+      return g.units.filter(u => u.nation === 'player').reduce((a, u) => a + u.strength, 0);
+    };
+    // The defender falls either way; weaker blows mean a longer fight and more attackers lost.
+    assert.ok(fight(50) < fight(0), 'the crossing costs the attackers in battle: ' + fight(0) + ' left open, ' + fight(50) + ' left across the river');
+    // Columns that meet on the road fight without it.
+    const meet = (pct) => {
+      Sim.CFG.riverCrossingPct = pct;
+      const g = Sim.createGame(5);
+      g.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(9, 'enemy', 'infantry', 'p5_3')];
+      Sim.issueOrder(g, 1, 'p5_3'); Sim.issueOrder(g, 9, 'p4_3');
+      Sim.movementPhase(g);
+      return JSON.stringify(g.units.map(u => u.strength));
+    };
+    assert.strictEqual(meet(50), meet(0), 'a road meeting is not a crossing');
+  } finally {
+    Sim.CFG.riverCrossingPct = saved;
+  }
+});
+
+test('river flotilla: one command, refusals, timing, it carries crossings from its province only, and capture loses it', () => {
+  const s = Sim.createGame(7);
+  s.units = s.units.filter(u => u.nation === 'player'); // nothing marches on p4_3 while it builds
+  const n = s.nations.player;
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p5_3').reason, 'not your province');
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p3_3').reason, 'not on the river');
+  n.equipment = Sim.CFG.flotillaCost - 1;
+  assert.deepStrictEqual(Sim.buildFlotilla(s, 'player', 'p4_3'), { ok: false, reason: 'not enough equipment', cost: Sim.CFG.flotillaCost });
+  n.equipment = 1000;
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p4_3').ok, true);
+  assert.strictEqual(n.equipment, 1000 - Sim.CFG.flotillaCost);
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p4_3').reason, 'flotilla already under construction');
+  const inf = Sim.unitsIn(s, 'p4_3').find(u => u.type === 'infantry');
+  const crossing = Sim.attackPower(s, [inf], 'p5_3');
+  for (let d = 1; d < Sim.CFG.flotillaBuildDays; d++) { Sim.tick(s); assert.strictEqual(s.provinces.p4_3.flotilla, 0, 'not yet on day ' + d); }
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p4_3.flotilla, 1);
+  assert.strictEqual(Sim.buildFlotilla(s, 'player', 'p4_3').reason, 'flotilla already built');
+  const here = mkU(50, 'player', 'infantry', 'p4_3');
+  assert.strictEqual(crossing, Math.round(4 * (1 - Sim.CFG.riverCrossingPct / 100)), 'before: the crossing costs attack');
+  assert.strictEqual(Sim.unitStats(s, here, 'p5_3').riverPct, 0, 'the flotilla carries the crossing');
+  assert.strictEqual(Sim.attackPower(s, [here], 'p5_3'), 4, 'full attack across the river');
+  // A unit crossing elsewhere still pays.
+  assert.strictEqual(Sim.unitStats(s, mkU(51, 'player', 'infantry', 'p4_2'), 'p5_2').riverPct, Sim.CFG.riverCrossingPct);
+  // An enemy unit standing in your flotilla province gets nothing from it.
+  assert.strictEqual(Sim.unitStats(s, mkU(52, 'enemy', 'infantry', 'p4_3'), 'p5_3').riverPct, Sim.CFG.riverCrossingPct);
+  // Capture loses it.
+  const c = Sim.createGame(5);
+  c.units = [mkU(1, 'enemy', 'infantry', 'p5_3')];
+  c.provinces.p4_3.flotilla = 1;
+  Sim.issueOrder(c, 1, 'p4_3');
+  Sim.movementPhase(c);
+  assert.strictEqual(c.provinces.p4_3.owner, 'enemy');
+  assert.strictEqual(c.provinces.p4_3.flotilla, 0);
+});
+
+test('river flotilla: the Dominion does not build one while its rule is off, and builds through the same command when on', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = 5000;
+  for (let d = 0; d < 3; d++) Sim.tick(s);
+  const river = s.provinces[Sim.provinceId(Sim.CFG.mapW / 2, 3)];
+  assert.ok(!river.flotilla && !river.flotillaBuild, 'off by default');
+  const saved = Sim.CFG.aiBuildsFlotilla;
+  try {
+    Sim.CFG.aiBuildsFlotilla = true;
+    const t = Sim.createGame(42);
+    t.nations.enemy.equipment = 5000;
+    Sim.tick(t);
+    const r = t.provinces[Sim.provinceId(Sim.CFG.mapW / 2, 3)];
+    assert.deepStrictEqual(r.flotillaBuild, { daysLeft: Sim.CFG.flotillaBuildDays - 1 });
+    assert.ok(t.log.some(e => /^Khessite begin building a river flotilla at /.test(e.msg)));
+  } finally {
+    Sim.CFG.aiBuildsFlotilla = saved;
+  }
+});
+
+// ---------- Cycle 15: the river rules the Cycle 14 judge found unpinned ----------
+test('river crossing: the Dominion estimate reads it, clashes pay it, and only a flotilla where the attacker stands carries it', () => {
+  // The Dominion's 1.5x rule across the river: two Gen 1 wings (6) against one infantry (defense 4) need 6;
+  // across the river 6 becomes 5, so it holds; with its own flotilla at p5_3 it attacks.
+  const aiAttacks = (flotilla) => {
+    const s = Sim.createGame(5);
+    s.day = Sim.CFG.aiMobilizationDays + 1;
+    s.units = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'enemy', 'drone', 'p5_3'), mkU(3, 'enemy', 'drone', 'p5_3')];
+    s.provinces.p5_3.flotilla = flotilla ? 1 : 0;
+    s.nations.enemy.equipment = 0;
+    Sim.tick(s);
+    return s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group/.test(e.msg));
+  };
+  assert.strictEqual(aiAttacks(false), false, 'the crossing keeps the Dominion under its 1.5x rule');
+  assert.strictEqual(aiAttacks(true), true, 'its own flotilla carries the crossing, and it attacks');
+  // A clash over empty ground across the river: the attacking side pays the crossing.
+  const saved = Sim.CFG.riverCrossingPct;
+  try {
+    const clash = (pct) => {
+      Sim.CFG.riverCrossingPct = pct;
+      const s = Sim.createGame(5);
+      s.units = [mkU(1, 'player', 'infantry', 'p4_4'), mkU(2, 'player', 'infantry', 'p4_4'), mkU(9, 'enemy', 'infantry', 'p6_4')];
+      Sim.issueOrder(s, 1, 'p5_4'); Sim.issueOrder(s, 2, 'p5_4'); Sim.issueOrder(s, 9, 'p5_4');
+      Sim.movementPhase(s);
+      return JSON.stringify(s.units.map(u => [u.id, u.strength]));
+    };
+    assert.notStrictEqual(clash(50), clash(0), 'the player crosses into the clash and pays');
+  } finally {
+    Sim.CFG.riverCrossingPct = saved;
+  }
+  // A flotilla in the target province carries nothing for the attacker.
+  const t = Sim.createGame(5);
+  t.provinces.p5_3.flotilla = 1;
+  const inf = mkU(1, 'player', 'infantry', 'p4_3');
+  assert.strictEqual(Sim.unitStats(t, inf, 'p5_3').riverPct, Sim.CFG.riverCrossingPct);
+  assert.strictEqual(Sim.attackPower(t, [inf], 'p5_3'), Math.round(4 * (1 - Sim.CFG.riverCrossingPct / 100)));
+  // Capture loses flotilla work in progress too.
+  const c = Sim.createGame(5);
+  c.units = [mkU(1, 'enemy', 'infantry', 'p5_3')];
+  c.provinces.p4_3.flotillaBuild = { daysLeft: 2 };
+  Sim.issueOrder(c, 1, 'p4_3');
+  Sim.movementPhase(c);
+  assert.strictEqual(c.provinces.p4_3.owner, 'enemy');
+  assert.strictEqual(c.provinces.p4_3.flotillaBuild, null);
+});
+
+test('fog: retool and completion lines about Dominion lines in fog are hidden from you', () => {
+  const s = Sim.createGame(7);
+  const line = s.nations.enemy.productionLines[0];
+  Sim.assignLineTemplate(s, 'enemy', line.id, line.template === 'drone' ? 'infantry' : 'drone');
+  assert.deepStrictEqual(s.log[s.log.length - 1].hiddenFrom, ['player'], 'the retool line');
+  Sim.queueProduction(s, 'enemy', line.id);
+  for (let d = 0; d < 8 && !s.log.some(e => /^Khessite line \d completes/.test(e.msg)); d++) Sim.tick(s);
+  const done = s.log.find(e => /^Khessite line \d completes/.test(e.msg));
+  assert.ok(done, 'a Dominion unit was completed');
+  assert.ok(done.hiddenFrom && done.hiddenFrom.indexOf('player') !== -1, 'the completion line');
+});
+
+test('river crossing: one province attacked from two origins, across the river and over land, pays only for the river stack', () => {
+  // p5_3 is entered from p4_3 across the river and from p5_2 over land.
+  const s = Sim.createGame(5);
+  s.provinces.p5_2.owner = 'player';
+  const river = [mkU(1, 'player', 'infantry', 'p4_3'), mkU(2, 'player', 'infantry', 'p4_3'), mkU(3, 'player', 'infantry', 'p4_3')];
+  const land = [mkU(4, 'player', 'infantry', 'p5_2'), mkU(5, 'player', 'infantry', 'p5_2'), mkU(6, 'player', 'infantry', 'p5_2')];
+  assert.strictEqual(Sim.edgeBetween(s, 'p5_2', 'p5_3').terrain, 'land');
+  const pct = Sim.CFG.riverCrossingPct;
+  const expect = Math.max(1, Math.round(12 * (1 - pct / 100))) + 12;
+  assert.strictEqual(Sim.attackPower(s, river.concat(land), 'p5_3'), expect, 'the crossing comes off the river stack only');
+  assert.strictEqual(Sim.attackPower(s, land.concat(river), 'p5_3'), expect, 'whatever the order of the units');
+});
+
+// ---------- Cycle 16: coastal control and blockade ----------
+test('coastal control: the side holding more of a sea coast controls it, and its blockade is taken once off the other side coastal steel', () => {
+  const s = Sim.createGame(7);
+  assert.strictEqual(Sim.seaControl(s, 'north'), null, 'five coastal provinces each: open');
+  assert.strictEqual(Sim.seaControl(s, 'south'), null);
+  s.provinces.p5_0.owner = 'player';
+  assert.strictEqual(Sim.seaControl(s, 'north'), 'player', 'six against four');
+  const saved = Sim.CFG.blockadePct;
+  try {
+    Sim.CFG.blockadePct = 50;
+    const coast = [5, 6, 7, 8, 9].filter(x => s.provinces['p' + x + '_0'].owner === 'enemy').reduce((t, x) => t + s.provinces['p' + x + '_0'].steel, 0);
+    const b = Sim.blockade(s, 'enemy');
+    assert.deepStrictEqual(b.north, { steel: coast, lost: coast - Math.round(coast * 0.5), control: 'player' });
+    assert.strictEqual(b.south.lost, 0, 'an open sea blockades nothing');
+    assert.strictEqual(Sim.blockade(s, 'player').north.lost, 0, 'the controlling side loses nothing');
+    const gross = Object.values(s.provinces).filter(p => p.owner === 'enemy').reduce((t, p) => t + p.steel, 0);
+    assert.strictEqual(Sim.steelIncome(s, 'enemy'), gross - b.north.lost, 'income pays the blockade');
+    // The same rule for the other side.
+    const m = Sim.createGame(7);
+    m.provinces.p4_6.owner = 'enemy';
+    const mb = Sim.blockade(m, 'player');
+    assert.strictEqual(Sim.seaControl(m, 'south'), 'enemy');
+    assert.strictEqual(mb.south.lost, mb.south.steel - Math.round(mb.south.steel * 0.5));
+    Sim.CFG.blockadePct = 0;
+    assert.strictEqual(Sim.blockade(s, 'enemy').north.lost, 0, 'at 0 percent nothing is lost');
+  } finally {
+    Sim.CFG.blockadePct = saved;
+  }
+});
+
+test('blockade: the south sea counts in income, the cut is taken once off the sum, and it follows CFG', () => {
+  const saved = Sim.CFG.blockadePct;
+  try {
+    const s = Sim.createGame(7);
+    const south = Sim.CFG.mapH - 1;
+    s.provinces['p5_' + south].owner = 'player'; // the player holds six of the south coast
+    [6, 7, 8, 9].forEach(x => { s.provinces['p' + x + '_' + south].steel = 1; }); // the Dominion's four: 1 steel each
+    const gross = Object.values(s.provinces).filter(p => p.owner === 'enemy').reduce((t, p) => t + p.steel, 0);
+    Sim.CFG.blockadePct = 50;
+    assert.strictEqual(Sim.seaControl(s, 'south'), 'player');
+    assert.strictEqual(Sim.blockade(s, 'enemy').south.lost, 2, 'once off the sum of 4 keeps 2; rounding each 0.5 up would lose nothing');
+    assert.strictEqual(Sim.steelIncome(s, 'enemy'), gross - 2 - Sim.blockade(s, 'enemy').north.lost, 'income pays the south sea');
+    Sim.CFG.blockadePct = 30;
+    assert.strictEqual(Sim.blockade(s, 'enemy').south.lost, 1, '30 percent of 4 keeps 3');
+  } finally {
+    Sim.CFG.blockadePct = saved;
+  }
 });
