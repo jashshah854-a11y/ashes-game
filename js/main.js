@@ -139,12 +139,14 @@
         if (p.factoryLevel > 0) {
           html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
         }
-        if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">Fort ' + p.fortLevel + '</span>';
-        if (p.fortBuild) html += ' <span class="fort-badge building">Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd</span>';
-        if (p.flotilla > 0) html += ' <span class="fleet-badge">Fleet</span>';
-        if (p.flotillaBuild) html += ' <span class="fleet-badge building">Fleet ' + p.flotillaBuild.daysLeft + 'd</span>';
+        // Badges carry a long label and a short one for phone widths.
+        var two = function (long, short) { return '<span class="b-long">' + long + '</span><span class="b-short">' + short + '</span>'; };
+        if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">' + two('Fort ' + p.fortLevel, 'F' + p.fortLevel) + '</span>';
+        if (p.fortBuild) html += ' <span class="fort-badge building">' + two('Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd', 'F' + p.fortBuild.toLevel + '..') + '</span>';
+        if (p.flotilla > 0) html += ' <span class="fleet-badge">' + two('Fleet', 'Fl') + '</span>';
+        if (p.flotillaBuild) html += ' <span class="fleet-badge building">' + two('Fleet ' + p.flotillaBuild.daysLeft + 'd', 'Fl..') + '</span>';
         if (p.airDefense > 0) html += ' <span class="ad-badge">AD</span>';
-        if (p.airDefenseBuild) html += ' <span class="ad-badge building">AD in ' + p.airDefenseBuild.daysLeft + 'd</span>';
+        if (p.airDefenseBuild) html += ' <span class="ad-badge building">' + two('AD in ' + p.airDefenseBuild.daysLeft + 'd', 'AD..') + '</span>';
         // The river line: a band on the east side of each province whose
         // eastern edge is a river.
         var eastEdge = x + 1 < state.mapW ? Sim.edgeBetween(state, p.id, Sim.provinceId(x + 1, y)) : null;

@@ -51,7 +51,7 @@ async function badgeOnTop(page, provId) {
     tile.scrollIntoView({ block: 'center' }); // a click elsewhere may have scrolled the map away
     const r = badge.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return { ok: hit === badge || badge.contains(hit), text: badge.textContent };
+    return { ok: hit === badge || badge.contains(hit), text: badge.innerText.trim() };
   }, provId);
 }
 

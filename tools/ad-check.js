@@ -69,7 +69,7 @@ async function badge(page, provId) {
     tile.scrollIntoView({ block: 'center' });
     const r = b.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return { ok: hit === b || b.contains(hit), text: b.textContent };
+    return { ok: hit === b || b.contains(hit), text: b.innerText.trim() };
   }, provId);
 }
 

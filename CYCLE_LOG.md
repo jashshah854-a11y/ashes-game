@@ -1217,3 +1217,11 @@ All conditions of the Cycle 14 judge are met: the flotilla record (a); the cross
 - `tools/balance.js`: the flotilla report now builds its flotilla first, at the capital row's river province, before equipment goes to factories (in Cycle 14 it came after factories and was built in only 50 of 200 campaigns).
 - 8 standard seeds: every other profile byte identical to tools/baseline-cycle15-step0b.txt; the flotilla report wins 8 of 8 and differs from factories on 7 (seed 42 day 70 to 34; 99 day 50 to 70; 1234 day 64 to 71; 2024 day 50 to 62; 31337 day 42 to 43). New reference: tools/baseline-cycle15-step2.txt.
 - Seeds 1 to 200: 200 of 200, median day 55 against 52 for factories; 38 campaigns faster, 107 slower, 55 the same. The flotilla costs factories more than the crossing it saves, except where it lets an early assault through. DECISIONS item 30 and BACKLOG carry it. Rulings untouched (a report profile).
+
+## Cycle 15, Step 3: the badge stack at 390 px
+- `js/main.js`, `css/style.css`: every map badge carries a long and a short label; below 700 px the short ones show (F1, AD, Fl; work in progress as F1.., AD.., Fl..), smaller, on a tight column at 2, 14, and 26 px, so a tile with walls, air defense, and a fleet keeps all three readable and its unit chips visible (at 390 px "Fort 1" had wrapped under the AD badge and the chips were hidden).
+- Checks read badges by innerText (what shows) rather than textContent (both labels). `tools/navy-check.js` (20 checks): at 390 px a tile with walls, air defense, and a fleet shows F1, AD, and Fl each on top by hit test and a unit chip still visible; the fleet badges read Fl.. and Fl at 390 px. fort-check 13 and ad-check 23 still pass at 1400 px.
+- UI only: suite 92 pass, 0 fail; balance byte identical to tools/baseline-cycle15-step2.txt; all seven browser checks pass.
+
+## Cycle 15, Step 4: the judge, CLAIMED (2026-10-14)
+Claimed by the Claude Code builder session. A fresh read only context judges Cycle 15 (step 0's six conditions, the brief numbers script, the flotilla's real use, the badges) against DESIGN_BIBLE.md, the hard rules, and the Cycle 14 judge's prescription, and prescribes Cycle 16.
