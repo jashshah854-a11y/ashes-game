@@ -259,6 +259,17 @@ was invented by the loop, not by you:
     only its neighbours and flies none; no decision on either side reads
     beyond its neighbours, so fog changes what you see, not the war.
 
+28. Should the steel exchange count only what you can see? Today it
+    counts every Dominion loss, attrition deep in the fog included, so
+    its Dominion total tells you how much of its army is starving behind
+    the front, which nothing else shows.
+
+29. Should one click order the whole stack? Today a click orders only
+    the selected unit, and an attack with a stack means ordering each
+    unit (the preview says so, and counts only the units free to join).
+    The Dominion decides per group, so a stack command would also match
+    how it thinks.
+
 Nothing here blocks the loop. Cycles 9 to 12 passed their judges (10, 11,
 and 12 with conditions, each closed in the next cycle's step 0); nothing
 waits on any item above.

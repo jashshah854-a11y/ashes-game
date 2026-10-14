@@ -1096,3 +1096,6 @@ Claimed by the Claude Code builder session after re-reading the log end. Parts (
 - `js/main.js`, `index.html`, `css/style.css`: the fog tag reads "?" below 700 px (it clipped to "Unseer" at 390 px); the hint says recon lit provinces are outlined in green; the province card has a sight line (your province; next to your ground, always seen; lit by your recon through day N; unseen, units unknown); the enemy card's units row reads "N seen; units in provinces you cannot see are unknown", which stays true without saying whether anything is hidden (the judge's "all in sight" wording would have told the player nothing is hidden, itself a leak).
 - `tools/fog-check.js` (22 checks): the sight line on an unseen card and on a recon lit card (with its last day), the hint, the enemy card wording, and at 390 px every fog tag is "?" and fits inside its tile.
 - All six browser checks pass; UI only.
+
+### Step 0 (d): two questions routed to Jash
+- DECISIONS item 28 (should the steel exchange count only what you can see; today it counts Dominion attrition in fog) and item 29 (should one click order the whole stack), the Cycle 13 judge's two taste questions. Docs only.
