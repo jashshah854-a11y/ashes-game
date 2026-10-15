@@ -938,3 +938,19 @@ test('simultaneous battles: every engagement kind is order independent, and orde
   // Every order the phase touched is cleared.
   assert.ok(a.units.every(u => u.order === null));
 });
+
+test('research clock: with equal points, a player who clicks as soon as the panel allows fields Drone Gen 2 the same day as the AI', () => {
+  const s = Sim.createGame(31337);
+  const fielded = {};
+  while (!s.gameOver && s.day < 40 && !(fielded.player && fielded.enemy)) {
+    // The player's click happens before the tick, on the numbers the UI shows.
+    if (!s.nations.player.droneGen2 && s.nations.player.researchPoints >= Sim.CFG.droneGen2Cost) {
+      Sim.researchDroneGen2(s, 'player');
+    }
+    const day = s.day;
+    Sim.tick(s);
+    ['player', 'enemy'].forEach(n => { if (s.nations[n].droneGen2 && fielded[n] == null) fielded[n] = day; });
+  }
+  assert.ok(fielded.player != null && fielded.enemy != null, 'both nations reach Drone Gen 2');
+  assert.strictEqual(fielded.enemy, fielded.player, 'no side gets a head start from tick order');
+});

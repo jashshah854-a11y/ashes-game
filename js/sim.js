@@ -1066,8 +1066,7 @@
   function aiTakeTurn(state) {
     var ai = 'enemy';
     var n = state.nations[ai];
-    // Research as soon as it can afford it.
-    if (!n.droneGen2 && n.researchPoints >= CFG.droneGen2Cost) researchDroneGen2(state, ai);
+    // Research is decided at the start of the tick (aiResearch), not here.
     // Grow one factory near home when rich, paced and gated on a steel
     // surplus: every factory level eats steel every day, and an AI that
     // grows factories daily bankrupts the steel its rail and production
@@ -1176,9 +1175,20 @@
     });
   }
 
+  // The AI researches as soon as it can afford it, deciding on the same
+  // start of day numbers the player sees. Run inside aiTakeTurn, after
+  // the economy phase, it fielded Drone Gen 2 one day before a player
+  // with identical points could click (found in the Cycle 6 step 4
+  // balance run: seed 31337 was lost to that one day head start).
+  function aiResearch(state) {
+    var n = state.nations.enemy;
+    if (!n.droneGen2 && n.researchPoints >= CFG.droneGen2Cost) researchDroneGen2(state, 'enemy');
+  }
+
   // ---------- The tick ----------
   function tick(state) {
     if (state.gameOver) return state;
+    aiResearch(state); // before the economy, like a player's click before the tick
     economyTick(state, 'player');
     economyTick(state, 'enemy');
     productionPhase(state, 'player');
