@@ -3,7 +3,9 @@
 Honest list of what is stubbed, simplified, or missing. If it is not in the
 game, it is written here. Nothing in this file is secretly faked in the code.
 
-## Stubbed or simplified (current, after Cycle 6 step 5)
+## Stubbed or simplified (current, after Cycle 6 step 5, reconciliation in progress)
+
+- Reconciliation with the GitHub branch claude/adoring-johnson-cf5bmq (takeover, 2026-10-15): measured 136 commits ahead of master, 0 behind, not the roughly 10 and 4 in the takeover brief. Its first 6 commits are reconciliation slices; the rest is Cycle 7 to Cycle 17 work that exists only on that branch and is not in the game on master. Ported to master so far: slice 2 only (the drawn in defender reversal test, suite now 40). Dropped as a replacement: slice 1's balance harness, because master already has a verified committed harness. Still to decide and port in order: slice 3 (factory card unlock text), slice 4 (AI research clock), slice 5 (production lines paid before factories). The branch's later cycles will be assessed in their original order after those slices, starting with Cycle 7 lore.
 
 - Battle model: simultaneous damage rounds, damage soaks into the first unit of a stack (by unit id order now, deterministically), no terrain, no fortification bonus, no retreat. Supply penalties do apply to attack and defense through unitStats. Simultaneous resolution itself shipped in Cycle 6 step 2 (see Done below).
 - AI: scripted rules only. Since Cycle 3 it decides per battle group with the shared stackPower estimate, needs 1.5x superiority to attack a defended province, will not attack while out of supply, builds rail toward its front every few days, and waits out a 10-day mobilization. Since Cycle 5 step 4 it holds a garrison of the first 3 idle units on its own capital (they receive no orders; units beyond 3 advance normally). It never plans beyond the next province, never builds drones vs infantry by strategy, and its research is a timer, not a choice.

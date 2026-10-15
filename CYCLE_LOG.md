@@ -365,3 +365,35 @@ Cycle 7 is the lore seed, reserved by the Cycle 5 judge, not to be bumped again;
 
 ### Mission status
 Cycle 6 is complete: steps 1 to 5 done, judge PASS WITH FIX-NOW FLAGS with all flags closed in this step, no unresolved balance or contradiction flags. The loop continues to Cycle 7 (lore seed) on the next run; the step list above is logged as its prescription and is re-logged at that cycle's start.
+
+## Reconciliation, Step 1 of the takeover: branch measured, slice 2 test ported (2026-10-15)
+
+Prescription: takeover mission order item 1 (reconciliation), before Cycle 7. Builder rule for this takeover: built directly by Muse in its own context, no Anthropic line call, no external model. This run advanced exactly one step: the reconciliation assessment plus the first ported slice. Lessons applied this run: none existed at run start (LOOP_LESSONS.md was created this run); the mission's own warning to diff tools/balance.js before treating the branch copy as unique was applied and changed the outcome for slice 1 (below).
+
+### Sync in
+- The GitHub fetch script named in the mission fails on a plain run with ModuleNotFoundError for dynamic_credentials (its sys.path points at a templates folder that does not exist). With PYTHONPATH set to /opt/muse/skills/custom-connector-setup/bin the same script worked: master fetched to /tmp/ashes-gh-sync and diffed identical to local HEAD 797b1b8, file for file. Nothing copied in, nothing overwritten.
+- Working tree was clean at run start, so the concurrency guard passed.
+
+### What the branch actually is (measured, not the brief's estimate)
+- The brief said branch claude/adoring-johnson-cf5bmq diverged about 10 ahead and 4 behind at last check. Measured with the GitHub compare API this run: 136 commits ahead of remote master, 0 behind, total 136. Its base is the remote copy of master's Cycle 6 step 5 commit (same message and timestamp as local 797b1b8, different SHA because the GitHub import normalizes SHAs). Commit dates run 2026-10-13 to 2026-10-14.
+- The first 6 commits on the branch are the reconciliation slices the brief described, rebased onto step 5: (1) port the balance harness, (2) port the drawn in defender reversal test, (3) factory card states the line unlock thresholds, (4) AI research decided on start of day numbers, (5) production lines paid before factories, (6) backlog and decisions match the reconciled code. After those, the branch kept building: Cycle 7 lore through Cycle 17 step 2, all with their own judge passes recorded on the branch only. None of that is on master. It is NOT ported in this run, and it does not count as built on master until it is ported slice by slice, tested, and logged here. That is a much larger reconciliation than the brief estimated, recorded plainly rather than swallowed in one run.
+
+### Slice by slice assessment for the first 6 (decided this run)
+- Slice 1, balance harness (branch adds tools/balance.js, 360 lines, with sensible and factories profiles and ruling gates): DROPPED as a replacement, kept master's harness. Master gained its own committed tools/balance.js in Cycle 6 step 5, verified to reproduce the step 4 stored output on every numeric field. The branch version is a different harness, not a missing one, so the brief's unique item claim no longer holds for this file. Its extra profiles may be worth merging later, after slices 4 and 5, because its own commit message records that on the pre slice sim its factory path won only 1 of 8 and its no factory script lost seed 31337.
+- Slice 2, drawn in defender reversal test (53 lines, pure append to tests/sim.test.js): KEPT and ported this run (see below). It pins a gap master's own tests did not: a busy movement phase with every engagement kind, run with the unit array reversed, must give identical results, and defenders ordered elsewhere must still defend their province and take damage.
+- Slice 3, factory card states line unlock thresholds (js/main.js, 16 lines): unique, not yet ported. Next reconciliation step candidate.
+- Slice 4, AI research on start of day numbers (js/sim.js and a research clock test): unique, not yet ported. It moves the AI research decision before the economy phase so the AI gets no one day head start over a player clicking on the same numbers.
+- Slice 5, production lines paid before factories (js/sim.js economy split into income, production, factory phases, plus UI wording and a test): unique and the largest of the six, not yet ported. It changes daily steel order, so it needs its own balance rerun in its own run.
+- Slice 6, backlog and decisions docs: not ported as text. Master's docs were updated this run in master's own words (below); copying branch doc text wholesale would import claims about cycles that are not on master.
+
+### What was built this run
+- tests/sim.test.js: the slice 2 test appended verbatim from branch commit ee2d257 (busyScenario and snapshot helpers plus the test "simultaneous battles: every engagement kind is order independent, and ordered defenders still defend"). No existing test touched, no sim or UI code changed.
+- LOOP_LESSONS.md: created with a header and the lessons from this run, per the takeover mission.
+
+### Test and balance results (run by the builder this run)
+- node --check on js/sim.js, js/main.js, and tests/sim.test.js: all pass. Em dash scan of the repo: zero (see the scan in this run's checks; the new test and lessons files were scanned before commit).
+- node --test tests/sim.test.js: 40 pass, 0 fail (39 before, 1 new).
+- Balance rerun with the repo harness, node tools/balance.js all, on the 8 standard seeds (1, 7, 42, 99, 1234, 555, 2024, 31337): passive capital falls on day 36 on all 8 (inside the 30 to 45 band); sensible wins 8 of 8 through the public command path, all by enemy capital capture on day 25, end strength 140.3 to 225.0 percent of the starting 72, and 33.3 to 41.7 percent counting only surviving starting units, so the 20 percent floor from Jash's 2026-10-11 ruling clears with reinforcements excluded too; reckless loses 8 of 8, capital falling on day 37. Numbers are identical to Cycle 6 step 4, as expected for a test only change.
+
+### Mission status
+Reconciliation is in progress, not complete, and not blocked on tooling: the branch was fetched and measured with the available tooling (with the PYTHONPATH workaround logged in LOOP_LESSONS.md). Ported so far: slice 2 only. Remaining in order: slice 3 (factory card), slice 4 (research clock), slice 5 (lines paid before factories, with its own balance rerun), then an assessment of the branch's Cycle 7 to 17 work as further port candidates in their original cycle order, starting with Cycle 7 lore step 1. Cycle 7 on master does not start until reconciliation slices 3 to 5 are decided, because slice 5 changes the economy the lore cycle's balance rerun must measure.
