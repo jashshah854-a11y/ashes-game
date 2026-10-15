@@ -397,3 +397,23 @@ Prescription: takeover mission order item 1 (reconciliation), before Cycle 7. Bu
 
 ### Mission status
 Reconciliation is in progress, not complete, and not blocked on tooling: the branch was fetched and measured with the available tooling (with the PYTHONPATH workaround logged in LOOP_LESSONS.md). Ported so far: slice 2 only. Remaining in order: slice 3 (factory card), slice 4 (research clock), slice 5 (lines paid before factories, with its own balance rerun), then an assessment of the branch's Cycle 7 to 17 work as further port candidates in their original cycle order, starting with Cycle 7 lore step 1. Cycle 7 on master does not start until reconciliation slices 3 to 5 are decided, because slice 5 changes the economy the lore cycle's balance rerun must measure.
+
+## Reconciliation, Step 2 of the takeover: slice 3 factory card ported (2026-10-15)
+
+Prescription: takeover mission order item 1 (reconciliation), continuing in authored slice order after step 1 ported slice 2. Builder rule for this takeover: built directly by Muse in its own context, no Anthropic line call, no external model. This run advanced exactly one step: slice 3 only. Lessons applied this run: the PYTHONPATH workaround for gh.py from step 1 (used for sync in); diff before treating a branch item as unique (the slice 3 patch was fetched from branch commit 39d0d6b7 and compared before applying); port in authored slice order.
+
+### Sync in
+- With PYTHONPATH set to /opt/muse/skills/custom-connector-setup/bin, master fetched cleanly to /tmp/ashes-gh-sync (a stale leftover directory in /tmp caused one rename error on the first attempt; removing it and refetching succeeded). The fetched master is identical to local HEAD 258034d, file for file, including step 1's reconciliation commit, so the previous run's sync out did land. Nothing copied in, nothing overwritten.
+- Working tree was clean at run start, so the concurrency guard passed.
+
+### What was built this run
+- js/main.js only, ported verbatim from branch commit 39d0d6b7 (Reconcile slice 3): a new lineUnlockText() builds the unlock sentence from CFG.lineUnlockFactoryLevels and the live player factory total, and renderProvinceCard appends it to the factory card explanation on the player's own provinces. Example shape: "Your total factory levels across all provinces also unlock production lines: Line 3 opens at 16, line 4 opens at 24 (you have 7). An unlocked line stays open even if you later lose factories." The rule is now stated where the player builds factories, not only in the production panel. Diff against master: 16 insertions, 1 deletion, matching the branch patch exactly. No sim, test, or balance code changed.
+
+### Test and balance results (run by the builder this run)
+- node --check on js/sim.js, js/main.js, and tests/sim.test.js: all pass. Em dash scan of the repo: zero.
+- node --test tests/sim.test.js: 40 pass, 0 fail (unchanged, as expected for a UI only port).
+- Balance rerun with the repo harness, node tools/balance.js all, on the 8 standard seeds (1, 7, 42, 99, 1234, 555, 2024, 31337): passive capital falls on day 36 on all 8 (inside the 30 to 45 band); sensible wins 8 of 8 through the public command path, all by enemy capital capture on day 25, end strength 140.3 to 225.0 percent of the starting 72, and 33.3 to 41.7 percent counting only surviving starting units, so the 20 percent floor from Jash's 2026-10-11 ruling clears with reinforcements excluded too; reckless loses 8 of 8, capital falling on day 37. Numbers are identical to Cycle 6 step 4 and to reconciliation step 1, as expected.
+- Real browser check, node tools/browser-check.js against the repo index.html: all 6 checks pass (2 live rows, 2 locked rows at a live total of 5, exact locked condition text, zero buttons in locked rows, screenshot saved). This checks the production panel, not the new province card text; the branch made the same deferral (its slice 3 browser check was grouped with slice 5), recorded here rather than hidden.
+
+### Mission status
+Reconciliation is in progress, not complete, and not blocked on tooling. Ported so far: slice 2 (test) and slice 3 (factory card). Dropped as a replacement: slice 1 (master's harness kept). Remaining in order: slice 4 (AI research decided on start of day numbers, sim plus its research clock test), slice 5 (production lines paid before factories, with its own balance rerun), then an assessment of the branch's Cycle 7 to 17 work as further port candidates in their original cycle order, starting with Cycle 7 lore step 1. Cycle 7 on master does not start until reconciliation slices 4 and 5 are decided, because slice 5 changes the economy the lore cycle's balance rerun must measure.

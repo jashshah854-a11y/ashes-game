@@ -256,6 +256,20 @@
     }
   }
 
+  // The line unlock rule in plain words, built from the same CFG thresholds
+  // the sim uses, for example "Line 3 opens at 16, line 4 opens at 24".
+  function lineUnlockText() {
+    var parts = [];
+    for (var id = 1; id <= Sim.CFG.maxProductionLines; id++) {
+      var need = Sim.CFG.lineUnlockFactoryLevels[id - 1];
+      if (need > 0) parts.push((parts.length ? 'line ' : 'Line ') + id + ' opens at ' + need);
+    }
+    if (!parts.length) return '';
+    return 'Your total factory levels across all provinces also unlock production lines: ' +
+      parts.join(', ') + ' (you have ' + Sim.factoryLevels(state, 'player') + '). ' +
+      'An unlocked line stays open even if you later lose factories.';
+  }
+
   function renderProvinceCard() {
     var p = selectedProvinceId ? state.provinces[selectedProvinceId] : null;
     var btnF = el.btnFactory;
@@ -292,7 +306,8 @@
       ? 'Factory at max level'
       : 'Build / Upgrade Factory (' + cost + ' eq)';
     el.provExplain.textContent = mine
-      ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more.'
+      ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
+        lineUnlockText()
       : 'Enemy province. March a unit in to take it.';
   }
 
