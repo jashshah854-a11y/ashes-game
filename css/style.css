@@ -189,6 +189,8 @@ button.linkish:hover { background: none; color: #fff2c4; }
 .codex-beat { font-size: 14px; line-height: 1.5; padding: 0 10px; }
 .codex-entry .beat-day { color: #e8c87a; }
 .codex-beat.pending { color: #b9b09a; }
+.codex-texture { font-size: 14px; line-height: 1.5; padding: 0 10px; }
+.codex-texture.pending { color: #b9b09a; }
 .codex-article { flex: 999 1 480px; min-width: 0; padding: 36px 48px; display: flex; flex-direction: column; gap: 16px; }
 .codex-article h3 { margin: 0; font-size: 34px; font-weight: normal; color: #e8c87a; }
 .codex-article .rule { max-width: 720px; }

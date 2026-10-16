@@ -14,7 +14,8 @@
   // Lore overlays. A card or the codex pauses the war; closing the last
   // one puts the pause back the way the player had it.
   var shownBeats = {};       // beat ids whose card has been shown this game
-  var cardQueue = [];        // beat ids waiting for their card
+  var cardQueue = [];        // card entries waiting: { kind: 'beat' or 'texture', ... }
+  var shownTextureCount = 0; // texture records already queued this game (an index into state.textures)
   var pauseBeforeOverlay = null;
   var codexEntryId = 'ashwater';
 
@@ -54,7 +55,7 @@
       Sim.tick(state);
       render();
       if (state.gameOver) showBanner();
-      else checkBeats(); // no card over the end banner; the codex still lists the beat
+      else checkLoreCards(); // no card over the end banner; the codex still lists what fired
     }, ms);
   }
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
@@ -77,6 +78,7 @@
     el.banner.classList.add('hidden');
     shownBeats = {};
     cardQueue = [];
+    shownTextureCount = 0;
     codexEntryId = 'ashwater';
     pauseBeforeOverlay = null;
     el.eventOverlay.classList.add('hidden');
@@ -542,29 +544,67 @@
     both: 'Both sides reached it on the same day.'
   };
 
-  // Turning points come from the sim (state.beats); their words come from
-  // js/lore.js. A beat recorded this tick queues its card once.
-  function checkBeats() {
+  function ordinal(n) {
+    if (n % 100 >= 11 && n % 100 <= 13) return n + 'th';
+    if (n % 10 === 1) return n + 'st';
+    if (n % 10 === 2) return n + 'nd';
+    if (n % 10 === 3) return n + 'rd';
+    return n + 'th';
+  }
+  var SIDE_NAME = { player: 'the Vessari', enemy: 'the Khessites' };
+
+  // Turning points come from the sim (state.beats) and recurring texture
+  // from state.textures; their words come from js/lore.js. A beat queues
+  // its card once; every texture occurrence queues its own card, in the
+  // order it happened, with its occurrence count for its side. Textures
+  // happen during the day and beats are recorded at the end of the tick,
+  // so a tick's texture cards queue before its beat cards.
+  function checkLoreCards() {
+    var textures = state.textures || [];
+    while (shownTextureCount < textures.length) {
+      var rec = textures[shownTextureCount];
+      var occ = 0;
+      for (var i = 0; i <= shownTextureCount; i++) {
+        if (textures[i].id === rec.id && textures[i].by === rec.by) occ++;
+      }
+      shownTextureCount++;
+      cardQueue.push({ kind: 'texture', id: rec.id, day: rec.day, by: rec.by, occurrence: occ });
+    }
     var beats = state.beats || {};
     Sim.BEAT_IDS.forEach(function (id) {
-      if (beats[id] && !shownBeats[id]) { shownBeats[id] = true; cardQueue.push(id); }
+      if (beats[id] && !shownBeats[id]) { shownBeats[id] = true; cardQueue.push({ kind: 'beat', id: id }); }
     });
     if (cardQueue.length && el.eventOverlay.classList.contains('hidden')) showNextCard();
   }
 
   function showNextCard() {
-    var id = cardQueue.shift();
-    var beat = state.beats[id];
-    var text = Lore.beats[id];
-    el.eventKicker.textContent = 'Turning point, day ' + beat.day;
-    el.eventTitle.textContent = text.title;
-    el.eventBody.textContent = text.variants[beat.by];
+    var card = cardQueue.shift();
+    var whyText;
+    if (card.kind === 'texture') {
+      var tx = Lore.textures[card.id];
+      el.eventKicker.textContent = 'Recurring texture, day ' + card.day +
+        (card.occurrence > 1 ? ', ' + ordinal(card.occurrence) + ' time for ' + SIDE_NAME[card.by] : '');
+      el.eventTitle.textContent = tx.title;
+      el.eventBody.textContent = tx.variants[card.by];
+      whyText = 'on day ' + card.day + ' ' + tx.trigger + '. ' +
+        (card.by === 'player' ? 'The Vessari did this. ' : 'The Khessites did this. ') +
+        (card.occurrence === 1
+          ? 'This is the first time for ' + SIDE_NAME[card.by] + ' in this war.'
+          : 'This is the ' + ordinal(card.occurrence) + ' time for ' + SIDE_NAME[card.by] + ' in this war.');
+    } else {
+      var beat = state.beats[card.id];
+      var text = Lore.beats[card.id];
+      el.eventKicker.textContent = 'Turning point, day ' + beat.day;
+      el.eventTitle.textContent = text.title;
+      el.eventBody.textContent = text.variants[beat.by];
+      whyText = 'on day ' + beat.day + ' ' + text.trigger + '. ' + WHO[beat.by];
+    }
     el.eventWhy.innerHTML = '';
     var label = document.createElement('span');
     label.className = 'why-label';
     label.textContent = 'Why this card: ';
     el.eventWhy.appendChild(label);
-    el.eventWhy.appendChild(document.createTextNode('on day ' + beat.day + ' ' + text.trigger + '. ' + WHO[beat.by]));
+    el.eventWhy.appendChild(document.createTextNode(whyText));
     el.eventNoeffect.textContent = Lore.noEffect;
     openOverlayPause();
     el.eventOverlay.classList.remove('hidden');
@@ -632,8 +672,47 @@
       b.addEventListener('click', function () { codexEntryId = 'beat:' + id; renderCodex(); });
       el.codexNav.appendChild(b);
     });
+    el.codexNav.appendChild(textDiv('kicker later', 'Recurring texture so far'));
+    // Recurring texture reached so far: one button per card that has
+    // fired, with its total count and latest day; the rest marked not yet.
+    var texturesAll = state.textures || [];
+    function textureRecords(id) {
+      return texturesAll.filter(function (r) { return r.id === id; });
+    }
+    Sim.TEXTURE_IDS.forEach(function (id) {
+      var recs = textureRecords(id);
+      if (!recs.length) {
+        el.codexNav.appendChild(textDiv('codex-texture pending', Lore.textures[id].title + ': not yet'));
+        return;
+      }
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'codex-entry';
+      b.setAttribute('aria-pressed', codexEntryId === 'texture:' + id ? 'true' : 'false');
+      var t = document.createElement('span'); t.className = 'entry-title'; t.textContent = Lore.textures[id].title;
+      var k = document.createElement('span'); k.className = 'entry-kind';
+      k.textContent = recs.length + (recs.length === 1 ? ' time' : ' times') + ', latest day ' + recs[recs.length - 1].day;
+      b.appendChild(t); b.appendChild(k);
+      b.addEventListener('click', function () { codexEntryId = 'texture:' + id; renderCodex(); });
+      el.codexNav.appendChild(b);
+    });
     var entry;
-    if (codexEntryId.indexOf('beat:') === 0 && beats[codexEntryId.slice(5)]) {
+    if (codexEntryId.indexOf('texture:') === 0 && textureRecords(codexEntryId.slice(8)).length) {
+      var tid = codexEntryId.slice(8), trecs = textureRecords(tid), lt = Lore.textures[tid];
+      var paras = [];
+      ['player', 'enemy'].forEach(function (side) {
+        var rs = trecs.filter(function (r) { return r.by === side; });
+        if (!rs.length) return;
+        var days = rs.map(function (r) { return r.day; });
+        paras.push((side === 'player' ? 'The Vessari' : 'The Khessites') + ': ' + rs.length +
+          (rs.length === 1 ? ' time' : ' times') + ', on ' +
+          (days.length === 1 ? 'day ' + days[0] : 'days ' + days.join(', ')) + '.');
+        paras.push(lt.variants[side]);
+      });
+      entry = { kind: 'Recurring texture, ' + trecs.length + (trecs.length === 1 ? ' time' : ' times') + ' so far',
+        title: lt.title,
+        text: ['Why these cards: ' + lt.trigger + '.'].concat(paras).concat([Lore.noEffect]) };
+    } else if (codexEntryId.indexOf('beat:') === 0 && beats[codexEntryId.slice(5)]) {
       var bid = codexEntryId.slice(5), rec = beats[bid], lb = Lore.beats[bid];
       entry = { kind: 'Turning point, day ' + rec.day, title: lb.title,
         text: [lb.variants[rec.by], 'Why this card: on day ' + rec.day + ' ' + lb.trigger + '. ' + WHO[rec.by], Lore.noEffect] };
