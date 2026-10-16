@@ -58,13 +58,14 @@ was invented by the loop, not by you:
    also built: 6 lore and beat tests bring the suite to 49, all
    passing, and the balance rerun is byte identical to the committed
    baseline. Step 4 (judge) is now also done: a fresh judge with no
-   builder context returned CONDITIONAL PASS (EU5 lore FORMING, up
-   from ABSENT), its one fix-now flag was documentation and is closed,
-   one staged card and banner defect is carried to Cycle 8 step 0,
-   and its taste questions are items 9 to 11 below. Cycle 7 is
-   complete. Cycle 8, fortifications paid in equipment, is prescribed
-   next: step 0 closes that carried defect, then sim, UI, tests and
-   balance, and a fresh judge, in that order. The assessed branch items that were pending before
+   builder context returned CONDITIONAL PASS (EU5 lore STRONG, with
+   one defect), one fix-now flag (a codex bug across New Game) is
+   fixed, and the other (the Drone Gen 2 card texts, item 9) has
+   its documentation done with the variant resolution carried to
+   Cycle 8 step 0. Cycle 7 is complete. Cycle 8, fortifications
+   paid in equipment, is prescribed next: step 0 closes item 9's
+   variant resolution, then sim, UI, tests and balance, and a
+   fresh judge, in that order. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -112,15 +113,25 @@ was invented by the loop, not by you:
    home, rather than being allowed to march out, is also a feel
    question; flag it when you play if it feels wrong.
 
-9. Lore asymmetry against game symmetry (Cycle 7 judge, items F1 and
-   F3, and its taste question T1). The judge proved, and the loop
+9. Lore asymmetry against game symmetry (Cycle 7 judge flag 1 and
+   its race question; the asymmetry passages and the endpoint note
+   below are loop observations). The judge proved, and the loop
    verified on master, that the player text of "The Second
    Generation" can never be the one a campaign shows: both nations
    earn research at the same flat rate and the Dominion researches
    the first day it can afford it, so the best you can reach is both
-   sides on day 21, never the Vessari alone first. The both text of
-   "Blood on the Spine" also never fired in 200 passive campaigns
-   the loop ran. Separately, three passages in the lore imply edges
+   sides on day 21, never the Vessari alone first. The enemy text
+   has the mirror problem: it says Gen 2 was copied from Vessari
+   designs, in campaigns where the Compact has not fielded Gen 2
+   at all. The judge's question underneath, in its own framing:
+   should Drone Gen 2 feel like a race you can win outright, or
+   like the simultaneous arms race the symmetric research now
+   produces? The honest text follows from your answer; if you have
+   not answered when Cycle 8 step 0 runs, the loop will narrow the
+   card to the outcomes the game can produce (enemy, both) and
+   reword the enemy text, and will only build a player first
+   research path on your word. The both text of "Blood on the
+   Spine" also never fired in 200 passive campaigns the loop ran. Separately, three passages in the lore imply edges
    the game does not give anyone: Khessograd's walls against
    Vesskar's walls that are "not much", the Dominion's old and
    enormous foundries, and Vessari steel that is "never enough",
@@ -136,14 +147,14 @@ was invented by the loop, not by you:
    is blocked; the unreachable texts sit in the codex data and
    simply never show.
 
-10. Event cards hard pause the war (Cycle 7 judge, taste question
-    T2). Every turning point card currently stops the clock until
+10. Event cards hard pause the war (loop question, not the
+    judge's). Every turning point card currently stops the clock until
     you press Continue; two cards landing on one day (day 21 in the
     standard passive run) pause twice in a row. Keep the hard pause
     on every card, pause only on the first card of a day, or let
     cards queue without pausing? Your feel call when you play it.
 
-11. Event cards with a choice (Cycle 7 judge, taste question T3).
+11. Event cards with a choice (loop question, not the judge's).
     A later lore pass could offer a choice on a card with a real
     effect in the game. That would break the sentence every card
     currently prints, that it changes nothing in the game, so the
@@ -157,10 +168,16 @@ was invented by the loop, not by you:
     give the Khessograd entry's walls a mechanic), say so before or
     during Cycle 8; the default the loop will build is unwalled.
 
+13. The Khessite voice (Cycle 7 judge, taste). The Dominion's entry
+    and cards speak of theft, debtors, and taking the west back,
+    with no sympathetic shading. The judge flagged the tone itself
+    as yours to settle when you read the codex: keep the Khessites
+    this unsympathetic, or give them a shade of sympathy?
+
 Nothing here blocks the loop. Cycle 6 is complete, the first 6
 reconciliation slices are decided, both assessed branch judge flag
 fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is prescribed next,
-starting with step 0 closing the one carried card and banner defect,
+starting with step 0 closing the Drone Gen 2 variant resolution in item 9,
 and the cycle runs without waiting on any item above.
