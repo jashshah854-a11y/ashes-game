@@ -1168,3 +1168,158 @@ test('beats: recording them changes nothing else in a full campaign', () => {
   const strip = s => { const c = Object.assign({}, s); delete c.beats; return JSON.stringify(c); };
   assert.strictEqual(strip(on), strip(off), 'every unit, province, nation, edge, and log line is identical');
 });
+
+// ---------- Cycle 8: fortifications ----------
+
+test('fortify: refusals, equipment paid up front, the level arrives after the build days', () => {
+  const s = Sim.createGame(7);
+  const n = s.nations.player;
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p9_3').reason, 'not your province');
+  n.equipment = 50;
+  const poor = Sim.buildFortification(s, 'player', 'p1_3');
+  assert.strictEqual(poor.ok, false);
+  assert.strictEqual(poor.cost, Sim.CFG.fortCostPerLevel);
+  n.equipment = 1000;
+  const r = Sim.buildFortification(s, 'player', 'p1_3');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(n.equipment, 1000 - Sim.CFG.fortCostPerLevel);
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p1_3').reason, 'fortification already under construction');
+  for (let d = 1; d < Sim.CFG.fortBuildDays; d++) { Sim.tick(s); assert.strictEqual(s.provinces.p1_3.fortLevel, 0, 'not yet on day ' + d); }
+  Sim.tick(s);
+  assert.strictEqual(s.provinces.p1_3.fortLevel, 1);
+  assert.strictEqual(s.provinces.p1_3.fortBuild, null);
+  // Level 2 costs twice as much; past the cap is refused.
+  const before = n.equipment;
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p1_3').cost, 2 * Sim.CFG.fortCostPerLevel);
+  assert.strictEqual(n.equipment, before - 2 * Sim.CFG.fortCostPerLevel);
+  for (let d = 0; d < Sim.CFG.fortBuildDays; d++) Sim.tick(s);
+  assert.strictEqual(s.provinces.p1_3.fortLevel, Sim.CFG.fortMaxLevel);
+  assert.strictEqual(Sim.buildFortification(s, 'player', 'p1_3').reason, 'fortification at max level');
+});
+
+test('fortify: the bonus is one modifier in unitStats, so stackPower, the battle, and the preview all see it', () => {
+  const s = Sim.createGame(7);
+  const inf = Sim.unitsIn(s, s.nations.player.capitalId).find(u => u.type === 'infantry');
+  const plain = Sim.unitStats(s, inf);
+  const stackBefore = Sim.stackPower(s, [inf], 'defense');
+  s.provinces[s.nations.player.capitalId].fortLevel = 2; // checker edit for a pure stats check
+  const walled = Sim.unitStats(s, inf);
+  assert.strictEqual(walled.fortBonus, 2 * Sim.CFG.fortDefensePctPerLevel);
+  assert.strictEqual(walled.defense, Math.round(plain.defense * (1 + walled.fortBonus / 100)));
+  assert.strictEqual(walled.attack, plain.attack, 'walls never add attack');
+  assert.strictEqual(Sim.stackPower(s, [inf], 'defense'), walled.defense);
+  assert.ok(Sim.stackPower(s, [inf], 'defense') > stackBefore);
+  // An enemy unit standing in that province gets nothing from walls it does not hold.
+  const foe = { id: 900, nation: 'enemy', type: 'infantry', provinceId: s.nations.player.capitalId, strength: 12, maxStrength: 12, order: null };
+  assert.strictEqual(Sim.unitStats(s, foe).fortBonus, 0);
+});
+
+test('fortify: the same attack on a walled province costs the attackers more', () => {
+  const play = (fort) => {
+    const s = Sim.createGame(5);
+    s.units = [];
+    const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+      order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+    s.units.push(mk(1, 'player', 'p4_3'), mk(2, 'player', 'p4_3'), mk(3, 'enemy', 'p5_3'));
+    s.provinces.p5_3.fortLevel = fort;
+    Sim.issueOrder(s, 1, 'p5_3'); Sim.issueOrder(s, 2, 'p5_3');
+    Sim.movementPhase(s);
+    const left = s.units.filter(u => u.nation === 'player').reduce((a, u) => a + u.strength, 0);
+    return { owner: s.provinces.p5_3.owner, attackersLeft: left };
+  };
+  // Same seed, same tick, same engagement key: the rolls are identical, only the walls differ.
+  const open = play(0), walled = play(Sim.CFG.fortMaxLevel);
+  assert.strictEqual(open.owner, 'player', 'two infantry take an unwalled province from one');
+  assert.ok(walled.attackersLeft < open.attackersLeft, 'walls make the attackers pay more: ' + open.attackersLeft + ' left open, ' + walled.attackersLeft + ' walled');
+});
+
+test('fortify: the AI walls its capital and its river Spine province through the same command', () => {
+  const s = Sim.createGame(42);
+  s.nations.enemy.equipment = Sim.CFG.aiFortifyEquipment + 1000;
+  Sim.tick(s);
+  const cap = s.provinces[s.nations.enemy.capitalId];
+  assert.deepStrictEqual(cap.fortBuild, { toLevel: 1, daysLeft: Sim.CFG.fortBuildDays });
+  assert.ok(s.log.some(e => /^Khessite begin fortifying Khessograd to level 1/.test(e.msg)), 'the same command logs the same way');
+  Sim.tick(s);
+  const river = s.provinces[Sim.provinceId(Sim.CFG.mapW / 2, cap.y)];
+  assert.ok(river.fortBuild && river.fortBuild.toLevel === 1, 'next it walls the Spine province facing the river');
+  // Below the threshold it builds nothing new.
+  const p = Sim.createGame(42);
+  // The threshold is checked after the day's income, so start well below it.
+  p.nations.enemy.equipment = 0;
+  Sim.tick(p);
+  assert.ok(p.nations.enemy.equipment < Sim.CFG.aiFortifyEquipment);
+  assert.ok(!p.provinces[p.nations.enemy.capitalId].fortBuild, 'no walls below the threshold');
+});
+
+test('fortify: capture slights the walls by one level and loses any work in progress', () => {
+  const s = Sim.createGame(5);
+  s.units = [];
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  s.units.push(mk(1, 'player', 'p4_3'));
+  s.provinces.p5_3.fortLevel = 2;
+  s.provinces.p5_3.fortBuild = null;
+  Sim.issueOrder(s, 1, 'p5_3');
+  Sim.movementPhase(s); // empty province: an unopposed capture
+  assert.strictEqual(s.provinces.p5_3.owner, 'player');
+  assert.strictEqual(s.provinces.p5_3.fortLevel, 1);
+  // Work in progress is lost on capture.
+  s.provinces.p5_4.fortLevel = 0;
+  s.provinces.p5_4.fortBuild = { toLevel: 1, daysLeft: 3 };
+  assert.strictEqual(Sim.issueOrder(s, 1, 'p5_4').ok, true);
+  Sim.movementPhase(s);
+  assert.strictEqual(s.provinces.p5_4.owner, 'player');
+  assert.strictEqual(s.provinces.p5_4.fortBuild, null);
+  assert.strictEqual(s.provinces.p5_4.fortLevel, 0);
+});
+
+test('fortify: clash defenders use the walls of the province they enter, not the one they left', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  const clash = (targetWalls, originWalls) => {
+    const s = Sim.createGame(5);
+    s.units = [mk(1, 'player', 'p3_4'), mk(2, 'enemy', 'p5_4')];
+    s.provinces.p4_4.fortLevel = targetWalls;
+    s.provinces.p3_4.fortLevel = originWalls;
+    Sim.issueOrder(s, 1, 'p4_4'); Sim.issueOrder(s, 2, 'p4_4');
+    Sim.movementPhase(s);
+    return JSON.stringify([s.provinces.p4_4.owner, s.units.map(u => u.strength)]);
+  };
+  const open = clash(0, 0);
+  assert.strictEqual(clash(0, 2), open, 'walls back home change nothing in a clash elsewhere');
+  assert.notStrictEqual(clash(2, 0), open, 'walls on the contested province change the clash');
+});
+
+test('fortify: the Dominion attacks an open province but holds against the same province walled', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  const aiAttacks = (walls) => {
+    const s = Sim.createGame(5);
+    s.day = Sim.CFG.aiMobilizationDays + 1; // past mobilization
+    s.units = [mk(1, 'player', 'p4_3'), mk(2, 'enemy', 'p5_3'), mk(3, 'enemy', 'p5_3')];
+    s.provinces.p4_3.fortLevel = walls;
+    s.nations.enemy.equipment = 0; // no wall building of its own this tick
+    Sim.tick(s);
+    return s.units.filter(u => u.nation === 'enemy').some(u => u.provinceId === 'p4_3') ||
+      s.log.some(e => /Khessite (attack on|capture)|A Khessite attack group/.test(e.msg));
+  };
+  // Attack 8 against defense 4 clears the 1.5x gate; behind level 2 walls the defense is 6 and 8 does not reach 9.
+  assert.strictEqual(aiAttacks(0), true, 'two infantry attack one in the open');
+  assert.strictEqual(aiAttacks(Sim.CFG.fortMaxLevel), false, 'the same two hold against level 2 walls');
+});
+
+test('fortify: walls multiply a stack once, so each level adds its stated percent even for hungry defenders', () => {
+  const s = Sim.createGame(5);
+  const hungry = id => ({ id, nation: 'player', type: 'infantry', provinceId: 'p1_3', strength: 12, maxStrength: 12, supplyPenalty: 50 });
+  const stack = [1, 2, 3, 4, 5, 6].map(hungry);
+  const at = L => { s.provinces.p1_3.fortLevel = L; return Sim.stackPower(s, stack, 'defense'); };
+  const open = at(0);
+  assert.strictEqual(open, 12, 'six infantry at the 50 percent supply penalty defend at 2 each');
+  assert.strictEqual(at(1), Math.round(open * (1 + Sim.CFG.fortDefensePctPerLevel / 100)));
+  assert.strictEqual(at(2), Math.round(open * (1 + 2 * Sim.CFG.fortDefensePctPerLevel / 100)));
+  assert.ok(at(2) > at(1), 'the second level always adds defense');
+  // One unit alone reads the same number in its card and in stackPower.
+  s.provinces.p1_3.fortLevel = 2;
+  assert.strictEqual(Sim.stackPower(s, [stack[0]], 'defense'), Sim.unitStats(s, stack[0]).defense);
+});

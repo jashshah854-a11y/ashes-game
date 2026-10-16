@@ -8,9 +8,13 @@
 // output. Verified in step 5: this file reproduces the step 4 stored
 // output (/tmp/balance-final.txt) on every numeric field for all three
 // profiles on all 8 standard seeds.
-// Usage: node tools/balance.js [passive|sensible|reckless|all]
+// Usage: node tools/balance.js [passive|sensible|reckless|fortress|all]
 // Profiles use only public sim commands (queueProduction, buildFactory,
-// buildRail, researchDroneGen2, issueOrder). No state edits.
+// buildRail, buildFortification, researchDroneGen2, issueOrder). No state
+// edits. The fortress profile and the endEquipment fields were added in
+// Cycle 8 step 3, in this harness's shape: fortress is the sensible
+// script plus walls, and every report now carries both nations' end
+// equipment, so a fortifying path's equipment spend is visible.
 const Sim = require('../js/sim.js');
 const SEEDS = [1, 7, 42, 99, 1234, 555, 2024, 31337];
 
@@ -30,7 +34,24 @@ function neighborToward(s, unit, targetId) {
   return best;
 }
 
-function sensibleDay(s, trace) {
+// Spend spare equipment on walls, one start per day: the capital first,
+// then the staging province where the army masses (the easternmost
+// player province on the capital row). Called after the factory builds
+// inside sensibleDay, so factories still get first claim on equipment
+// each day and walls get what is left.
+function fortifyHome(s) {
+  const targets = [s.nations.player.capitalId];
+  const row3 = Object.values(s.provinces).filter(p => p.owner === 'player' && p.y === 3);
+  row3.sort((a, b) => b.x - a.x);
+  if (row3[0]) targets.push(row3[0].id);
+  for (const id of targets) {
+    const p = s.provinces[id];
+    if (!p || p.owner !== 'player' || p.fortBuild || (p.fortLevel || 0) >= Sim.CFG.fortMaxLevel) continue;
+    if (Sim.buildFortification(s, 'player', id).ok) return;
+  }
+}
+
+function sensibleDay(s, trace, withForts) {
   const n = s.nations.player;
   if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
   // Factory to line path: at most one factory per day, only in safe
@@ -53,6 +74,7 @@ function sensibleDay(s, trace) {
       }
     }
   }
+  if (withForts) fortifyHome(s);
   Sim.syncProductionLines(s, 'player');
   if (trace && Sim.factoryLevels(s, 'player') >= 16 && !trace.unlockedLogged) {
     trace.unlockedLogged = true;
@@ -132,10 +154,11 @@ function recklessDay(s) {
 
 function run(seed, profile) {
   const s = Sim.createGame(seed);
-  const trace = profile === 'sensible' ? [] : null;
+  const trace = (profile === 'sensible' || profile === 'fortress') ? [] : null;
   let days = 0;
   while (!s.gameOver && days < 200) {
     if (profile === 'sensible') sensibleDay(s, trace);
+    else if (profile === 'fortress') sensibleDay(s, trace, true);
     else if (profile === 'reckless') recklessDay(s);
     Sim.tick(s); days++;
   }
@@ -145,6 +168,8 @@ function run(seed, profile) {
     endStrengthPct: +(totalStrength(s, 'player') / 72 * 100).toFixed(1),
     origStrengthPct: +(origStrength / 72 * 100).toFixed(1),
     factories: Sim.factoryLevels(s, 'player'),
+    endEquipment: s.nations.player.equipment,
+    enemyEquipment: s.nations.enemy.equipment,
     lines: s.nations.player.productionLines.length,
     line3QueueSeen: trace ? !!trace.line3Queued : undefined,
     trace: trace || undefined,
@@ -153,7 +178,7 @@ function run(seed, profile) {
 }
 
 const profile = process.argv[2] || 'all';
-for (const p of (profile === 'all' ? ['passive', 'sensible', 'reckless'] : [profile])) {
+for (const p of (profile === 'all' ? ['passive', 'sensible', 'reckless', 'fortress'] : [profile])) {
   console.log('== ' + p);
   for (const seed of SEEDS) {
     const r = run(seed, p);
