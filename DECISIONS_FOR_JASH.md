@@ -67,8 +67,13 @@ was invented by the loop, not by you:
    done (item 9's variant resolution closed by narrowing the card
    to the enemy and both variants and rewording the enemy text,
    with a reachability test pinning that real campaigns fire
-   exactly the shipped variants), and step 1 (sim) is next, then
-   UI, tests and balance, and a fresh judge, in that order. The assessed branch items that were pending before
+   exactly the shipped variants), and step 1 (sim) is now also
+   done: fortifications are built for equipment over 5 days, add
+   25 percent defense per level (max level 2) through the shared
+   stackPower path, lose a level on capture, and the Dominion
+   walls its capital and its river Spine province past 300
+   equipment. Step 2 (UI) is next, then tests and balance, and a
+   fresh judge, in that order. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -172,7 +177,8 @@ was invented by the loop, not by you:
     unwalled, like every other province, until you rule otherwise.
     If capitals should start with a wall level (which would also
     give the Khessograd entry's walls a mechanic), say so before or
-    during Cycle 8; the default the loop will build is unwalled.
+    during Cycle 8; the default was built in Cycle 8 step 1:
+    every capital starts unwalled.
 
 13. The Khessite voice (Cycle 7 judge, taste). The Dominion's entry
     and cards speak of theft, debtors, and taking the west back,
@@ -185,5 +191,6 @@ reconciliation slices are decided, both assessed branch judge flag
 fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is in progress: step 0
-closed the Drone Gen 2 variant resolution in item 9, step 1 (sim) is next,
+closed the Drone Gen 2 variant resolution in item 9, step 1 (sim) is
+done, step 2 (UI) is next,
 and the cycle runs without waiting on any item above.
