@@ -2605,3 +2605,299 @@ test('intel: AI parity through the real tick path, mirrored snapshots, and the D
   assert.strictEqual(Sim.intelState(c, 'enemy', c.nations.player.capitalId), 'live',
     'the planted capital is live to the Dominion through its agent');
 });
+
+// ---------- Cycle 14: navy (flotillas, coastal control, blockade, river crossings) ----------
+// Flotillas are built only through the priced Flotilla production
+// template and stationed only through deployFlotilla; coastal
+// control, blockade, and the river crossing penalty are one shared
+// readout family (coastalControl and its kin, blockadeLoss,
+// riverCrossingPenaltyFor inside stackPower), and blockade touches
+// steel income in incomePhase and nowhere else. Staging a nation's
+// flotilla stock, a province's owner or stationed flotilla, a unit's
+// province, or the blockade threshold directly is a checker edit in
+// the established pattern; every charge is then read through
+// queueProduction and productionPhase, every placement through
+// deployFlotilla, every income figure through incomePhase, and
+// every battle through resolveBattle or movementPhase.
+// Mutant partition, chosen before these tests were written: the
+// step's non vacuity mutant deducts the blockade loss from
+// equipment instead of steel in incomePhase (one line). Only the
+// blockade exactness test below asserts a nation's steel or
+// equipment after incomePhase under an active blockade; every
+// other test in this section reads the blockadeLoss readout
+// directly, runs income or ticks with no blockade active, or
+// compares campaigns in which blockade never fires, so the mutant
+// fails exactly the blockade exactness test.
+
+test('navy: a flotilla is built only through the priced production path, at the stated steel, days, and manpower, for both nations', () => {
+  const t = Sim.CFG.unitTypes.flotilla;
+  assert.strictEqual(Sim.flotillaCost(), t.steelCost, 'the flotilla cost readout traces to CFG');
+  assert.strictEqual(t.steelCost, 40);
+  assert.strictEqual(t.buildDays, 4);
+  assert.strictEqual(Sim.manpowerCost('flotilla'), 30);
+  assert.strictEqual(Sim.CFG.blockadeCoastalThreshold, 3);
+  assert.strictEqual(Sim.CFG.blockadeSteelPct, 25);
+  assert.strictEqual(Sim.CFG.riverCrossingPct, 25);
+  for (const nid of ['player', 'enemy']) {
+    const s = Sim.createGame(42);
+    assert.strictEqual(Sim.flotillaStock(s, nid), 0, nid + ' starts with no flotilla: the priced path is the only source');
+    assert.ok(Sim.assignLineTemplate(s, nid, 1, 'flotilla').ok);
+    const poolBefore = Sim.manpowerPool(s, nid);
+    const q = Sim.queueProduction(s, nid, 1);
+    assert.ok(q.ok, nid + ' queues a Flotilla through the shared path');
+    assert.strictEqual(q.cost, t.steelCost);
+    assert.strictEqual(q.manpowerCost, t.manpowerCost);
+    assert.strictEqual(Sim.manpowerPool(s, nid), poolBefore - t.manpowerCost, 'manpower is paid in full at queue time');
+    // Checker staging: steel topped up once, as the earlier cycle
+    // tests stage it, so the funded days can be counted exactly.
+    s.nations[nid].steel = 500;
+    const steelBefore = s.nations[nid].steel;
+    const unitsBefore = s.units.length;
+    let days = 0;
+    while (Sim.flotillaStock(s, nid) === 0 && days < 10) { Sim.productionPhase(s, nid); days++; }
+    assert.strictEqual(days, t.buildDays, nid + ' flotilla completes on the stated funded day');
+    assert.strictEqual(Sim.flotillaStock(s, nid), 1, 'completion adds exactly one to the stockpile');
+    assert.strictEqual(steelBefore - s.nations[nid].steel, t.steelCost, 'and drains exactly the listed steel in total');
+    assert.strictEqual(s.units.length, unitsBefore, 'a finished Flotilla deploys no map unit');
+  }
+});
+
+test('navy: deployFlotilla refusals charge and station nothing, and a successful station spends exactly one stock', () => {
+  // Empty stock: refused, with the priced build path named.
+  const s = Sim.createGame(42);
+  let r = Sim.deployFlotilla(s, 'player', 'p4_3');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.current, 0);
+  assert.strictEqual(r.missing, 1);
+  assert.ok(r.reason.includes('40 steel over 4 days') && r.reason.includes('30 manpower'),
+    'the empty stock refusal names the build price from CFG: ' + r.reason);
+  assert.strictEqual(Sim.stationedFlotilla(s, 'p4_3'), null);
+  // No such province.
+  r = Sim.deployFlotilla(s, 'player', 'p99_9');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'no such province');
+  // Checker staging: one flotilla in stock, as the priced path delivers.
+  s.nations.player.flotillas = 1;
+  // Not owned: refused, stock untouched.
+  r = Sim.deployFlotilla(s, 'player', 'p9_3');
+  assert.strictEqual(r.ok, false, 'a flotilla stations only on ground the nation holds');
+  assert.strictEqual(Sim.flotillaStock(s, 'player'), 1, 'the refusal spends nothing');
+  assert.strictEqual(Sim.stationedFlotilla(s, 'p9_3'), null);
+  // Neither coastal nor river: refused (p2_3 is inland, off the river).
+  r = Sim.deployFlotilla(s, 'player', 'p2_3');
+  assert.strictEqual(r.ok, false);
+  assert.ok(r.reason.includes('neither coastal nor on the river'), r.reason);
+  assert.strictEqual(Sim.flotillaStock(s, 'player'), 1);
+  // Success on owned river ground: exactly one stock spent.
+  r = Sim.deployFlotilla(s, 'player', 'p4_3');
+  assert.ok(r.ok);
+  assert.strictEqual(Sim.flotillaStock(s, 'player'), 0, 'stationing spends exactly one stock');
+  assert.strictEqual(Sim.stationedFlotilla(s, 'p4_3'), 'player');
+  assert.deepStrictEqual(Sim.flotillaStations(s, 'player'), ['p4_3']);
+  // Already stationed: refused, nothing spent.
+  s.nations.player.flotillas = 1;
+  r = Sim.deployFlotilla(s, 'player', 'p4_3');
+  assert.strictEqual(r.ok, false, 'one flotilla per province');
+  assert.strictEqual(Sim.flotillaStock(s, 'player'), 1, 'the duplicate refusal spends nothing');
+});
+
+test('navy: a province changing owner clears its stationed flotilla instead of passing it to the capturer', () => {
+  const s = Sim.createGame(5);
+  s.units = [];
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  s.units.push(mk(1, 'player', 'p4_3'));
+  // Checker edit: an enemy flotilla stationed on the river Spine
+  // province, as deployFlotilla placed it while the Dominion held it.
+  s.provinces.p5_3.flotilla = 'enemy';
+  assert.strictEqual(Sim.issueOrder(s, 1, 'p5_3').ok, true);
+  Sim.movementPhase(s); // empty province: an unopposed capture
+  assert.strictEqual(s.provinces.p5_3.owner, 'player');
+  assert.strictEqual(s.provinces.p5_3.flotilla, null, 'the stationed flotilla is removed on capture, never inherited');
+  assert.deepStrictEqual(Sim.flotillaStations(s, 'enemy'), []);
+});
+
+test('navy: coastal control is mirrored for both nations, held ground controls, flotillas control empty ground, empty owned ground controls nothing', () => {
+  const s = Sim.createGame(42);
+  assert.strictEqual(Sim.homeCoastalProvinces(s, 'player').length, 10);
+  assert.strictEqual(Sim.homeCoastalProvinces(s, 'enemy').length, 10);
+  assert.strictEqual(Sim.coastalControlCount(s, 'player'), 0, 'identical starting ground: no coastal province is held or stationed');
+  assert.strictEqual(Sim.coastalControlCount(s, 'enemy'), 0, 'mirrored for the Dominion');
+  assert.strictEqual(Sim.coastalControl(s, 'p4_3'), null, 'a non coastal province has no coastal control');
+  assert.strictEqual(Sim.coastalControl(s, 'p0_0'), null, 'owned but empty coastal ground is controlled by no one');
+  // Holding units control, mirrored: checker edits place one unit
+  // of each nation on its own coastal ground.
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  s.units.push(mk(901, 'player', 'p0_0'));
+  s.units.push(mk(902, 'enemy', 'p9_0'));
+  assert.strictEqual(Sim.coastalControl(s, 'p0_0'), 'player');
+  assert.strictEqual(Sim.coastalControl(s, 'p9_0'), 'enemy');
+  assert.strictEqual(Sim.coastalControlCount(s, 'player'), 1);
+  assert.strictEqual(Sim.coastalControlCount(s, 'enemy'), 1, 'the same holding rule counts the same for the Dominion');
+  // Flotilla precedence: a stationed flotilla controls coastal
+  // ground no unit stands on, for both nations.
+  const f = Sim.createGame(42);
+  f.nations.player.flotillas = 1;
+  f.nations.enemy.flotillas = 1;
+  assert.ok(Sim.deployFlotilla(f, 'player', 'p0_0').ok);
+  assert.ok(Sim.deployFlotilla(f, 'enemy', 'p9_6').ok);
+  assert.strictEqual(Sim.coastalControl(f, 'p0_0'), 'player', 'a flotilla controls its empty coastal province');
+  assert.strictEqual(Sim.coastalControl(f, 'p9_6'), 'enemy', 'mirrored for the Dominion');
+  assert.strictEqual(Sim.coastalControlCount(f, 'player'), 1);
+  assert.strictEqual(Sim.coastalControlCount(f, 'enemy'), 1);
+});
+
+test('navy: blockade reduces steel income by exactly the readout on threshold days and by nothing below the threshold', () => {
+  // This is the section's mutant target test (see the header): the
+  // only assertions of steel or equipment after incomePhase under
+  // an active blockade live here.
+  const s = Sim.createGame(42);
+  // Staging, in the navy browser check's shape: three Dominion home
+  // coastal provinces change hands (checker edits) and the player
+  // stations a flotilla on each through deployFlotilla, the
+  // smallest staging that meets the CFG threshold.
+  s.nations.player.flotillas = 3;
+  for (const pid of ['p9_0', 'p9_6', 'p8_0']) {
+    s.provinces[pid].owner = 'player';
+    assert.ok(Sim.deployFlotilla(s, 'player', pid).ok, 'flotilla stations on ' + pid);
+  }
+  assert.strictEqual(Sim.enemyHomeCoastalControlCount(s, 'player'), Sim.CFG.blockadeCoastalThreshold);
+  assert.strictEqual(Sim.isBlockaded(s, 'enemy'), true);
+  assert.strictEqual(Sim.isBlockaded(s, 'player'), false, 'the player controls no Compact home coast: no blockade the other way');
+  const gross = Sim.steelIncome(s, 'enemy');
+  const loss = Sim.blockadeLoss(s, 'enemy');
+  assert.strictEqual(loss, Math.floor(gross * Sim.CFG.blockadeSteelPct / 100), 'the readout is the CFG percent of gross income, rounded down');
+  assert.ok(loss > 0, 'the staged blockade actually bites: gross ' + gross + ', loss ' + loss);
+  assert.strictEqual(Sim.blockadeLoss(s, 'player'), 0);
+  const steelBefore = s.nations.enemy.steel;
+  const equipBefore = s.nations.enemy.equipment;
+  Sim.incomePhase(s, 'enemy');
+  assert.strictEqual(s.nations.enemy.steel, steelBefore + gross - loss,
+    'incomePhase adds exactly the gross income minus the readout loss, no more and no less');
+  assert.strictEqual(s.nations.enemy.equipment, equipBefore, 'blockade touches steel income only, never equipment');
+  // Below the threshold the loss is zero and income lands in full.
+  s.provinces['p8_0'].flotilla = null; // checker edit: one station lifted
+  assert.strictEqual(Sim.enemyHomeCoastalControlCount(s, 'player'), Sim.CFG.blockadeCoastalThreshold - 1);
+  assert.strictEqual(Sim.isBlockaded(s, 'enemy'), false);
+  assert.strictEqual(Sim.blockadeLoss(s, 'enemy'), 0);
+  const gross2 = Sim.steelIncome(s, 'enemy');
+  const steel2 = s.nations.enemy.steel;
+  Sim.incomePhase(s, 'enemy');
+  assert.strictEqual(s.nations.enemy.steel, steel2 + gross2, 'below the threshold the full gross income lands');
+});
+
+test('navy: the river crossing penalty is charged inside the shared stackPower path, quoted identically, and removed by a flotilla at either bank, mirrored for the Dominion', () => {
+  const pct = Sim.CFG.riverCrossingPct;
+  const penalized = (s, units, toId) => units.reduce((sum, u) => {
+    if (u.strength <= 0) return sum;
+    return sum + Math.max(1, Math.round(Sim.unitStats(s, u).attack * (1 - pct / 100)));
+  }, 0);
+  const s = Sim.createGame(42);
+  const mine = Sim.unitsIn(s, 'p4_3').filter(u => u.nation === 'player');
+  assert.ok(mine.length >= 2, 'the front province holds the staged stack');
+  const openQuote = Sim.stackPower(s, mine, 'attack');
+  const riverQuote = Sim.stackPower(s, mine, 'attack', { toId: 'p5_3' });
+  assert.strictEqual(Sim.riverCrossingPenaltyFor(s, mine[0], 'p5_3'), pct, 'the readout names the CFG percent on a river edge');
+  assert.strictEqual(Sim.riverCrossingPenaltyFor(s, mine[0], 'p4_2'), 0, 'and zero on a land edge');
+  assert.strictEqual(riverQuote, penalized(s, mine, 'p5_3'), 'stackPower with the target named charges exactly the readout penalty, per unit');
+  assert.ok(riverQuote < openQuote, 'the penalty binds on the front stack: ' + openQuote + ' open, ' + riverQuote + ' across the river');
+  // Mirrored for the Dominion, attacking west across the same edge.
+  const theirs = Sim.unitsIn(s, 'p5_3').filter(u => u.nation === 'enemy');
+  assert.strictEqual(Sim.riverCrossingPenaltyFor(s, theirs[0], 'p4_3'), pct);
+  assert.strictEqual(Sim.stackPower(s, theirs, 'attack', { toId: 'p4_3' }), penalized(s, theirs, 'p4_3'),
+    'the Dominion pays the identical percent through the identical path');
+  // Support at the near bank removes it: a flotilla stationed
+  // through deployFlotilla on the attacking province.
+  s.nations.player.flotillas = 1;
+  assert.ok(Sim.deployFlotilla(s, 'player', 'p4_3').ok);
+  assert.strictEqual(Sim.riverCrossingPenaltyFor(s, mine[0], 'p5_3'), 0);
+  assert.strictEqual(Sim.stackPower(s, mine, 'attack', { toId: 'p5_3' }), openQuote, 'with support the quote is the full open attack');
+  // Support at the far bank removes it too. The station itself is a
+  // checker edit here: what this pins is the readout's either bank
+  // arithmetic, and deployFlotilla's own reachability is pinned by
+  // the refusal test above.
+  const f = Sim.createGame(42);
+  const fMine = Sim.unitsIn(f, 'p4_3').filter(u => u.nation === 'player');
+  f.provinces['p5_3'].flotilla = 'player';
+  assert.strictEqual(Sim.riverCrossingSupported(f, 'player', 'p4_3', 'p5_3'), true);
+  assert.strictEqual(Sim.riverCrossingPenaltyFor(f, fMine[0], 'p5_3'), 0);
+  assert.strictEqual(Sim.stackPower(f, fMine, 'attack', { toId: 'p5_3' }), Sim.stackPower(f, fMine, 'attack'));
+  // The same numbers are the battle's numbers: one staged infantry
+  // crossing against a deep defender, resolved through
+  // resolveBattle with the same seed, leaves the defender stronger
+  // unsupported than supported.
+  const stagedBattle = (supported) => {
+    const g = Sim.createGame(42);
+    g.units = g.units.filter(u => u.provinceId !== 'p4_3' && u.provinceId !== 'p5_3');
+    const atk = { id: 1, nation: 'player', type: 'infantry', provinceId: 'p4_3', strength: 12, maxStrength: 12,
+      order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 };
+    const def = { id: 2, nation: 'enemy', type: 'infantry', provinceId: 'p5_3', strength: 30, maxStrength: 30,
+      order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 };
+    g.units.push(atk, def);
+    if (supported) {
+      g.nations.player.flotillas = 1;
+      assert.ok(Sim.deployFlotilla(g, 'player', 'p4_3').ok);
+    }
+    Sim.resolveBattle(g, [atk], [def], Sim.makeRng(99));
+    return def.strength;
+  };
+  assert.strictEqual(stagedBattle(false), 22, 'unsupported, the crossing infantry deals the penalized damage');
+  assert.strictEqual(stagedBattle(true), 20, 'supported, the same crossing deals the full damage: the penalty margin is 2 strength');
+});
+
+test('navy: AI parity through the real tick path, the Dominion stations and builds flotillas through the shared priced paths', () => {
+  // Stationing: a held flotilla stations on the river Spine
+  // province on one real tick, spending exactly the stock.
+  const s = Sim.createGame(42);
+  s.nations.enemy.flotillas = 1; // checker staging: one flotilla in stock, as the priced path delivers
+  Sim.tick(s);
+  assert.deepStrictEqual(Sim.flotillaStations(s, 'enemy'), ['p5_3'],
+    'the Dominion stations its held flotilla on its river Spine province through deployFlotilla');
+  assert.strictEqual(Sim.flotillaStock(s, 'enemy'), 0, 'stationing spent exactly the one stock');
+  // Building: staged at its army cap, the Dominion retooled an idle
+  // line and queued a Flotilla through queueProduction at the
+  // shared price, in the same tick its agent rule also fired.
+  const t = Sim.createGame(42);
+  let nextId = 1000;
+  while (Sim.unitsOf(t, 'enemy').length < 14) {
+    t.units.push({ id: nextId++, nation: 'enemy', type: 'infantry', provinceId: t.nations.enemy.capitalId,
+      strength: 12, maxStrength: 12, order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  }
+  t.nations.enemy.manpower = 500; // checker staging: a pool the queue prices can be read against
+  const intake = Sim.manpowerIntake(t, 'enemy');
+  Sim.tick(t);
+  const line1 = Sim.productionLine(t, 'enemy', 1);
+  assert.strictEqual(line1.template, 'flotilla', 'line 1 retooled to Flotilla by the stated spending rule');
+  assert.strictEqual(line1.queue, 1, 'and one Flotilla was queued through the shared path');
+  const queueLine = t.log.find(l => /queue a Flotilla/.test(l.msg));
+  assert.ok(queueLine && queueLine.msg.includes('40 steel over 4 days, 30 manpower'),
+    'the Dominion queued its flotilla at the identical CFG price: ' + (queueLine && queueLine.msg));
+  assert.strictEqual(Sim.manpowerPool(t, 'enemy'), 500 + intake - Sim.manpowerCost('flotilla') - Sim.manpowerCost('agent'),
+    'the tick charged the shared queue prices: 30 for the Flotilla and 60 for the Agent its own rule queued on line 2, against the day intake');
+});
+
+test('navy: a passive campaign in which blockade never fires is identical with the threshold staged unreachable', () => {
+  const runCampaign = (threshold) => {
+    Sim.CFG.blockadeCoastalThreshold = threshold;
+    try {
+      const s = Sim.createGame(42);
+      let maxLoss = 0;
+      while (!s.gameOver && s.day < 160) {
+        Sim.tick(s);
+        maxLoss = Math.max(maxLoss, Sim.blockadeLoss(s, 'player'), Sim.blockadeLoss(s, 'enemy'));
+      }
+      return { s, maxLoss };
+    } finally {
+      Sim.CFG.blockadeCoastalThreshold = 3;
+    }
+  };
+  const on = runCampaign(3);
+  const off = runCampaign(999);
+  assert.strictEqual(on.s.winner, 'enemy');
+  assert.strictEqual(on.s.day, 36, 'the passive capital falls on day 36 on seed 42, inside the ruling band');
+  assert.strictEqual(on.maxLoss, 0, 'blockade never fires in the passive seed 42 campaign: neither nation holds 3 of the other home coast');
+  assert.strictEqual(off.maxLoss, 0);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(off.s)), JSON.parse(JSON.stringify(on.s)),
+    'with no blockade day in either run, the whole campaign, units, provinces, nations, and log, is identical: the threshold value alone changes nothing');
+});
