@@ -66,6 +66,26 @@
 // makes one province the nation does not own live to it, that
 // province only, until the province changes owner.
 //
+// Cycle 14 step 1 note: navy at theater scale. A fifth production
+// template, flotilla (CFG.unitTypes.flotilla: 40 steel over 4 days
+// and 30 manpower at queue time), completes into a flotilla stockpile
+// and never deploys a map unit, in the Interceptor and Agent pattern.
+// deployFlotilla stations one stock on an owned coastal or river
+// province, one per province; a stationed flotilla is removed when
+// its province changes owner. Coastal control is one shared readout:
+// a coastal province is controlled by the nation that owns it and
+// either stations a flotilla there (flotilla precedence) or holds it
+// with units; owned but empty is not controlled. While a nation
+// controls at least CFG.blockadeCoastalThreshold of the enemy's home
+// coastal provinces, the enemy loses CFG.blockadeSteelPct percent of
+// its daily steel income (rounded down), applied in incomePhase and
+// nowhere else, and reported by the blockadeLoss readout. Attacking
+// across a river edge costs the attacker CFG.riverCrossingPct percent
+// of its attack inside stackPower, per unit from its own province to
+// the target, unless a flotilla of the attacker's nation is stationed
+// at either endpoint of that edge. Flotillas never carry units and
+// there are no naval invasions and no sea provinces.
+//
 // Cycle 11 step 1 note: manpower. Each nation holds one manpower pool.
 // It starts at CFG.manpowerStart, grows every day by
 // CFG.manpowerPerProvincePerDay for each province the nation owns
@@ -114,6 +134,9 @@
     ewFloorPct: 50,               // drone effectiveness floor, percent
     ewCapPct: 150,                // drone effectiveness cap, percent
     interceptorStart: 4,          // interceptors each nation starts with, identical for player and AI
+    riverCrossingPct: 25,         // percent attack lost attacking across a river edge without flotilla support
+    blockadeCoastalThreshold: 3,  // enemy home coastal provinces a nation must control for its blockade to bite
+    blockadeSteelPct: 25,         // percent of daily steel income lost to blockade while the threshold is met, rounded down
     ownedSightRange: 1,           // provinces past owned ground that ownership alone makes live
     unitSightRange: 1,            // provinces past a unit's province that presence makes live (infantry and every non drone unit)
     droneSightRange: 2,           // provinces past a drone wing's province that drone recon makes live, through the graph
@@ -161,7 +184,12 @@
       // finished Agent joins the nation's agent stockpile and never
       // takes the field, so its attack, defense, and strength are
       // never used in a battle. It is placed by plantAgent.
-      agent: { label: 'Agent',    attack: 0, defense: 0, strength: 1,  cost: 40, steelCost: 40, buildDays: 4, manpowerCost: 60 }
+      agent: { label: 'Agent',    attack: 0, defense: 0, strength: 1,  cost: 40, steelCost: 40, buildDays: 4, manpowerCost: 60 },
+      // A production template only, in the same pattern: a finished
+      // Flotilla joins the nation's flotilla stockpile and never
+      // takes the field, so its attack, defense, and strength are
+      // never used in a battle. It is stationed by deployFlotilla.
+      flotilla: { label: 'Flotilla', attack: 0, defense: 0, strength: 1,  cost: 40, steelCost: 40, buildDays: 4, manpowerCost: 30 }
     },
     droneGen2: { attack: 5, defense: 3 },  // drone stats once Drone Gen 2 is researched
     droneGen3: { attack: 6, defense: 4 }   // drone stats once Drone Gen 3 is researched
@@ -707,6 +735,161 @@
     return { ok: true, provinceId: provId, stock: state.nations[nationId].agents };
   }
 
+  // ---------- Navy: flotillas, coastal control, blockade, river crossings (Cycle 14) ----------
+  // The one readout family every navy number comes from, in the
+  // established pattern: deployFlotilla stations through here,
+  // coastalControl and its kin count control, blockadeLoss reports
+  // the one income effect incomePhase applies, and stackPower applies
+  // the river crossing penalty through riverCrossingPenaltyFor, so
+  // the battle, the preview, and the AI estimate can never disagree.
+  // No rule outside the stated income effect reads blockade state:
+  // no price, odds estimate, AI decision, research choice, or win
+  // check consults coastal control or the blockade loss.
+  function flotillaStock(state, nationId) {
+    var n = state.nations[nationId];
+    if (typeof n.flotillas !== 'number') n.flotillas = 0;
+    return n.flotillas;
+  }
+
+  function flotillaCost() { return CFG.unitTypes.flotilla.steelCost; }
+
+  // The flotilla stationed on a province, as a nation id, or null.
+  function stationedFlotilla(state, provId) {
+    var prov = state.provinces[provId];
+    return prov && prov.flotilla ? prov.flotilla : null;
+  }
+
+  function flotillaStations(state, nationId) {
+    return Object.keys(state.provinces).sort().filter(function (pid) {
+      return state.provinces[pid].flotilla === nationId;
+    });
+  }
+
+  function isRiverProvince(state, provId) {
+    var prov = state.provinces[provId];
+    if (!prov) return false;
+    return neighborEdges(state, prov).some(function (ne) { return ne.edge.terrain === 'river'; });
+  }
+
+  // Station one flotilla from the stockpile on a province the nation
+  // owns that is coastal or stands on the river. One flotilla per
+  // province. A stationed flotilla stays until its province changes
+  // owner (onProvinceCaptured clears it). Every refusal is legible,
+  // carries the real numbers where numbers are the reason, charges
+  // nothing, and stations nothing.
+  function deployFlotilla(state, nationId, provId) {
+    var prov = state.provinces[provId];
+    if (!prov) return { ok: false, reason: 'no such province' };
+    if (prov.owner !== nationId) {
+      return {
+        ok: false, flotilla: true, provinceId: provId,
+        reason: 'You cannot station a flotilla in ' + prov.name + '. It is not your province; ' +
+          'flotillas station only on coastal or river ground you hold.'
+      };
+    }
+    if (!prov.coastal && !isRiverProvince(state, provId)) {
+      return {
+        ok: false, flotilla: true, provinceId: provId,
+        reason: prov.name + ' is neither coastal nor on the river. A flotilla needs the sea or the river.'
+      };
+    }
+    if (prov.flotilla) {
+      return {
+        ok: false, flotilla: true, provinceId: provId, current: flotillaStock(state, nationId),
+        reason: prov.name + ' already has a flotilla stationed. One flotilla per province; you hold ' +
+          flotillaStock(state, nationId) + ' in stock.'
+      };
+    }
+    if (flotillaStock(state, nationId) <= 0) {
+      var t = CFG.unitTypes.flotilla;
+      return {
+        ok: false, flotilla: true, provinceId: provId, current: 0, missing: 1,
+        reason: 'No flotilla in stock to station in ' + prov.name + '. Build one first: a Flotilla costs ' +
+          t.steelCost + ' steel over ' + t.buildDays + ' days on a production line, plus ' +
+          t.manpowerCost + ' manpower when queued.'
+      };
+    }
+    state.nations[nationId].flotillas -= 1;
+    prov.flotilla = nationId;
+    logEvent(state, state.nations[nationId].short + ' station a flotilla in ' + prov.name + '.');
+    return { ok: true, provinceId: provId, stock: state.nations[nationId].flotillas };
+  }
+
+  // Coastal control, with the stated precedence: a coastal province
+  // is controlled by the nation that owns it and stations a flotilla
+  // there; failing that, by the owner holding it with units; an owned
+  // coastal province with neither is not controlled by anyone.
+  function coastalControl(state, provId) {
+    var prov = state.provinces[provId];
+    if (!prov || !prov.coastal) return null;
+    if (prov.flotilla === prov.owner) return prov.owner;
+    if (unitsIn(state, provId).some(function (u) { return u.nation === prov.owner; })) return prov.owner;
+    return null;
+  }
+
+  function coastalControlledProvinces(state, nationId) {
+    return Object.keys(state.provinces).sort().filter(function (pid) {
+      return coastalControl(state, pid) === nationId;
+    });
+  }
+
+  function coastalControlCount(state, nationId) {
+    return coastalControlledProvinces(state, nationId).length;
+  }
+
+  // A nation's home coastal provinces: the coastal provinces on its
+  // own half of the theater, the ground it started the campaign with.
+  function homeCoastalProvinces(state, nationId) {
+    return Object.keys(state.provinces).sort().filter(function (pid) {
+      var p = state.provinces[pid];
+      return p.coastal && (nationId === 'player' ? p.x < CFG.mapW / 2 : p.x >= CFG.mapW / 2);
+    });
+  }
+
+  // How many of the opposing nation's home coastal provinces this
+  // nation controls right now, the blockade threshold input.
+  function enemyHomeCoastalControlCount(state, nationId) {
+    var foe = opposingNation(nationId);
+    return homeCoastalProvinces(state, foe).filter(function (pid) {
+      return coastalControl(state, pid) === nationId;
+    }).length;
+  }
+
+  function isBlockaded(state, nationId) {
+    return enemyHomeCoastalControlCount(state, opposingNation(nationId)) >= CFG.blockadeCoastalThreshold;
+  }
+
+  // The steel a nation loses to blockade today: the CFG percent of
+  // its gross daily steel income, rounded down, while the opposing
+  // nation meets the coastal threshold, and zero on any day it does
+  // not. incomePhase subtracts exactly this and nothing else reads it.
+  function blockadeLoss(state, nationId) {
+    if (!isBlockaded(state, nationId)) return 0;
+    return Math.floor(steelIncome(state, nationId) * CFG.blockadeSteelPct / 100);
+  }
+
+  // River crossing support: a flotilla of the crossing nation
+  // stationed at either endpoint province of the edge removes the
+  // penalty for that nation's crossings of that edge (the ferry and
+  // fire support rule).
+  function riverCrossingSupported(state, nationId, fromId, toId) {
+    var e = edgeBetween(state, fromId, toId);
+    if (!e || e.terrain !== 'river') return false;
+    return stationedFlotilla(state, fromId) === nationId || stationedFlotilla(state, toId) === nationId;
+  }
+
+  // The crossing penalty that applies to one unit of a nation moving
+  // from its own province to a target province: the CFG percent when
+  // the edge between them is a river and no flotilla of its nation
+  // supports the crossing, and zero otherwise.
+  function riverCrossingPenaltyFor(state, unit, toId) {
+    if (!unit || !toId || unit.provinceId === toId) return 0;
+    var e = edgeBetween(state, unit.provinceId, toId);
+    if (!e || e.terrain !== 'river') return 0;
+    if (riverCrossingSupported(state, unit.nation, unit.provinceId, toId)) return 0;
+    return CFG.riverCrossingPct;
+  }
+
   // ---------- Manpower (Cycle 11) ----------
   // The one readout family every manpower number comes from, in the
   // line efficiency pattern: queueProduction charges through these,
@@ -862,6 +1045,12 @@
           n.interceptors = interceptorStock(state, nationId) + 1;
           logEvent(state, n.short + ' line ' + line.id + ' completes an ' + t.label +
             '. It joins the interceptor stockpile (' + n.interceptors + ' on hand).');
+        } else if (line.template === 'flotilla') {
+          // A Flotilla never deploys either: it joins the stockpile
+          // deployFlotilla spends from.
+          n.flotillas = flotillaStock(state, nationId) + 1;
+          logEvent(state, n.short + ' line ' + line.id + ' completes a ' + t.label +
+            '. It joins the flotilla stockpile (' + n.flotillas + ' on hand), ready to station.');
         } else if (line.template === 'agent') {
           // An Agent never deploys either: it joins the stockpile
           // plantAgent spends from.
@@ -911,14 +1100,14 @@
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
           equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
-          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart, agents: 0,
+          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart, agents: 0, flotillas: 0,
           capitalId: provinceId(0, 3),
           productionLines: makeProductionLines()
         },
         enemy: {
           id: 'enemy', name: 'The Khessite Dominion', short: 'Khessite',
           equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
-          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart, agents: 0,
+          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart, agents: 0, flotillas: 0,
           capitalId: provinceId(CFG.mapW - 1, 3),
           productionLines: makeProductionLines()
         }
@@ -941,6 +1130,7 @@
           isCapital: isCapital,
           fortLevel: 0,        // capitals start unwalled until Jash rules otherwise
           fortBuild: null,     // { toLevel, daysLeft } while fortifying
+          flotilla: null,      // nation id of a stationed flotilla, or null (Cycle 14)
           coastal: (y === 0 || y === CFG.mapH - 1) // sea to the north and south, navy comes later
         };
       }
@@ -1066,10 +1256,23 @@
   // The one shared power estimate. Combat resolution, the AI's attack
   // decisions, and the player's attack preview all call this, so a
   // number the player sees is the number the war is fought with.
-  function stackPower(state, units, mode) {
+  function stackPower(state, units, mode, context) {
     if (mode !== 'defense') {
       return units.reduce(function (s, u) {
-        return u.strength > 0 ? s + unitStats(state, u).attack : s;
+        if (u.strength <= 0) return s;
+        var atk = unitStats(state, u).attack;
+        // River crossing (Cycle 14): when a target is named, a unit
+        // attacking across a river edge from its own province loses
+        // the CFG percent of its attack, unless a flotilla of its
+        // nation supports that edge. Computed per unit from its own
+        // province, so a combined attack from two banks prices each
+        // column by the edge it actually crosses. Callers that name
+        // no target get the uncrossed number, as before.
+        if (context && context.toId) {
+          var pct = riverCrossingPenaltyFor(state, u, context.toId);
+          if (pct > 0) atk = Math.max(1, Math.round(atk * (1 - pct / 100)));
+        }
+        return s + atk;
       }, 0);
     }
     // Defense: walls multiply the summed defense of the units sharing a
@@ -1247,6 +1450,9 @@
     // in progress on it is lost with the equipment spent.
     if (prov.fortLevel > 0) prov.fortLevel -= 1;
     prov.fortBuild = null;
+    // A stationed flotilla is removed when its province changes owner,
+    // in the agent expiry pattern: it does not pass to the capturer.
+    prov.flotilla = null;
     neighborEdges(state, prov).forEach(function (ne) {
       var e = ne.edge;
       if (!e.rail || e.rail.daysLeft > 0 || e.rail.converting) return;
@@ -1321,8 +1527,15 @@
     var round = 0;
     while (aliveList(sideA).length > 0 && aliveList(sideB).length > 0 && round < 12) {
       round++;
-      var powA = stackPower(state, aliveList(sideA), modeA);
-      var powB = stackPower(state, aliveList(sideB), modeB);
+      // River crossings are priced inside stackPower from each side's
+      // own province to the other side's province, so a battle fought
+      // across a river edge charges the crossing side the named
+      // percent and a supported crossing charges nothing. A side
+      // fighting in defense mode is not crossing and is never charged.
+      var powA = stackPower(state, aliveList(sideA), modeA,
+        sideB.length ? { toId: sideB[0].provinceId } : null);
+      var powB = stackPower(state, aliveList(sideB), modeB,
+        modeB === 'attack' && sideA.length ? { toId: sideA[0].provinceId } : null);
       var dmgToB = Math.max(1, Math.round(powA * (0.7 + rng() * 0.6)));
       var dmgToA = Math.max(1, Math.round(powB * (0.7 + rng() * 0.6)));
       applyDamage(sideB, dmgToB);
@@ -1726,7 +1939,11 @@
 
   function incomePhase(state, nationId) {
     var n = ensureManpower(state, nationId);
-    n.steel += steelIncome(state, nationId);
+    // Blockade (Cycle 14): the one place blockade touches a number.
+    // The loss is the blockadeLoss readout on today's coastal
+    // control, subtracted from the gross steel income and from
+    // nothing else: not equipment, not manpower, not any price.
+    n.steel += steelIncome(state, nationId) - blockadeLoss(state, nationId);
     n.researchPoints += CFG.researchPerDay;
     n.manpower += manpowerIntake(state, nationId);
   }
@@ -1941,12 +2158,59 @@
         if (line.queue === 0 && line.template === 'agent') assignLineTemplate(state, ai, line.id, 'drone');
       });
     }
+    // Flotillas, under stated spending rules at the identical priced
+    // paths, never a discount or a free placement. Placement: when the
+    // Dominion holds a flotilla in stock, it stations it first on its
+    // river Spine province (which supports its capital row crossings),
+    // then on its capital column coastal provinces, then on any owned
+    // coastal province, then on any owned river province, in each case
+    // through deployFlotilla, which refuses ineligible ground itself.
+    if (flotillaStock(state, ai) > 0) {
+      var navyCap = state.provinces[n.capitalId];
+      var navyTargets = [provinceId(CFG.mapW / 2, navyCap.y), provinceId(CFG.mapW - 1, 0), provinceId(CFG.mapW - 1, CFG.mapH - 1)];
+      Object.keys(state.provinces).sort().forEach(function (pid) {
+        if (state.provinces[pid].owner === ai && state.provinces[pid].coastal) navyTargets.push(pid);
+      });
+      Object.keys(state.provinces).sort().forEach(function (pid) {
+        if (state.provinces[pid].owner === ai && isRiverProvince(state, pid)) navyTargets.push(pid);
+      });
+      for (var nt = 0; nt < navyTargets.length && flotillaStock(state, ai) > 0; nt++) {
+        deployFlotilla(state, ai, navyTargets[nt]);
+      }
+    }
+    // A line left on the Flotilla template while the Dominion already
+    // holds its two flotillas (in stock or stationed) goes back to
+    // Drone Wings while it stands idle, in the Agent pattern, so the
+    // general queueing below never orders flotillas by accident.
+    if (flotillaStock(state, ai) + flotillaStations(state, ai).length >= 2) {
+      (n.productionLines || []).forEach(function (line) {
+        if (line.queue === 0 && line.template === 'flotilla') assignLineTemplate(state, ai, line.id, 'drone');
+      });
+    }
     if (unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
       (n.productionLines || []).forEach(function (line) {
         if (line.queue === 0 && unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
           queueProduction(state, ai, line.id);
         }
       });
+    }
+    // Flotilla building: only when the field army and its queue already
+    // reach the same 14 unit cap the queueing above works to, so the
+    // order sits on a line that would otherwise stand idle at the cap;
+    // only while the Dominion holds fewer than two flotillas in stock
+    // and stationed together, has no line on the Flotilla template
+    // already, and can pay the shared queue price in full. It builds
+    // at most one at a time, like the agent rule below.
+    var flotillaLineOpen = (n.productionLines || []).some(function (line) { return line.template === 'flotilla'; });
+    if (!flotillaLineOpen && flotillaStock(state, ai) + flotillaStations(state, ai).length < 2 &&
+        unitsOf(state, ai).length + queuedUnits(state, ai) >= 14 &&
+        manpowerPool(state, ai) >= manpowerCost('flotilla')) {
+      var navyLine = (n.productionLines || []).filter(function (line) { return line.queue === 0; })[0];
+      if (navyLine) {
+        if (navyLine.template === 'flotilla' || assignLineTemplate(state, ai, navyLine.id, 'flotilla').ok) {
+          queueProduction(state, ai, navyLine.id);
+        }
+      }
     }
     // Agent building: only when the field army and its queue already
     // reach the same 14 unit cap the queueing above works to, so the
@@ -2011,7 +2275,7 @@
           var t = options[i];
           if (t.owner === ai) continue;
           var defenders = unitsIn(state, t.id).filter(function (d) { return d.nation !== ai; });
-          var myPower = stackPower(state, group, 'attack');
+          var myPower = stackPower(state, group, 'attack', { toId: t.id });
           var theirPower = stackPower(state, defenders, 'defense');
           if (defenders.length === 0 || myPower >= theirPower * 1.5) {
             group.forEach(function (u) { u.order = { target: t.id }; });
@@ -2217,6 +2481,21 @@
     agentCost: agentCost,
     liveAgents: liveAgents,
     plantAgent: plantAgent,
+    flotillaStock: flotillaStock,
+    flotillaCost: flotillaCost,
+    stationedFlotilla: stationedFlotilla,
+    flotillaStations: flotillaStations,
+    isRiverProvince: isRiverProvince,
+    deployFlotilla: deployFlotilla,
+    coastalControl: coastalControl,
+    coastalControlledProvinces: coastalControlledProvinces,
+    coastalControlCount: coastalControlCount,
+    homeCoastalProvinces: homeCoastalProvinces,
+    enemyHomeCoastalControlCount: enemyHomeCoastalControlCount,
+    isBlockaded: isBlockaded,
+    blockadeLoss: blockadeLoss,
+    riverCrossingSupported: riverCrossingSupported,
+    riverCrossingPenaltyFor: riverCrossingPenaltyFor,
     unitStats: unitStats,
     stackPower: stackPower,
     unitsIn: unitsIn,

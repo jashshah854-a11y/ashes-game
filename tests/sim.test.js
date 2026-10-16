@@ -912,6 +912,13 @@ function busyScenario(reverse) {
   // step 3 work.
   s.nations.player.interceptors = 0;
   s.nations.enemy.interceptors = 0;
+  // Checker staging (Cycle 14 step 1): the province battle in this
+  // scenario crosses the river from p4_3 to p5_3, so a player flotilla
+  // is staged on p4_3 to support that crossing. Without it the new
+  // river crossing penalty legitimately changes which defenders take
+  // damage, and this scenario pins movement, not the navy rule. The
+  // crossing rule's own pins are Cycle 14 step 3 work.
+  s.provinces.p4_3.flotilla = 'player';
   const byId = id => s.units.find(u => u.id === id);
   // Starting ids: player 1 (p3_2 inf), 2 (p3_4 inf), 3 (p4_3 inf), 4 (p4_3 drone),
   // 5 and 6 (capital inf), 7 (capital drone); enemy 8 (p6_2 inf), 9 (p6_4 inf),
@@ -1823,7 +1830,14 @@ test('textures: the same seed and the same commands record the same occurrences'
   // efficiency on day 29 as interceptor losses keep its lines
   // working), so it records 12 occurrences. Formal re-verification
   // of the campaign pins is Cycle 12 step 3 work.
-  assert.strictEqual(passiveA.textures.length, 12, 'a passive seed 42 campaign records its 12 occurrences');
+  // Cycle 14 step 1 repin: the count is 11, not 12. The navy cycle's
+  // river crossing penalty and the Dominion's priced flotilla build
+  // change this real campaign again: the Dominion's first line no
+  // longer reaches full efficiency during it (its line is retooled
+  // for the flotilla it stations on its river Spine province), so
+  // the day 29 lineCapped occurrence no longer fires. The remaining
+  // 11 are 4 fort completions and 7 rail conversions, all enemy.
+  assert.strictEqual(passiveA.textures.length, 11, 'a passive seed 42 campaign records its 11 occurrences');
   assert.deepStrictEqual(passiveB.textures, passiveA.textures);
   const sensibleA = texRunCampaign(42, 'sensible');
   const sensibleB = texRunCampaign(42, 'sensible');
@@ -1841,7 +1855,7 @@ test('textures: recording them changes nothing else in a full campaign', () => {
     }
   };
   const on = play(true), off = play(false);
-  assert.strictEqual(on.textures.length, 12); // Cycle 12 step 1 repin, see the determinism test above
+  assert.strictEqual(on.textures.length, 11); // Cycle 14 step 1 repin, see the determinism test above
   assert.deepStrictEqual(off.textures, []);
   const strip = s => { const c = Object.assign({}, s); delete c.textures; return JSON.stringify(c); };
   assert.strictEqual(strip(on), strip(off), 'every unit, province, nation, edge, beat, and log line is identical');
@@ -2197,6 +2211,12 @@ test('drones and EW: a battle fought through the readout deals the readout numbe
     const s = Sim.createGame(42);
     s.nations.player.interceptors = 0;
     s.nations.enemy.interceptors = 0;
+    // Checker staging (Cycle 14 step 1): the staged drone attacks
+    // across the river from p4_3 to p5_3, so a player flotilla is
+    // staged on p4_3 to support the crossing. Without it the new
+    // river crossing penalty legitimately reduces the damage, and
+    // this test pins the EW readout numbers, not the navy rule.
+    s.provinces[Sim.provinceId(4, 3)].flotilla = 'player';
     if (gen2) s.nations.player.droneGen2 = true;
     const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone' && u.provinceId === Sim.provinceId(4, 3));
     const def = Sim.unitsOf(s, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
