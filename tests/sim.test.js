@@ -1323,3 +1323,232 @@ test('fortify: walls multiply a stack once, so each level adds its stated percen
   s.provinces.p1_3.fortLevel = 2;
   assert.strictEqual(Sim.stackPower(s, [stack[0]], 'defense'), Sim.unitStats(s, stack[0]).defense);
 });
+
+// ---------- Cycle 9: production line efficiency ramps ----------
+// These tests call productionPhase directly, like the Cycle 5 tests,
+// except the AI parity test, which goes through Sim.tick, the real
+// tick path. Staging a line's efficiency field directly is the test
+// equivalent of the work a line has already done; every charge is
+// then measured through queueProduction and productionPhase, the
+// public path both nations use.
+
+test('efficiency: both nations start at the floor on every standard seed, and a line opened later starts there too', () => {
+  const floor = Sim.CFG.lineEfficiencyFloor;
+  assert.strictEqual(floor, 100);
+  [1, 7, 42, 99, 1234, 555, 2024, 31337].forEach(seed => {
+    const s = Sim.createGame(seed);
+    ['player', 'enemy'].forEach(nid => {
+      s.nations[nid].productionLines.forEach(line => {
+        assert.strictEqual(line.efficiency, floor, 'seed ' + seed + ' ' + nid + ' line ' + line.id);
+        assert.strictEqual(line.work, 0);
+        assert.strictEqual(Sim.lineEfficiency(line), floor);
+        assert.strictEqual(Sim.lineWorkPerDay(line), floor);
+        assert.strictEqual(Sim.productionWorkNeeded(line.template), Sim.CFG.unitTypes[line.template].buildDays * 100);
+        assert.strictEqual(Sim.lineBuildDays(line), Sim.CFG.unitTypes[line.template].buildDays,
+          'at the floor the readout is the base days');
+        assert.strictEqual(Sim.lineDaysLeft(line), 0, 'nothing queued, nothing left');
+      });
+    });
+  });
+  // A line earned at 16 factory levels starts at the floor like any other.
+  const s = Sim.createGame(42);
+  setFactoryTotal(s, 'player', 16);
+  const created = Sim.syncProductionLines(s, 'player');
+  assert.strictEqual(created.length, 1);
+  assert.strictEqual(created[0].efficiency, floor);
+  assert.strictEqual(created[0].work, 0);
+  assert.strictEqual(Sim.lineBuildDays(created[0]), Sim.CFG.unitTypes.infantry.buildDays);
+});
+
+test('efficiency: a funded day rises by the CFG rise, a stalled day and an idle day rise nothing', () => {
+  const s = Sim.createGame(163);
+  const n = s.nations.player;
+  n.steel = 100;
+  Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  const idle = Sim.productionLine(s, 'player', 2);
+  const r1 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r1.steelSpent, Sim.lineSteelPerDay('infantry'));
+  assert.strictEqual(line.efficiency, Sim.CFG.lineEfficiencyFloor + Sim.CFG.lineEfficiencyRisePerDay);
+  assert.strictEqual(line.work, 100, 'the first funded day adds work at the efficiency the day started with');
+  assert.strictEqual(line.progressDays, 1);
+  assert.strictEqual(Sim.lineDaysLeft(line), Math.ceil((600 - 100) / 102));
+  // A stalled day: no steel, no work, no rise, the paid work is kept.
+  n.steel = 0;
+  const r2 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(r2.steelSpent, 0);
+  assert.strictEqual(line.stalled, true);
+  assert.strictEqual(line.efficiency, 102, 'a stalled day earns no efficiency');
+  assert.strictEqual(line.work, 100, 'a stalled day adds no work');
+  assert.strictEqual(line.progressDays, 1);
+  // Funding again resumes the rise from where it held.
+  n.steel = 5;
+  Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.stalled, false);
+  assert.strictEqual(line.work, 100 + 102);
+  assert.strictEqual(line.efficiency, 104);
+  // The idle line earned nothing on any of those days.
+  assert.strictEqual(idle.efficiency, Sim.CFG.lineEfficiencyFloor);
+  assert.strictEqual(idle.work, 0);
+});
+
+test('efficiency: the cap is reached after the stated funded days and never passed', () => {
+  const daysToCap = (Sim.CFG.lineEfficiencyCap - Sim.CFG.lineEfficiencyFloor) / Sim.CFG.lineEfficiencyRisePerDay;
+  assert.strictEqual(daysToCap, 25, 'the CFG numbers state 25 funded working days to full efficiency');
+  const s = Sim.createGame(42);
+  const n = s.nations.player;
+  n.steel = 10000;
+  for (let i = 0; i < Sim.CFG.maxQueuePerLine; i++) Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  for (let day = 1; day <= daysToCap - 1; day++) Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.efficiency, Sim.CFG.lineEfficiencyCap - Sim.CFG.lineEfficiencyRisePerDay,
+    'one funded day short of the cap');
+  Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.efficiency, Sim.CFG.lineEfficiencyCap, 'the cap on the 25th funded day');
+  for (let day = 0; day < 10; day++) Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.efficiency, Sim.CFG.lineEfficiencyCap, 'never above the cap');
+  assert.ok(line.queue > 0, 'the line was funded on every one of those days, so the cap was earned, not staged');
+});
+
+test('efficiency: the charged number through productionPhase equals the shared readout at the floor, the mid ramp, and the cap, for both templates', () => {
+  // The mid ramp is 130, the staged mid ramp of the step 2 panel check.
+  const cases = [
+    { eff: Sim.CFG.lineEfficiencyFloor, infantryDays: 6, droneDays: 3 },
+    { eff: 130, infantryDays: 5, droneDays: 3 },
+    { eff: Sim.CFG.lineEfficiencyCap, infantryDays: 4, droneDays: 2 }
+  ];
+  cases.forEach(c => {
+    [['infantry', 1, c.infantryDays], ['drone', 2, c.droneDays]].forEach(([template, lineId, expectedDays]) => {
+      const s = Sim.createGame(167);
+      const n = s.nations.player;
+      n.steel = 1000;
+      const line = Sim.productionLine(s, 'player', lineId);
+      line.efficiency = c.eff;
+      line.work = 0;
+      const readout = Sim.lineBuildDays(line);
+      assert.strictEqual(readout, expectedDays, template + ' readout at ' + c.eff + ' percent');
+      const q = Sim.queueProduction(s, 'player', lineId);
+      assert.strictEqual(q.ok, true);
+      assert.strictEqual(q.buildDays, readout, 'queueProduction quotes the readout');
+      assert.strictEqual(q.cost, Sim.CFG.unitTypes[template].steelCost, 'the listed steel cost never changes');
+      const done = runUntilComplete(s, 'player', 20);
+      assert.strictEqual(done.day, readout, template + ' at ' + c.eff + ' percent is charged the readout days');
+      assert.strictEqual(done.spent, expectedDays * Sim.lineSteelPerDay(template),
+        'steel actually paid is the charged days times the unchanged daily drain');
+      assert.strictEqual(done.completed[0].type, template);
+      assert.strictEqual(done.completed[0].provinceId, n.capitalId);
+    });
+  });
+});
+
+test('efficiency: a fresh readout is the longest a unit can take, and a mid build boundary crossing finishes a day sooner', () => {
+  // lineBuildDays is documented in the sim as the days at the current
+  // efficiency if it never moved during the build; because it rises
+  // while the line works, the real build is that or faster, never
+  // slower. Pinned across every efficiency for both templates.
+  for (let eff = Sim.CFG.lineEfficiencyFloor; eff <= Sim.CFG.lineEfficiencyCap; eff++) {
+    [['infantry', 1], ['drone', 2]].forEach(([template, lineId]) => {
+      const s = Sim.createGame(173);
+      s.nations.player.steel = 1000;
+      const line = Sim.productionLine(s, 'player', lineId);
+      line.efficiency = eff;
+      line.work = 0;
+      const readout = Sim.lineBuildDays(line);
+      Sim.queueProduction(s, 'player', lineId);
+      const done = runUntilComplete(s, 'player', 20);
+      assert.ok(done.day >= 1 && done.day <= readout, template + ' at ' + eff + ': ' + done.day + ' funded days, readout ' + readout);
+      assert.strictEqual(done.spent, done.day * Sim.lineSteelPerDay(template));
+    });
+  }
+  // The stated boundary case: infantry staged at 116 to 119 percent
+  // quotes 6 days at its starting efficiency and finishes in 5,
+  // because the rising work crosses the 600 point need a day early.
+  const s = Sim.createGame(179);
+  s.nations.player.steel = 1000;
+  const line = Sim.productionLine(s, 'player', 1);
+  line.efficiency = 118;
+  line.work = 0;
+  assert.strictEqual(Sim.lineBuildDays(line), 6);
+  Sim.queueProduction(s, 'player', 1);
+  const done = runUntilComplete(s, 'player', 20);
+  assert.strictEqual(done.day, 5);
+  assert.strictEqual(done.spent, 25);
+});
+
+test('efficiency: retooling drops efficiency to the floor and scraps the work together, and a same template assign loses nothing', () => {
+  const s = Sim.createGame(181);
+  const n = s.nations.player;
+  n.steel = 100;
+  Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  Sim.productionPhase(s, 'player');
+  // Assigning the template the line already has is not a retool.
+  const same = Sim.assignLineTemplate(s, 'player', 1, 'infantry');
+  assert.strictEqual(same.ok, true);
+  assert.strictEqual(same.retooled, false);
+  assert.strictEqual(line.efficiency, 102, 'no efficiency is lost when nothing is retooled');
+  assert.strictEqual(line.work, 100);
+  Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.efficiency, 104);
+  assert.strictEqual(line.work, 202);
+  assert.strictEqual(line.progressDays, 2);
+  assert.strictEqual(n.steel, 90);
+  // A real retool: efficiency to the floor, work and progress scrapped
+  // together, the queue carries over, and no steel is refunded.
+  const res = Sim.assignLineTemplate(s, 'player', 1, 'drone');
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.retooled, true);
+  assert.strictEqual(line.efficiency, Sim.CFG.lineEfficiencyFloor);
+  assert.strictEqual(line.work, 0);
+  assert.strictEqual(line.progressDays, 0);
+  assert.strictEqual(line.queue, 1);
+  assert.strictEqual(n.steel, 90, 'the retool refunds nothing, as before');
+  assert.strictEqual(Sim.lineBuildDays(line), Sim.CFG.unitTypes.drone.buildDays,
+    'the next unit is quoted at the floor again');
+  const done = runUntilComplete(s, 'player', 10);
+  assert.strictEqual(done.day, 3, 'the drone after a retool takes its full base days');
+  assert.strictEqual(done.spent, 15);
+  assert.strictEqual(100 - n.steel, 10 + 15);
+});
+
+test('efficiency: AI parity through the real tick path, same rise, same work, same charged days at the cap', () => {
+  const s = Sim.createGame(191);
+  ['player', 'enemy'].forEach(nid => {
+    s.nations[nid].steel = 200;
+    const line = Sim.productionLine(s, nid, 1);
+    line.efficiency = 130;
+    line.work = 0;
+  });
+  const qp = Sim.queueProduction(s, 'player', 1);
+  const qe = Sim.queueProduction(s, 'enemy', 1);
+  assert.strictEqual(qe.buildDays, qp.buildDays);
+  assert.strictEqual(qe.buildDays, 5);
+  assert.strictEqual(qe.cost, qp.cost);
+  Sim.tick(s);
+  ['player', 'enemy'].forEach(nid => {
+    const line = Sim.productionLine(s, nid, 1);
+    assert.strictEqual(line.efficiency, 132, nid + ' line 1 rose by the same rise through the tick');
+    assert.strictEqual(line.work, 130, nid + ' line 1 added work at its starting efficiency');
+    assert.strictEqual(line.progressDays, 1);
+    assert.strictEqual(line.queue, 1);
+    assert.strictEqual(line.stalled, false);
+  });
+  // And at the cap both nations are charged the same ramped days
+  // through productionPhase: a drone in 2 funded days for 10 steel.
+  const t = Sim.createGame(193);
+  ['player', 'enemy'].forEach(nid => {
+    t.nations[nid].steel = 1000;
+    const line = Sim.productionLine(t, nid, 2);
+    line.efficiency = Sim.CFG.lineEfficiencyCap;
+    line.work = 0;
+    assert.strictEqual(Sim.queueProduction(t, nid, 2).buildDays, 2);
+  });
+  const pr = runUntilComplete(t, 'player', 10);
+  const er = runUntilComplete(t, 'enemy', 10);
+  assert.strictEqual(pr.day, 2);
+  assert.strictEqual(er.day, 2);
+  assert.strictEqual(pr.spent, 10);
+  assert.strictEqual(er.spent, 10);
+  assert.strictEqual(pr.completed[0].provinceId, t.nations.player.capitalId);
+  assert.strictEqual(er.completed[0].provinceId, t.nations.enemy.capitalId);
+});
