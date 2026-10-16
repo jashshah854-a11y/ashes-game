@@ -247,7 +247,13 @@ each printing the same no effect sentence as the turning point cards:
    as tools/baseline-cycle11.txt with every ruling band passing
    (byte identical to the Cycle 9 baseline; the harness profiles
    themselves never bind, honestly recorded in CYCLE_LOG).
-   Step 4 (judge) remains. Its judge parked
+   Step 4 (judge) is now also done: a fresh judge with no
+   builder context returned PASS, no fix-now flags, independently
+   rerunning the suite (80 pass), the balance diff (byte identical
+   to tools/baseline-cycle11.txt), and all five browser checks,
+   and reproducing both the binding trace and the non vacuity
+   mutant (which it also verified clean against the pre step 3
+   suite). Cycle 11 is complete. Its judge parked
    four taste questions with you, undecided by
    the prescription: whether manpower should also gate factory
    or fortification construction crews, whether the pool should
@@ -255,6 +261,20 @@ each printing the same no effect sentence as the turning point cards:
    the intake beyond the plain word manpower, and whether a
    future cycle may spend manpower on partial unit
    reinforcement; none of them blocks the remaining steps.
+   The Cycle 11 judge's prescription for Cycle 12 (Drones and
+   EW with the cost exchange scoreboard, prescribed in full in
+   CYCLE_LOG) parks five more taste questions with you, also
+   undecided and blocking nothing: whether interceptor launches
+   should stay automatic or become a player choice once the
+   scoreboard has taught the exchange; the interceptor's flavor
+   and name (missile, counter drone, or crewed wing; the loop
+   uses the plain word interceptor until you rule); whether the
+   scoreboard should stay steel only or a later cycle should
+   price losses in steel and manpower combined; whether jamming
+   should in a later cycle also blunt interceptor launches
+   (Cycle 12 deliberately keeps jamming on drone fighting power
+   only); and whether Drone Gen 3 should change how a drone wing
+   looks on the map beyond its numbers.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -397,5 +417,9 @@ cards, manpower costs on the production rows and the unit
 card, a visible queue refusal, tools/manpower-check.js 15
 of 15) is done, step 3 (tests and balance: suite 80, the
 binding trace pinned, tools/baseline-cycle11.txt committed)
-is done, and step 4 (judge) remains; the work runs without
-waiting on any item above.
+is done, and step 4 (a fresh judge) is done: PASS, no
+fix-now flags, so Cycle 11 is complete. Cycle 12 (Drones
+and EW with the cost exchange scoreboard) is prescribed in
+full in CYCLE_LOG, starting at step 1 with no step 0 and
+no carried flag; the work runs without waiting on any
+item above.
