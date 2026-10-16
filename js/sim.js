@@ -28,6 +28,12 @@
 // can only move in 20 percent steps, too coarse for a ramp, and a
 // changing drain would conflate experience with a price discount.
 //
+// Cycle 10 step 1 note: recurring event texture. Three repeatable
+// campaign facts (a fortification completed, a captured rail conversion
+// finished, a production line reaching full efficiency) are recorded in
+// state.textures as they happen, each with its day and side. The lore
+// text lives in js/lore.js (LORE.textures). No rule reads the records.
+//
 // Cycle 5 note: units are built, not bought. Production lines (below)
 // replaced instant whole-unit purchases: steel drains over build days,
 // finished units deploy at the capital, and the AI pays the same.
@@ -70,6 +76,7 @@
     lineEfficiencyCap: 150,       // percent: the most a practiced line can reach
     lineEfficiencyRisePerDay: 2,  // percent gained per funded working day on the current template
     campaignBeats: true,          // record the turning points the lore marks (state.beats); no rule reads them
+    campaignTextures: true,       // record recurring event texture (state.textures); no rule reads them
     fortMaxLevel: 2,              // fortification levels a province can hold
     fortCostPerLevel: 100,        // equipment, multiplied by the target level, paid when the work starts
     fortBuildDays: 5,             // days of construction per level
@@ -395,8 +402,12 @@
       // the line learns a little: the rise applies from the next day.
       // A stalled day (above) adds neither work nor efficiency.
       line.work += lineWorkPerDay(line);
+      var wasBelowCap = line.efficiency < CFG.lineEfficiencyCap;
       line.efficiency = Math.min(CFG.lineEfficiencyCap,
         line.efficiency + CFG.lineEfficiencyRisePerDay);
+      if (wasBelowCap && line.efficiency >= CFG.lineEfficiencyCap) {
+        recordTexture(state, 'lineCapped', nationId);
+      }
       var t = CFG.unitTypes[line.template];
       if (line.work >= productionWorkNeeded(line.template)) {
         line.queue -= 1;
@@ -430,6 +441,7 @@
       endReason: null,
       log: [],
       beats: {},           // campaign turning points, recorded once each (beatPhase)
+      textures: [],        // recurring texture occurrences, recorded as they happen (recordTexture)
       nations: {
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
@@ -720,6 +732,7 @@
       if (prov.fortBuild.daysLeft <= 0) {
         prov.fortLevel = prov.fortBuild.toLevel;
         prov.fortBuild = null;
+        recordTexture(state, 'fortCompleted', prov.owner);
         logEvent(state, state.nations[prov.owner].short + ' finish fortifying ' + prov.name +
           ' to level ' + prov.fortLevel + '. Defenders there gain ' +
           (prov.fortLevel * CFG.fortDefensePctPerLevel) + ' percent defense.');
@@ -736,6 +749,7 @@
       } else if (e.rail.converting) {
         e.rail.converting.daysLeft -= 1;
         if (e.rail.converting.daysLeft <= 0) {
+          recordTexture(state, 'railConverted', e.rail.converting.to);
           e.rail.owner = e.rail.converting.to;
           e.rail.converting = null;
           logEvent(state, 'Captured rail converted between ' + state.provinces[e.a].name +
@@ -1431,6 +1445,25 @@
     return fired;
   }
 
+  // ---------- Recurring event texture (Cycle 10) ----------
+  // Where the beats are once only turning points checked as end of tick
+  // predicates, these three facts are transient events (a construction
+  // finishing, a conversion completing, an efficiency crossing), so they
+  // are recorded at the moment they happen, in constructionPhase and
+  // productionPhase, through this one helper. Each occurrence is its own
+  // entry, { id, day, by }, in state.textures, in firing order; the
+  // count for any card is the number of its entries. recordTexture only
+  // appends to state.textures, and no rule, price, odds estimate, or AI
+  // decision anywhere reads state.textures, so the texture can never
+  // change a number, the same guarantee beatPhase gives for the beats.
+  var TEXTURE_IDS = ['fortCompleted', 'railConverted', 'lineCapped'];
+
+  function recordTexture(state, id, by) {
+    if (!CFG.campaignTextures) return;
+    if (!state.textures) state.textures = [];
+    state.textures.push({ id: id, day: state.day, by: by });
+  }
+
   // The AI researches as soon as it can afford it, deciding on the same
   // start of day numbers the player sees. Run inside aiTakeTurn, after
   // the economy phase, it fielded Drone Gen 2 one day before a player
@@ -1485,6 +1518,8 @@
     movementPhase: movementPhase,
     beatPhase: beatPhase,
     BEAT_IDS: BEAT_IDS,
+    TEXTURE_IDS: TEXTURE_IDS,
+    recordTexture: recordTexture,
     buildFactory: buildFactory,
     buildFortification: buildFortification,
     trainUnit: trainUnit,

@@ -3,7 +3,8 @@
 // both nations, their capitals, the river between them, and the text of
 // the event cards that mark turning points in a campaign. Pure data. No
 // rule in the game reads it; the sim records when a turning point
-// happens (state.beats in js/sim.js) and the UI looks the text up here.
+// happens (state.beats in js/sim.js) and when a recurring texture fact
+// happens (state.textures), and the UI looks the text up here.
 // Loadable in the browser (window.AshesLore) and in node (module.exports),
 // like js/sim.js, so the tests can check it against the sim's own names.
 //
@@ -62,7 +63,8 @@
         kind: 'Capital of the Vessari Compact',
         text: [
           'The Compact\'s capital and the western end of the Spine. Vesskar grew rich counting other people\'s goods as the empire\'s great customs city, and it has never quite stopped counting. The Compact Assembly meets in the old customs hall, under a ceiling painted with the tariffs of the empire it outlived.',
-          'The city\'s factories are newer than its walls, and its walls are not much. If Vesskar City falls, the Compact falls with it: the charter names no other seat, and in forty-one years the Assembly has never agreed on a place to run to.'
+          'The city\'s factories are newer than its walls, and its walls are not much. If Vesskar City falls, the Compact falls with it: the charter names no other seat, and in forty-one years the Assembly has never agreed on a place to run to.',
+          'The war can end two ways, and both run through this city. If Vesskar City falls, the Compact is finished, charter and all. But if the city still stands when the campaign ends on day 150, the Compact survives the war: no triumph, no parade the Assembly would dare to fund, just a hard, grinding survival, and a capital still counting other people\'s goods at the end of it.'
         ]
       },
 
@@ -71,7 +73,8 @@
         kind: 'Capital of the Khessite Dominion',
         text: [
           'The old imperial arsenal, the seat of the Dominar, and the eastern end of the Spine. Khessograd is foundries inside walls inside more walls, and no army has ever taken it. By a decree older than the Dominar\'s title, three units of the army stand inside the city at all times and do not leave it, whatever happens at the front.',
-          'The Houses say Khessograd cannot fall. The Compact\'s Assembly has noticed that every Khessite says so, and that none of them has ever had to find out. If Khessograd falls, the Dominion\'s claim to be the empire falls with it.'
+          'The Houses say Khessograd cannot fall. The Compact\'s Assembly has noticed that every Khessite says so, and that none of them has ever had to find out. If Khessograd falls, the Dominion\'s claim to be the empire falls with it.',
+          'The war can end two ways, and both run through this city. If Khessograd falls, the Dominion collapses with it, and the lawful remnant becomes a footnote in someone else\'s ledger. But if the city still stands when the campaign ends on day 150, the arsenal endures behind its walls, its claim intact and its west still unrecovered, and the Houses will call that patience vindicated.'
         ]
       }
     },
@@ -109,6 +112,43 @@
           player: 'Factories across the Compact have reached the output the Assembly\'s war bonds were written against, and a third production line has opened. In the counting halls of Vesskar they call it the compounding: factories feed the lines, the lines feed the army, and the army, the Assembly hopes, will hold the factories.',
           enemy: 'The Dominion\'s foundries have opened a third production line. The order went out from the war ministry in a single sentence, as Khessite orders do. On the Ashwater, Vessari scouts have started counting the trains.',
           both: 'Both nations opened a third production line on the same day. The war is becoming a contest of factories, which is the one kind of war each side was sure it would win.'
+        }
+      }
+    },
+
+    // Recurring event texture (Cycle 10): cards for repeatable campaign
+    // facts, recorded in state.textures by the sim as they happen. Each
+    // ships only the variants real campaigns produce, proven by the
+    // reachability tally in CYCLE_LOG at Cycle 10 step 1: fortCompleted
+    // player fires in fortress campaigns (the profile that builds
+    // player walls), its enemy variant in every profile; railConverted
+    // player fires in sensible and fortress campaigns, its enemy
+    // variant in passive ones; lineCapped fires for both sides in
+    // sensible and fortress campaigns. No both variant is shipped:
+    // occurrences are recorded per side as they happen, not per day.
+    textures: {
+      fortCompleted: {
+        title: 'Walls Rise',
+        trigger: 'a province finished building a fortification level',
+        variants: {
+          player: 'Another stretch of Vessari wall is finished, earth and timber and poured concrete over five days of engineers arguing about sightlines. The Assembly\'s report lists the cost to the last crate of equipment. The crews paint the level number on the gate and go back to arguing about the next province.',
+          enemy: 'Another Khessite fortification is finished, built the way the Dominion builds everything: to the manual, on schedule, and larger than the staff college strictly required. The Houses inspect it, pronounce it adequate, and order the next one started before the concrete has cured.'
+        }
+      },
+      railConverted: {
+        title: 'The Gauge War',
+        trigger: 'a stretch of captured rail finished converting to its new owner\'s gauge and feeds the front again',
+        variants: {
+          player: 'Vessari engineers have finished relaying a stretch of captured Khessite rail to the Compact gauge, four days of lifting one rail of every pair and moving it a hand\'s width. The first supply train over it was a day late and entirely forgiven. The gauge war is slow, unglamorous, and won one sleeper at a time.',
+          enemy: 'Khessite engineers have finished relaying a stretch of captured Vessari rail back to the imperial gauge, four days of putting every rail where the old empire decreed it belongs. The war ministry records it as a restoration. The crews record it as overtime, and bill accordingly.'
+        }
+      },
+      lineCapped: {
+        title: 'A Practiced Line',
+        trigger: 'a production line reached full efficiency',
+        variants: {
+          player: 'A Vessari production line has reached full efficiency. The crews have run the same work so many funded days in a row that the foreman has stopped timing them, and the line now finishes its units as fast as the Compact knows how. The Assembly will put it in a report. The crews put it in their pay claim.',
+          enemy: 'A Khessite production line has reached full efficiency. The foundry crews have run the same work so many funded days in a row that the inspectors have run out of new faults to find, and the line now finishes its units as fast as the Dominion knows how. The Houses call it discipline. The crews call it practice, when the inspectors are out of earshot.'
         }
       }
     },
