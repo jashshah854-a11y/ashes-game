@@ -178,7 +178,17 @@ each printing the same no effect sentence as the turning point cards:
    retaken never happened in 32 prototype campaigns, and new rail
    completed and province captured fire so often (up to 23 and 13
    times a campaign) that as cards they would be noise, not texture.
-   Steps 2 to 4 of Cycle 10 remain.
+   Step 2 is now also done: every recorded texture occurrence surfaces
+   as its own card through the existing event card overlay and queue,
+   stating its day and, on repeats, its occurrence count for its side
+   (a passive campaign now pauses for its 10 texture occurrences as
+   well as its 3 turning points; whether recurring cards should hard
+   pause at all is your item 10 call, unchanged and not decided by
+   this step), the codex shows the recurring texture reached so far
+   with per side counts and every day listed beside the turning
+   points, the extended capital entries render there as ordinary
+   entries, and the extended lore browser check passes 116 of 116.
+   Steps 3 to 4 of Cycle 10 remain.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -306,6 +316,8 @@ Line Efficiency Ramps) is complete through its step 4 judge
 (PASS WITH FIX-NOW FLAGS, the one flag carried to Cycle 10
 step 0 by the judge's own prescription). Cycle 10 (the second
 lore pass) is in progress: step 0 is done (that flag closed, the
-readout exact) and step 1 is done (recurring texture content and
-recording hooks, capital endpoint wording), steps 2 to 4 remain,
-and the work runs without waiting on any item above.
+readout exact), step 1 is done (recurring texture content and
+recording hooks, capital endpoint wording), and step 2 is done
+(recurring texture on screen through the card overlay and the
+codex), steps 3 to 4 remain, and the work runs without waiting on
+any item above.
