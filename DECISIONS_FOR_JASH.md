@@ -188,7 +188,15 @@ each printing the same no effect sentence as the turning point cards:
    with per side counts and every day listed beside the turning
    points, the extended capital entries render there as ordinary
    entries, and the extended lore browser check passes 116 of 116.
-   Steps 3 to 4 of Cycle 10 remain.
+   Step 3 is now also done: 8 formal texture tests bring the suite
+   to 73 (each trigger recording once per occurrence on its day for
+   the correct side with repeats as second entries, a campaign level
+   pin that real campaigns on seed 42 fire exactly the shipped
+   variant set, determinism, zero mechanical effect with its mutant
+   failing exactly that test, and a capital endpoint wording test),
+   and the balance rerun is byte identical to
+   tools/baseline-cycle9.txt. Step 4 of Cycle 10 (a fresh judge)
+   remains.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -319,5 +327,7 @@ lore pass) is in progress: step 0 is done (that flag closed, the
 readout exact), step 1 is done (recurring texture content and
 recording hooks, capital endpoint wording), and step 2 is done
 (recurring texture on screen through the card overlay and the
-codex), steps 3 to 4 remain, and the work runs without waiting on
-any item above.
+codex), step 3 is done (formal texture tests, suite 73, balance
+byte identical to tools/baseline-cycle9.txt), step 4 (a fresh
+judge) remains, and the work runs without waiting on any item
+above.
