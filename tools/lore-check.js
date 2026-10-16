@@ -8,6 +8,10 @@
 //   must run again); day 21 pair, Continue twice (the war must run again).
 // Run B: day 21, open the codex from the first card, close it (the second
 //   card must appear), Continue (the war must run again).
+// Run C: judge flag regression: view a reached turning point in the codex,
+//   start a New Game, and open the codex again; the article must render the
+//   first history entry with no page error (a stale beat selection used to
+//   dereference an unrecorded beat and break the codex).
 // Every card's text must match js/lore.js, its why line and no effect
 // sentence must show, and the day must not move while it is open.
 // Usage: node tools/lore-check.js   (CHROME=/path/to/chrome, PLAYWRIGHT=/path/to/playwright)
@@ -71,7 +75,7 @@ async function untilCard(page) {
   const { chromium } = require(PW);
   const browser = await chromium.launch({ executablePath: CHROME });
   try {
-    for (const run of ['A', 'B']) {
+    for (const run of ['A', 'B', 'C']) {
       const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
@@ -97,6 +101,26 @@ async function untilCard(page) {
         check('A: codex lists five entries and three turning points', rows.length === 8, rows.slice(5).join(' / '));
         await page.click('#btn-codex-close');
         check('A: the war runs again after the codex', await running(page));
+      } else if (run === 'C') {
+        check('C: first card appears', await untilCard(page));
+        await page.click('#btn-event-continue'); // day 11
+        await page.click('#btn-codex');
+        const entries = await page.$$('.codex-entry');
+        let beatEntry = null;
+        for (const e of entries) { if ((await e.textContent()).indexOf(Lore.beats.capitalRow.title) !== -1) { beatEntry = e; break; } }
+        check('C: the reached turning point is listed in the codex', !!beatEntry);
+        if (beatEntry) await beatEntry.click();
+        const art1 = await page.textContent('#codex-article');
+        check('C: the codex article shows the turning point', art1.indexOf(Lore.beats.capitalRow.variants.enemy) !== -1, art1.slice(0, 60));
+        await page.click('#btn-codex-close');
+        await page.click('#btn-new');
+        await page.click('#btn-codex');
+        const h3 = await page.textContent('#codex-article h3');
+        check('C: the codex article renders after New Game', h3 === Lore.entries.ashwater.title, String(h3));
+        const rows = await page.$$eval('.codex-entry', (ns) => ns.map((n) => n.textContent));
+        const pending = await page.$$eval('.codex-beat', (ns) => ns.map((n) => n.textContent));
+        check('C: the new game codex lists five entries and unreached turning points', rows.length === 5 && pending.length === 3, 'entries ' + rows.length + ', pending ' + pending.length);
+        await page.click('#btn-codex-close');
       } else {
         await untilCard(page);
         await page.click('#btn-event-continue'); // day 11

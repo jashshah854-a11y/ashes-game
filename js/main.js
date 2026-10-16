@@ -77,6 +77,7 @@
     el.banner.classList.add('hidden');
     shownBeats = {};
     cardQueue = [];
+    codexEntryId = 'ashwater';
     pauseBeforeOverlay = null;
     el.eventOverlay.classList.add('hidden');
     el.codexOverlay.classList.add('hidden');
@@ -544,12 +545,14 @@
       el.codexNav.appendChild(b);
     });
     var entry;
-    if (codexEntryId.indexOf('beat:') === 0) {
+    if (codexEntryId.indexOf('beat:') === 0 && beats[codexEntryId.slice(5)]) {
       var bid = codexEntryId.slice(5), rec = beats[bid], lb = Lore.beats[bid];
       entry = { kind: 'Turning point, day ' + rec.day, title: lb.title,
         text: [lb.variants[rec.by], 'Why this card: on day ' + rec.day + ' ' + lb.trigger + '. ' + WHO[rec.by], Lore.noEffect] };
     } else {
-      entry = Lore.entries[codexEntryId];
+      // A beat selection from an earlier game (or one not reached yet in
+      // this game) falls back to the first history entry, never a crash.
+      entry = Lore.entries[codexEntryId] || Lore.entries.ashwater;
     }
     el.codexArticle.innerHTML = '';
     el.codexArticle.appendChild(textDiv('kicker', entry.kind));
