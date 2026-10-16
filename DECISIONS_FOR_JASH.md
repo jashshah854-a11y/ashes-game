@@ -84,7 +84,12 @@ was invented by the loop, not by you:
    the suite to 58, the harness gained a fortress profile that
    wins 8 of 8, the Cycle 8 baseline is committed, and the
    fortification browser check is committed and passes 13 of 13.
-   Step 4, a fresh judge, is next. The assessed branch items that were pending before
+   Step 4 (judge) is now also done: a fresh judge returned PASS
+   WITH FIX-NOW FLAGS, with one flag (the map's fort level badge is
+   covered by the building badge during an upgrade) carried to
+   Cycle 9 step 0 by the judge's own prescription. Cycle 8 is
+   complete. Cycle 9, Production Line Efficiency Ramps, is next,
+   prescribed in full in CYCLE_LOG. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -201,8 +206,8 @@ Nothing here blocks the loop. Cycle 6 is complete, the first 6
 reconciliation slices are decided, both assessed branch judge flag
 fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
-your rewrite or veto. Cycle 8 (fortifications) is in progress: step 0
-closed the Drone Gen 2 variant resolution in item 9, step 1 (sim) is
-done, step 2 (UI) is done, step 3 (tests and balance) is done,
-step 4 (a fresh judge) is next,
-and the cycle runs without waiting on any item above.
+your rewrite or veto. Cycle 8 (fortifications) is complete through
+its step 4 judge (PASS WITH FIX-NOW FLAGS, the one flag carried to
+Cycle 9 step 0). Cycle 9 (Production Line Efficiency Ramps) is next,
+starting at step 0 with that flag,
+and the work runs without waiting on any item above.
