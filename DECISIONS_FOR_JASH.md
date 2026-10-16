@@ -331,6 +331,24 @@ each printing the same no effect sentence as the turning point cards:
    a recon sortie order), recorded in the closing
    summary at the end of this file, all undecided and
    blocking nothing.
+   Cycle 13 step 1 is now also done: the sim carries the
+   shared intelState readout (live, remembered, or dark)
+   from owned ground and its neighbors, units and their
+   neighbors, drone wings at sight range 2 through the
+   province graph, and planted agents watching their
+   province alone; end of tick per nation snapshots that
+   no rule reads; and agents built only through the Agent
+   production template (40 steel over 4 days, 60 manpower
+   at queue time) and placed only through plantAgent on a
+   province the nation does not own, until that province
+   changes owner. The Dominion builds at most one agent,
+   on a line standing idle while its army is at its cap,
+   and plants a held agent on your capital. The six taste
+   questions above stay parked exactly as the Cycle 12
+   judge left them, undecided by this step; the defaults
+   used are the prescribed ones (the theater map stays
+   known and only military fact is hidden, the scripted
+   AI does not read intel, agents are not removable).
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -523,6 +541,10 @@ should become fog bound in a later cycle; whether
 agents should be removable or counterable, gain
 neighbors, or get a flavor name beyond the plain word
 agent; and whether a later cycle should add a non
-combat recon sortie order for drone wings. After
-Cycle 13, in the stated order: navy. The work runs
-without waiting on any item above.
+combat recon sortie order for drone wings. Cycle 13
+step 1 (the sim: the intelState readout family, end of
+tick snapshots, the priced Agent template and
+plantAgent, and the Dominion's stated agent spending
+rules) is now also done, as recorded in item 2 above.
+After Cycle 13, in the stated order: navy. The work
+runs without waiting on any item above.
