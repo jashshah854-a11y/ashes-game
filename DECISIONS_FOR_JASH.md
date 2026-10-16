@@ -122,8 +122,22 @@ was invented by the loop, not by you:
    late campaign surplus (sensible ends with 1955 to 3090
    equipment in the Cycle 9 baseline) stays open for a later
    cycle and for you, with nothing built for it. Step 4 (a fresh
-   judge) is next. No new taste item was created by step 0,
-   step 1, step 2, or step 3; step 0 was a prescribed defect fix and
+   judge) is now also done: a fresh judge with no builder context
+   returned PASS WITH FIX-NOW FLAGS, independently rerunning the
+   suite (65 pass), the balance diff (byte identical to
+   tools/baseline-cycle9.txt), and all four browser checks, and
+   reproducing both step 3 non vacuity mutants and the seed 42
+   trace itself. Its one flag is a quote accuracy defect, not
+   taste: at 116 to 119 percent efficiency a fresh infantry unit
+   is quoted 6 days and actually charged 5, because the readout
+   is a ceiling at the starting efficiency while the charge sums
+   the rising efficiency; the judge prescribed making the two
+   readout day functions exact in js/sim.js, with the charge
+   path untouched, and assigned it to Cycle 10 step 0. Cycle 9
+   is complete. Cycle 10, the second lore pass, is next as
+   prescribed in CYCLE_LOG, starting at step 0 with that flag.
+   No new taste item was created by step 0,
+   step 1, step 2, step 3, or step 4; step 0 was a prescribed defect fix and
    steps 1 to 3 are loop tuning, display, and tests under the judge's
    prescription. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
@@ -244,8 +258,8 @@ fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is complete through
 its step 4 judge (PASS WITH FIX-NOW FLAGS). Cycle 9 (Production
-Line Efficiency Ramps) is in progress: step 0 closed that judge
-flag, step 1 (the efficiency sim) is built, step 2 (efficiency
-on screen) is built, and step 3 (tests and balance) is built;
-step 4 (a fresh judge) is next,
+Line Efficiency Ramps) is complete through its step 4 judge
+(PASS WITH FIX-NOW FLAGS, the one flag carried to Cycle 10
+step 0 by the judge's own prescription). Cycle 10 (the second
+lore pass) is next,
 and the work runs without waiting on any item above.
