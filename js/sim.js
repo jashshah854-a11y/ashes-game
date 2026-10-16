@@ -15,6 +15,19 @@
 // An opened line stays open for good, even if factory provinces are lost.
 // The AI opens and uses its lines under the exact same rule.
 //
+// Cycle 9 step 1 note: production lines learn. A line carries an
+// efficiency percent (floor 100, cap 150, plus 2 per funded working day
+// on its current template; a stalled or idle day earns nothing, and
+// retooling drops it back to the floor). Efficiency affects exactly one
+// visible number: how many funded days a unit takes to build, computed
+// as integer work points (a unit needs buildDays times 100 work, a
+// funded day adds the line's efficiency). The steel drain per day (5
+// for both templates) and the listed steel cost never change: a
+// practiced line simply finishes sooner and stops draining. The drain
+// was not chosen as the affected number because an integer drain of 5
+// can only move in 20 percent steps, too coarse for a ramp, and a
+// changing drain would conflate experience with a price discount.
+//
 // Cycle 5 note: units are built, not bought. Production lines (below)
 // replaced instant whole-unit purchases: steel drains over build days,
 // finished units deploy at the capital, and the AI pays the same.
@@ -53,6 +66,9 @@
     maxProductionLines: 4,        // most lines any nation can ever run
     lineUnlockFactoryLevels: [0, 0, 16, 24], // total factory levels needed for line slots 1..4; an unlock is permanent
     maxQueuePerLine: 9,           // orders one line can hold, current unit included
+    lineEfficiencyFloor: 100,     // percent: a fresh or retooled line builds at the base speed
+    lineEfficiencyCap: 150,       // percent: the most a practiced line can reach
+    lineEfficiencyRisePerDay: 2,  // percent gained per funded working day on the current template
     campaignBeats: true,          // record the turning points the lore marks (state.beats); no rule reads them
     fortMaxLevel: 2,              // fortification levels a province can hold
     fortCostPerLevel: 100,        // equipment, multiplied by the target level, paid when the work starts
@@ -157,6 +173,8 @@
         template: templates[i % templates.length],
         queue: 0,          // orders waiting, the unit in production included
         progressDays: 0,   // paid days of work on the current unit
+        work: 0,           // work points on the current unit (efficiency times funded days, scaled by 100)
+        efficiency: CFG.lineEfficiencyFloor, // percent, rises on funded working days, retool resets it
         stalled: false     // true when the last production day went unpaid
       });
     }
@@ -215,6 +233,8 @@
         template: id % 2 === 1 ? 'infantry' : 'drone',
         queue: 0,
         progressDays: 0,
+        work: 0,
+        efficiency: CFG.lineEfficiencyFloor,
         stalled: false
       };
       n.productionLines.push(line);
@@ -243,6 +263,49 @@
     return t.steelCost / t.buildDays;
   }
 
+  // ---------- Line efficiency (Cycle 9) ----------
+  // The one readout every efficiency number comes from. productionPhase
+  // builds with these functions, queueProduction reports build days
+  // from them, and the panel (step 2) reads them, so the sim, the AI
+  // (which orders and builds through the same paths), and any estimate
+  // can never disagree. All integer arithmetic: work points are whole,
+  // and the only division is the stated ceiling for a fresh unit's
+  // effective build days. A line object staged without the new fields
+  // (an older state) reads as a fresh line at the floor.
+  function lineEfficiency(line) {
+    if (!line || typeof line.efficiency !== 'number') return CFG.lineEfficiencyFloor;
+    return line.efficiency;
+  }
+
+  // Work points a unit of this template needs: its base build days at
+  // 100 percent, scaled by 100 so every percent is a whole point.
+  function productionWorkNeeded(template) {
+    return CFG.unitTypes[template].buildDays * 100;
+  }
+
+  // Work points one funded day on this line adds right now.
+  function lineWorkPerDay(line) {
+    return lineEfficiency(line);
+  }
+
+  // Funded days a fresh unit would take on this line at its current
+  // efficiency, if the efficiency never moved during the build. The
+  // real build can only be this or faster, because efficiency rises
+  // while the line works and never falls except on a retool.
+  function lineBuildDays(line) {
+    if (!line) return null;
+    return Math.ceil(productionWorkNeeded(line.template) / lineWorkPerDay(line));
+  }
+
+  // Funded days left on the unit in progress at the line's current
+  // efficiency, on the same ceiling rule. Zero when nothing is queued.
+  function lineDaysLeft(line) {
+    if (!line || line.queue <= 0) return 0;
+    var left = productionWorkNeeded(line.template) - (line.work || 0);
+    if (left <= 0) return 0;
+    return Math.ceil(left / lineWorkPerDay(line));
+  }
+
   // Steel per day all of a nation's working lines want right now.
   function productionDrain(state, nationId) {
     return (state.nations[nationId].productionLines || []).reduce(function (s, line) {
@@ -267,8 +330,8 @@
     line.queue += 1;
     var t = CFG.unitTypes[line.template];
     logEvent(state, state.nations[nationId].short + ' queue a ' + t.label +
-      ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + t.buildDays + ' days).');
-    return { ok: true, line: line, template: line.template, cost: t.steelCost, buildDays: t.buildDays };
+      ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + lineBuildDays(line) + ' days).');
+    return { ok: true, line: line, template: line.template, cost: t.steelCost, buildDays: lineBuildDays(line) };
   }
 
   // Retool a line to a different template. Work already done on the
@@ -282,6 +345,8 @@
     if (line.template === template) return { ok: true, line: line, template: template, retooled: false };
     line.template = template;
     line.progressDays = 0;
+    line.work = 0;
+    line.efficiency = CFG.lineEfficiencyFloor;
     line.stalled = false;
     logEvent(state, state.nations[nationId].short + ' retool line ' + line.id +
       ' to ' + CFG.unitTypes[template].label + '. Work in progress is scrapped.');
@@ -298,16 +363,25 @@
     var steelSpent = 0;
     (n.productionLines || []).forEach(function (line) {
       line.stalled = false;
+      if (typeof line.efficiency !== 'number') line.efficiency = CFG.lineEfficiencyFloor;
+      if (typeof line.work !== 'number') line.work = 0;
       if (line.queue <= 0) return;
       var drain = lineSteelPerDay(line.template);
       if (n.steel < drain) { line.stalled = true; return; }
       n.steel -= drain;
       steelSpent += drain;
       line.progressDays += 1;
+      // A funded day adds work at the line's current efficiency, then
+      // the line learns a little: the rise applies from the next day.
+      // A stalled day (above) adds neither work nor efficiency.
+      line.work += lineWorkPerDay(line);
+      line.efficiency = Math.min(CFG.lineEfficiencyCap,
+        line.efficiency + CFG.lineEfficiencyRisePerDay);
       var t = CFG.unitTypes[line.template];
-      if (line.progressDays >= t.buildDays) {
+      if (line.work >= productionWorkNeeded(line.template)) {
         line.queue -= 1;
         line.progressDays = 0;
+        line.work = 0; // work past the need on the finishing day is lost, as a part day always was
         var u = addUnit(state, nationId, line.template, n.capitalId);
         completed.push(u);
         logEvent(state, n.short + ' line ' + line.id + ' completes a ' + t.label +
@@ -1401,6 +1475,11 @@
     productionDrain: productionDrain,
     queuedUnits: queuedUnits,
     lineSteelPerDay: lineSteelPerDay,
+    lineEfficiency: lineEfficiency,
+    productionWorkNeeded: productionWorkNeeded,
+    lineWorkPerDay: lineWorkPerDay,
+    lineBuildDays: lineBuildDays,
+    lineDaysLeft: lineDaysLeft,
     syncProductionLines: syncProductionLines,
     unlockedLineCount: unlockedLineCount,
     isLineUnlocked: isLineUnlocked,
