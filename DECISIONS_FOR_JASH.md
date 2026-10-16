@@ -51,14 +51,16 @@ was invented by the loop, not by you:
    step 1 (lore content in js/lore.js plus the sim's campaign beat hooks)
    is ported and verified, with the loop written lore flagged at the top
    of this file for your rewrite or veto, per the lore rule; the loop
-   does not stall waiting for approval. Steps 2 (codex panel and event
-   card UI), 3 (tests and balance), and 4 (judge) remain. The assessed
-   branch item that was pending before step 2, the branch's Cycle 6
-   judge flag 1 fix (defenders drawn for every targeted province before
-   any battle forms), is now ported and verified (see CYCLE_LOG and
-   item 8). The remaining assessed branch item, judge flag 4 (the enemy
-   card showing the Dominion's factory levels and open lines), is a
-   candidate to ride with step 2's UI work.
+   does not stall waiting for approval. Step 2 (codex panel and event
+   card UI) is now also built and verified in a real browser: the cards
+   appear in game when their beat fires and the codex holds the history
+   and the turning points so far. Steps 3 (tests and balance) and 4
+   (judge) remain. The assessed branch items that were pending before
+   step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
+   (defenders drawn for every targeted province before any battle forms,
+   see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
+   (the enemy card now shows the Dominion's factory levels and open
+   lines, with the next unlock threshold).
 
 3. Rail conversion. It emerged from balance work and the judge voted
    keeper. It is in the game now: captured rail takes 4 days to convert
@@ -102,7 +104,7 @@ was invented by the loop, not by you:
    question; flag it when you play if it feels wrong.
 
 Nothing here blocks the loop. Cycle 6 is complete, the first 6
-reconciliation slices are decided, the branch judge flag 1 fix is
-ported, and Cycle 7 (the lore seed) step 1 is built; the lore above is
-loop written and open for your rewrite or veto, and the cycle runs
-without waiting on any item above.
+reconciliation slices are decided, both assessed branch judge flag
+fixes (1 and 4) are ported, and Cycle 7 (the lore seed) steps 1 and 2
+are built; the lore above is loop written and open for your rewrite or
+veto, and the cycle runs without waiting on any item above.
