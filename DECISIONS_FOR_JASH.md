@@ -368,6 +368,29 @@ each printing the same no effect sentence as the turning point cards:
    inspector); it stays open for your rewrite or veto
    exactly as parked, and no other taste question was
    decided by this step.
+   Cycle 13 step 3 is now also done: 8 formal intel
+   tests bring the suite to 98 (sight mirrored for
+   both nations, the drone second ring pin, snapshots
+   frozen while a province is unseen and updated when
+   sight returns, the priced agent path and its
+   refusals, a full campaign identical with recording
+   on and off except the intel records, and AI parity
+   through the real tick path, with the Dominion
+   planting its agent on your capital at the shared
+   price), the drone sight range mutant fails exactly
+   the drone recon test and is clean against the pre
+   step suite, the seed 42 recon trace is recorded
+   (a drone wing ordered forward makes Drafeld live
+   and its snapshot shows it empty and unwalled, a
+   soft spot infantry alone could not see), and
+   tools/baseline-cycle13.txt is committed with every
+   ruling band passing (against the Cycle 12 baseline
+   only enemyEquipment moved, down 5 to 90 in 10 of
+   32 rows, from the Dominion's priced agent build
+   delaying a steel gated factory build, as traced at
+   step 1). No new taste item was created by this
+   step, and the six taste questions above stay
+   parked exactly as the Cycle 12 judge left them.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -572,6 +595,8 @@ tools/intel-check.js at 29 of 29) is now also done, as
 recorded in item 2 above; its one shape choice, ghost
 chips for remembered provinces, shipped as the loop
 default the prescription allowed and stays open for
-your rewrite or veto. After Cycle 13, in the stated
+your rewrite or veto. Cycle 13 step 3 (formal tests,
+the recon trace, and the Cycle 13 baseline) is now
+also done, as recorded in item 2 above. After Cycle 13, in the stated
 order: navy. The work runs without waiting on any
 item above.
