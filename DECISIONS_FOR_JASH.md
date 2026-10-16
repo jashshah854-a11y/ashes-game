@@ -426,7 +426,23 @@ each printing the same no effect sentence as the turning point cards:
    supply freeze; step 3 owns the tuning), no new taste
    item was created by this step, and the six navy taste
    questions below stay parked as the Cycle 13 judge
-   left them. Cycle 14, Navy, is
+   left them. Cycle 14 step 2 is now also done: navy is
+   on screen (coastal and flotilla marks on the map with
+   river edges drawn supported or not, the blockade
+   lines on the nation card from the sim readouts, the
+   Deploy flotilla control on the province card, and
+   the river crossing penalty named inside the attack
+   preview, whose numbers now come from the shared
+   stackPower for the named target), verified by the
+   new tools/navy-check.js at 29 of 29 in a real
+   browser, with every prior browser check at its
+   recorded total (the intel check's live preview
+   expectation now follows the shared readout's
+   penalized number for its river target, its total
+   unchanged at 31). No new taste item was created by
+   this step, and the six navy taste questions below
+   stay parked exactly as the Cycle 13 judge left
+   them. Cycle 14, Navy, is
    prescribed in full in CYCLE_LOG at this step, starting
    at step 0 with that carried flag, then step 1
    (flotillas built through a priced production template
@@ -662,7 +678,9 @@ defect, not taste) carried to Cycle 14 step 0, so
 Cycle 13 is complete. Cycle 14 step 0 is now also
 done: that flag is closed, as recorded in item 2
 above. Cycle 14 step 1 is now also done: navy in the
-sim, as recorded in item 2 above. Cycle 14 (Navy) is prescribed
+sim, as recorded in item 2 above. Cycle 14 step 2 is
+now also done: navy on screen, as recorded in item 2
+above. Cycle 14 (Navy) is prescribed
 in full in CYCLE_LOG, with six more taste questions
 parked in item 2 above, all undecided and blocking
 nothing. The work runs without waiting on any
