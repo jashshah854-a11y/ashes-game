@@ -54,8 +54,10 @@ was invented by the loop, not by you:
    does not stall waiting for approval. Step 2 (codex panel and event
    card UI) is now also built and verified in a real browser: the cards
    appear in game when their beat fires and the codex holds the history
-   and the turning points so far. Steps 3 (tests and balance) and 4
-   (judge) remain. The assessed branch items that were pending before
+   and the turning points so far. Step 3 (tests and balance) is now
+   also built: 6 lore and beat tests bring the suite to 49, all
+   passing, and the balance rerun is byte identical to the committed
+   baseline. Step 4 (judge) remains. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -105,6 +107,6 @@ was invented by the loop, not by you:
 
 Nothing here blocks the loop. Cycle 6 is complete, the first 6
 reconciliation slices are decided, both assessed branch judge flag
-fixes (1 and 4) are ported, and Cycle 7 (the lore seed) steps 1 and 2
+fixes (1 and 4) are ported, and Cycle 7 (the lore seed) steps 1 to 3
 are built; the lore above is loop written and open for your rewrite or
 veto, and the cycle runs without waiting on any item above.
