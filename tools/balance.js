@@ -15,6 +15,10 @@
 // Cycle 8 step 3, in this harness's shape: fortress is the sensible
 // script plus walls, and every report now carries both nations' end
 // equipment, so a fortifying path's equipment spend is visible.
+// The exchange fields were added in Cycle 12 step 3, in the same
+// shape: every report now carries both nations' end exchange records
+// (Sim.exchangeRecord), so a campaign's interceptor launches and its
+// cost exchange net are visible in the report and the baseline.
 const Sim = require('../js/sim.js');
 const SEEDS = [1, 7, 42, 99, 1234, 555, 2024, 31337];
 
@@ -169,6 +173,8 @@ function run(seed, profile) {
     origStrengthPct: +(origStrength / 72 * 100).toFixed(1),
     factories: Sim.factoryLevels(s, 'player'),
     endEquipment: s.nations.player.equipment,
+    exchangePlayer: Sim.exchangeRecord(s, 'player'),
+    exchangeEnemy: Sim.exchangeRecord(s, 'enemy'),
     enemyEquipment: s.nations.enemy.equipment,
     lines: s.nations.player.productionLines.length,
     line3QueueSeen: trace ? !!trace.line3Queued : undefined,

@@ -2015,3 +2015,336 @@ test('manpower parity: the Dominion pays the same costs through queueProduction 
   assert.strictEqual(Sim.manpowerPool(s, 'enemy'), poolE + intakeE, 'the Dominion accrues its intake through the same tick');
   assert.strictEqual(Sim.manpowerPool(s, 'enemy'), Sim.manpowerPool(s, 'player'), 'pools stay equal after one real tick');
 });
+
+// ---------- Cycle 12: drones, EW, interceptors, and the exchange ----------
+// Launches live inside fightRounds, the shared combat path, and every
+// destruction and launch is priced in steel from CFG into the record
+// only exchange ledger. Staging a nation's stock, a unit's strength,
+// or a generation field directly is a checker edit in the Cycle 9
+// pattern; every battle then goes through Sim.resolveBattle, the
+// public combat path, and every charge goes through queueProduction,
+// productionPhase, researchDroneGen3, researchJamming, or a real tick.
+// Mutant partition, chosen before these tests were written: the
+// mirrored parity test at the end of this section is the only test
+// here that asserts an enemy suffered figure from a battle where the
+// Dominion defends; every other launch and ledger test stages the
+// Compact as the defender (or asserts a suffered figure of zero for
+// an attacking enemy, which no launch can change). That is what
+// makes the step's non vacuity mutant (interceptor launches free for
+// the enemy: its suffered is never recorded) fail exactly that one
+// test, and no other.
+
+test('drones and EW: a stocked defender launches one interceptor per attacking drone wing, up to its stock, the drones die to the interceptors, and their attack never counts', () => {
+  // Stock covers both wings: both die before the first round, so the
+  // defender stands at full strength when the battle ends.
+  const s = Sim.createGame(42);
+  const drones = Sim.unitsOf(s, 'player').filter(u => u.type === 'drone').sort((a, b) => a.id - b.id);
+  assert.strictEqual(drones.length, 2);
+  const def = Sim.unitsOf(s, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
+  const defStrength = def.strength;
+  Sim.resolveBattle(s, drones, [def], Sim.makeRng(99));
+  assert.strictEqual(Sim.interceptorStock(s, 'enemy'), Sim.CFG.interceptorStart - 2, 'one launch per attacking drone wing');
+  drones.forEach(d => assert.strictEqual(d.strength, 0, 'drone wing ' + d.id + ' died to an interceptor'));
+  assert.strictEqual(def.strength, defStrength, 'the targeted drones attack never counted, so the defender took no battle damage');
+  // Stock for only one wing: exactly one launch, the lowest unit id
+  // is targeted first, and the surviving wing fights the battle.
+  const t = Sim.createGame(42);
+  t.nations.enemy.interceptors = 1;
+  const tdrones = Sim.unitsOf(t, 'player').filter(u => u.type === 'drone').sort((a, b) => a.id - b.id);
+  const tdef = Sim.unitsOf(t, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
+  tdef.strength = 1; // checker edit: a defender the surviving wing finishes
+  Sim.resolveBattle(t, tdrones, [tdef], Sim.makeRng(99));
+  assert.strictEqual(Sim.interceptorStock(t, 'enemy'), 0, 'launches stop at the stock on hand');
+  assert.strictEqual(tdrones[0].strength, 0, 'the lowest id drone wing is the first target');
+  assert.ok(tdrones[1].strength > 0, 'the wing no interceptor reached fought on and lived');
+  assert.strictEqual(tdef.strength, 0, 'and it finished the weakened defender in battle');
+  assert.ok(t.log.some(l => l.msg.includes('launch 1 interceptor (' + Sim.interceptorCost() + ' steel)')),
+    'the launch is logged with its count and its steel');
+});
+
+test('drones and EW: an infantry only attack launches nothing, and an attack against an empty stock launches nothing and fights as before', () => {
+  const s = Sim.createGame(42);
+  const atk = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(4, 3));
+  const def = Sim.unitsOf(s, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
+  def.strength = 1;
+  Sim.resolveBattle(s, [atk], [def], Sim.makeRng(99));
+  assert.strictEqual(def.strength, 0);
+  assert.ok(atk.strength > 0);
+  assert.strictEqual(Sim.interceptorStock(s, 'enemy'), Sim.CFG.interceptorStart, 'no drones in the attack, no launches, ever');
+  assert.strictEqual(Sim.exchangeForced(s, 'player'), 0);
+  assert.strictEqual(Sim.exchangeSuffered(s, 'enemy'), 0);
+  // Empty stock: the drone wing fights the battle itself.
+  const t = Sim.createGame(42);
+  t.nations.enemy.interceptors = 0;
+  const drone = Sim.unitsOf(t, 'player').find(u => u.type === 'drone' && u.provinceId === Sim.provinceId(4, 3));
+  const tdef = Sim.unitsOf(t, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
+  tdef.strength = 1;
+  Sim.resolveBattle(t, [drone], [tdef], Sim.makeRng(99));
+  assert.strictEqual(tdef.strength, 0, 'with no stock the drone kills in battle as it did before Cycle 12');
+  assert.ok(drone.strength > 0);
+  assert.strictEqual(Sim.interceptorStock(t, 'enemy'), 0);
+  assert.strictEqual(Sim.exchangeForced(t, 'player'), 0);
+  assert.strictEqual(Sim.exchangeSuffered(t, 'enemy'), 0);
+});
+
+test('drones and EW: one interceptor costs more than three drone wings in steel, by the margin step 1 recorded', () => {
+  const droneSteel = Sim.CFG.unitTypes.drone.steelCost;
+  const intSteel = Sim.interceptorCost();
+  assert.strictEqual(intSteel, Sim.CFG.unitTypes.interceptor.steelCost, 'the launch price is the template CFG steel cost, no second price list');
+  assert.ok(intSteel > 3 * droneSteel, 'one forced launch bleeds more steel than three drone wings cost: ' + intSteel + ' against ' + droneSteel + ' each');
+  assert.strictEqual((intSteel / droneSteel).toFixed(2), '3.33', 'the recorded margin: 50 steel against 15, 3.33 times');
+  assert.strictEqual(intSteel - droneSteel, 35, 'so a drone wing that dies forcing one launch still nets its owner 35 steel on that fact alone');
+  assert.ok(Sim.CFG.unitTypes.interceptor.manpowerCost > 0, 'the interceptor template also carries a manpower price, paid through the same queue gate');
+});
+
+test('drones and EW: the exchange ledger is exact for an interceptor kill and for a battle death, counts an interceptor kill once, and is deterministic', () => {
+  const droneSteel = Sim.CFG.unitTypes.drone.steelCost;
+  const infSteel = Sim.CFG.unitTypes.infantry.steelCost;
+  const intSteel = Sim.interceptorCost();
+  // The Compact defends: an enemy drone wing dies to an interceptor.
+  const stagedIntercept = () => {
+    const s = Sim.createGame(42);
+    const drone = Sim.unitsOf(s, 'enemy').find(u => u.type === 'drone');
+    const def = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(4, 3));
+    Sim.resolveBattle(s, [drone], [def], Sim.makeRng(99));
+    return { s, drone, def };
+  };
+  const a = stagedIntercept();
+  assert.strictEqual(a.drone.strength, 0);
+  assert.strictEqual(a.def.strength, a.def.maxStrength, 'the intercepted drones attack never counted');
+  assert.strictEqual(Sim.interceptorStock(a.s, 'player'), Sim.CFG.interceptorStart - 1);
+  assert.deepStrictEqual(Sim.exchangeRecord(a.s, 'player'),
+    { destroyed: droneSteel, lost: 0, forced: 0, suffered: intSteel, net: droneSteel - intSteel },
+    'the defender destroyed one drone wing, priced once at its CFG steel, and suffered one launch at the interceptor CFG steel');
+  assert.deepStrictEqual(Sim.exchangeRecord(a.s, 'enemy'),
+    { destroyed: 0, lost: droneSteel, forced: intSteel, suffered: 0, net: intSteel - droneSteel },
+    'the attacker lost the wing once, never again as a battle death, and forced the launch');
+  ['player', 'enemy'].forEach(nid => {
+    const r = Sim.exchangeRecord(a.s, nid);
+    assert.strictEqual(r.net, r.destroyed + r.forced - r.lost - r.suffered, nid + ' net is its stated definition');
+    assert.strictEqual(Sim.exchangeNet(a.s, nid), r.net);
+  });
+  assert.strictEqual(Sim.exchangeDestroyed(a.s, 'player'), droneSteel);
+  assert.strictEqual(Sim.exchangeLost(a.s, 'enemy'), droneSteel);
+  assert.strictEqual(Sim.exchangeForced(a.s, 'enemy'), intSteel);
+  assert.strictEqual(Sim.exchangeSuffered(a.s, 'player'), intSteel);
+  // Two identical staged battles give identical ledgers.
+  const b = stagedIntercept();
+  assert.deepStrictEqual(Sim.exchangeRecord(b.s, 'player'), Sim.exchangeRecord(a.s, 'player'));
+  assert.deepStrictEqual(Sim.exchangeRecord(b.s, 'enemy'), Sim.exchangeRecord(a.s, 'enemy'));
+  // A plain battle death with no stock on either side prices at the
+  // template CFG steel, and no launch figure moves.
+  const t = Sim.createGame(42);
+  t.nations.player.interceptors = 0;
+  t.nations.enemy.interceptors = 0;
+  const atk = Sim.unitsOf(t, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
+  const def = Sim.unitsOf(t, 'player').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(4, 3));
+  def.strength = 1;
+  Sim.resolveBattle(t, [atk], [def], Sim.makeRng(99));
+  assert.strictEqual(def.strength, 0);
+  assert.ok(atk.strength > 0);
+  assert.deepStrictEqual(Sim.exchangeRecord(t, 'enemy'),
+    { destroyed: infSteel, lost: 0, forced: 0, suffered: 0, net: infSteel });
+  assert.deepStrictEqual(Sim.exchangeRecord(t, 'player'),
+    { destroyed: 0, lost: infSteel, forced: 0, suffered: 0, net: -infSteel });
+});
+
+test('drones and EW: the effectiveness readout returns the stated percent at differences of plus 1, 0, and minus 1, clamps at its cap and floor, and touches drone wings only', () => {
+  const s = Sim.createGame(42);
+  assert.strictEqual(Sim.droneGeneration(s, 'player'), 1);
+  assert.strictEqual(Sim.jammingGeneration(s, 'enemy'), 0);
+  assert.strictEqual(Sim.droneEffectiveness(s, 'player'), 100 + Sim.CFG.ewStepPct, 'difference plus 1 at the start: 125 percent');
+  s.nations.enemy.jammingGen = 1; // checker edit: the opposing jamming generation
+  assert.strictEqual(Sim.droneEffectiveness(s, 'player'), 100, 'difference 0: 100 percent');
+  s.nations.enemy.jammingGen = 2;
+  assert.strictEqual(Sim.droneEffectiveness(s, 'player'), 100 - Sim.CFG.ewStepPct, 'difference minus 1: 75 percent');
+  // unitStats carries the readout, and infantry is never touched.
+  const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
+  assert.deepStrictEqual(Sim.unitStats(s, drone), { attack: 2, defense: 2, supplyPenalty: 0, fortBonus: 0 },
+    'at 75 percent the Gen 1 base stats 3 and 2 round to 2 and 2');
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0, fortBonus: 0 },
+    'jamming affects drone wings only, never infantry');
+  s.nations.enemy.jammingGen = 1;
+  assert.deepStrictEqual(Sim.unitStats(s, drone), { attack: 3, defense: 2, supplyPenalty: 0, fortBonus: 0 },
+    'at difference 0 the drone fights at its printed base stats');
+  s.nations.enemy.jammingGen = 0;
+  assert.deepStrictEqual(Sim.unitStats(s, drone), { attack: 4, defense: 3, supplyPenalty: 0, fortBonus: 0 },
+    'at difference plus 1 the drone fights at 125 percent');
+  // The cap binds inside the shipped ranges: Gen 3 against no jamming
+  // is a difference of plus 3, 175 clamped to the cap.
+  s.nations.player.droneGen2 = true;
+  s.nations.player.droneGen3 = true;
+  assert.strictEqual(Sim.droneGeneration(s, 'player'), 3);
+  assert.strictEqual(Sim.droneEffectiveness(s, 'player'), Sim.CFG.ewCapPct, 'difference plus 3 clamps to the 150 cap');
+  // The floor cannot bind with the shipped generation ranges (the
+  // lowest reachable difference is minus 1, 75 percent), so it is
+  // pinned here with a staged jamming generation beyond Gen 2, which
+  // exercises the clamp arithmetic and nothing else.
+  s.nations.player.droneGen2 = false;
+  s.nations.player.droneGen3 = false;
+  s.nations.enemy.jammingGen = 3;
+  assert.strictEqual(Sim.droneEffectiveness(s, 'player'), Sim.CFG.ewFloorPct, 'difference minus 2 reaches the 50 floor');
+  s.nations.enemy.jammingGen = 4;
+  assert.strictEqual(Sim.droneEffectiveness(s, 'player'), Sim.CFG.ewFloorPct, 'difference minus 3 would be 25, clamped to the floor');
+});
+
+test('drones and EW: a battle fought through the readout deals the readout numbers', () => {
+  // The same staged battle and the same rng seed at two generations:
+  // the only change is the generation, so the defender outcome moves
+  // by exactly the readout and base stat numbers the preview quotes.
+  const staged = (gen2) => {
+    const s = Sim.createGame(42);
+    s.nations.player.interceptors = 0;
+    s.nations.enemy.interceptors = 0;
+    if (gen2) s.nations.player.droneGen2 = true;
+    const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone' && u.provinceId === Sim.provinceId(4, 3));
+    const def = Sim.unitsOf(s, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
+    const pow = Sim.stackPower(s, [drone], 'attack');
+    Sim.resolveBattle(s, [drone], [def], Sim.makeRng(99));
+    return { pow, drone, def };
+  };
+  const g1 = staged(false);
+  assert.strictEqual(g1.pow, 4, 'Gen 1 at 125 percent: stackPower attack is the readout number 4');
+  assert.strictEqual(g1.drone.strength, 0);
+  assert.strictEqual(g1.def.strength, 5, 'the Gen 1 wing dies leaving the defender at 5 under this rng seed');
+  const g2 = staged(true);
+  assert.strictEqual(g2.pow, 8, 'Gen 2 at 150 percent: stackPower attack is the readout number 8');
+  assert.strictEqual(g2.drone.strength, 0);
+  assert.strictEqual(g2.def.strength, 0, 'the Gen 2 wing deals the readout numbers and destroys the defender before it dies');
+});
+
+test('drones and EW: research gating, Gen 3 refused without Gen 2, jamming bought in order, points deducted exactly, identical costs for both nations', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.researchPoints = 500;
+  const noGen2 = Sim.researchDroneGen3(s, 'player');
+  assert.strictEqual(noGen2.ok, false, 'Drone Gen 3 is refused without Drone Gen 2');
+  assert.ok(/requires Drone Gen 2/.test(noGen2.reason));
+  assert.strictEqual(s.nations.player.researchPoints, 500, 'a refused purchase deducts nothing');
+  assert.strictEqual(Sim.droneGeneration(s, 'player'), 1);
+  // Insufficient points refuse the same way once Gen 2 is held.
+  s.nations.player.droneGen2 = true; // checker edit: the prerequisite, earned in play by the test above's own path in real campaigns
+  s.nations.player.researchPoints = Sim.CFG.droneGen3Cost - 1;
+  assert.strictEqual(Sim.researchDroneGen3(s, 'player').ok, false);
+  assert.strictEqual(s.nations.player.researchPoints, Sim.CFG.droneGen3Cost - 1);
+  s.nations.player.researchPoints = Sim.CFG.droneGen3Cost;
+  assert.strictEqual(Sim.researchDroneGen3(s, 'player').ok, true);
+  assert.strictEqual(s.nations.player.researchPoints, 0, 'Gen 3 deducts exactly its CFG cost');
+  assert.strictEqual(Sim.droneGeneration(s, 'player'), 3);
+  assert.strictEqual(Sim.researchDroneGen3(s, 'player').ok, false, 'and it cannot be bought twice');
+  // Jamming, in order, for the player.
+  const j = Sim.createGame(42);
+  j.nations.player.researchPoints = Sim.CFG.jammingCosts[0] - 1;
+  assert.strictEqual(Sim.researchJamming(j, 'player').ok, false, 'one point short refuses Jamming Gen 1');
+  assert.strictEqual(Sim.jammingGeneration(j, 'player'), 0);
+  j.nations.player.researchPoints = Sim.CFG.jammingCosts[0];
+  const j1 = Sim.researchJamming(j, 'player');
+  assert.strictEqual(j1.ok, true);
+  assert.strictEqual(j1.generation, 1, 'the first jamming purchase is Gen 1, never Gen 2');
+  assert.strictEqual(j.nations.player.researchPoints, 0, 'Gen 1 deducts exactly the first CFG jamming cost');
+  j.nations.player.researchPoints = Sim.CFG.jammingCosts[1];
+  const j2 = Sim.researchJamming(j, 'player');
+  assert.strictEqual(j2.ok, true);
+  assert.strictEqual(j2.generation, 2);
+  assert.strictEqual(j.nations.player.researchPoints, 0, 'Gen 2 deducts exactly the second CFG jamming cost');
+  j.nations.player.researchPoints = 500;
+  assert.strictEqual(Sim.researchJamming(j, 'player').ok, false, 'there is no third jamming generation to buy');
+  // The Dominion pays the identical numbers through the same functions.
+  const e = Sim.createGame(42);
+  e.nations.enemy.droneGen2 = true;
+  e.nations.enemy.researchPoints = Sim.CFG.droneGen3Cost;
+  assert.strictEqual(Sim.researchDroneGen3(e, 'enemy').ok, true);
+  assert.strictEqual(e.nations.enemy.researchPoints, 0, 'the Dominion pays the same Gen 3 cost, no discount');
+  assert.strictEqual(Sim.droneGeneration(e, 'enemy'), 3);
+  e.nations.enemy.researchPoints = Sim.CFG.jammingCosts[0] + Sim.CFG.jammingCosts[1];
+  assert.strictEqual(Sim.researchJamming(e, 'enemy').generation, 1);
+  assert.strictEqual(Sim.researchJamming(e, 'enemy').generation, 2);
+  assert.strictEqual(e.nations.enemy.researchPoints, 0, 'the Dominion pays the same two jamming costs in the same order');
+});
+
+test('drones and EW: an Interceptor is built only through the priced production path, completes into the stockpile on the stated day for the stated steel, and deploys no unit, for both nations', () => {
+  ['player', 'enemy'].forEach(nid => {
+    const s = Sim.createGame(42);
+    s.nations[nid].steel = 500;
+    assert.strictEqual(Sim.assignLineTemplate(s, nid, 1, 'interceptor').ok, true);
+    const q = Sim.queueProduction(s, nid, 1);
+    assert.strictEqual(q.ok, true, nid + ' queues an Interceptor through queueProduction');
+    assert.strictEqual(q.cost, Sim.CFG.unitTypes.interceptor.steelCost);
+    assert.strictEqual(q.manpowerCost, Sim.CFG.unitTypes.interceptor.manpowerCost);
+    assert.strictEqual(q.buildDays, Sim.CFG.unitTypes.interceptor.buildDays, 'at the floor the readout quotes the base build days');
+    assert.strictEqual(Sim.manpowerPool(s, nid), Sim.CFG.manpowerStart - q.manpowerCost, 'manpower is paid at queue time, as for any template');
+    const unitCount = s.units.length;
+    for (let day = 1; day < Sim.CFG.unitTypes.interceptor.buildDays; day++) {
+      Sim.productionPhase(s, nid);
+      assert.strictEqual(Sim.interceptorStock(s, nid), Sim.CFG.interceptorStart, nid + ' stock unchanged on day ' + day);
+    }
+    Sim.productionPhase(s, nid);
+    assert.strictEqual(Sim.interceptorStock(s, nid), Sim.CFG.interceptorStart + 1,
+      nid + ' the finished Interceptor joins the stockpile on the ' + Sim.CFG.unitTypes.interceptor.buildDays + 'th funded day');
+    assert.strictEqual(s.units.length, unitCount, 'no map unit ever deployed');
+    assert.strictEqual(s.nations[nid].steel, 500 - Sim.CFG.unitTypes.interceptor.steelCost,
+      'exactly the listed steel was drained over the build, at the unchanged daily drain');
+  });
+});
+
+test('drones and EW: mirrored parity, the same staged battle with the nations swapped gives mirrored ledgers and the same stock spent', () => {
+  // This is the section's mutant target test (see the header): the
+  // only assertion of an enemy suffered figure for a defending
+  // Dominion in this section lives here.
+  const droneSteel = Sim.CFG.unitTypes.drone.steelCost;
+  const intSteel = Sim.interceptorCost();
+  const staged = (attacker) => {
+    const s = Sim.createGame(42);
+    const defender = attacker === 'player' ? 'enemy' : 'player';
+    const drone = Sim.unitsOf(s, attacker).find(u => u.type === 'drone' && u.provinceId === Sim.provinceId(attacker === 'player' ? 4 : 5, 3));
+    const def = Sim.unitsOf(s, defender).find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(attacker === 'player' ? 5 : 4, 3));
+    Sim.resolveBattle(s, [drone], [def], Sim.makeRng(99));
+    return {
+      s,
+      atkRecord: Sim.exchangeRecord(s, attacker),
+      defRecord: Sim.exchangeRecord(s, defender),
+      stockLeft: Sim.interceptorStock(s, defender),
+      defStrength: def.strength,
+      droneStrength: drone.strength
+    };
+  };
+  const p = staged('player');
+  assert.deepStrictEqual(p.atkRecord, { destroyed: 0, lost: droneSteel, forced: intSteel, suffered: 0, net: intSteel - droneSteel });
+  assert.deepStrictEqual(p.defRecord, { destroyed: droneSteel, lost: 0, forced: 0, suffered: intSteel, net: droneSteel - intSteel },
+    'the Dominion defending suffers the same launch price the Compact suffers in the mirror');
+  const e = staged('enemy');
+  assert.deepStrictEqual(e.atkRecord, p.atkRecord, 'the enemy attacking records exactly what the player attacking recorded: role for role, the ledgers are the same');
+  assert.deepStrictEqual(e.defRecord, p.defRecord, 'and the enemy defending in the first staging records exactly what the player defending records here');
+  assert.strictEqual(e.stockLeft, p.stockLeft, 'both defenders spent exactly one interceptor from the same starting stock');
+  assert.strictEqual(e.defStrength, p.defStrength);
+  assert.strictEqual(e.droneStrength, p.droneStrength);
+});
+
+test('drones and EW: AI parity through the real tick path, the Dominion researches jamming and replenishes interceptors through the same priced paths', () => {
+  // Research: staged with Gen 2 held and exactly the Gen 1 price on
+  // hand, one real tick leaves the Dominion at Jamming Gen 1, its
+  // points spent at the start of the tick on start of day numbers
+  // and then regrown by the day's income at the flat CFG rate.
+  const s = Sim.createGame(42);
+  s.nations.enemy.droneGen2 = true; // checker edit: the state a real campaign reaches on day 21
+  s.nations.enemy.researchPoints = Sim.CFG.jammingCosts[0];
+  Sim.tick(s);
+  assert.strictEqual(Sim.jammingGeneration(s, 'enemy'), 1, 'the Dominion bought Jamming Gen 1 through the tick');
+  assert.strictEqual(s.nations.enemy.researchPoints, Sim.CFG.researchPerDay,
+    'it paid the full CFG cost, not a discounted one: the pool is the day income that landed after the purchase');
+  assert.strictEqual(Sim.jammingGeneration(s, 'player'), 0, 'the player has no auto purchase; its research is its own clicks at the same prices pinned above');
+  // Replenishment: with its stock staged at 1, one real tick leaves
+  // the Dominion's line 2 retooled to Interceptors with one order
+  // queued through queueProduction, at the shared manpower prices.
+  const t = Sim.createGame(42);
+  t.nations.enemy.interceptors = 1;
+  const intake = Sim.manpowerIntake(t, 'enemy');
+  Sim.tick(t);
+  const line2 = Sim.productionLine(t, 'enemy', 2);
+  assert.strictEqual(line2.template, 'interceptor', 'line 2 retooled to Interceptors by the stated spending rule');
+  assert.strictEqual(line2.queue, 1, 'and one Interceptor was queued through the shared path');
+  assert.strictEqual(Sim.interceptorStock(t, 'enemy'), 1, 'the stock itself lands only when the build completes, five funded days on');
+  assert.strictEqual(Sim.manpowerPool(t, 'enemy'),
+    Sim.CFG.manpowerStart + intake - Sim.manpowerCost('infantry') - Sim.manpowerCost('interceptor'),
+    'the tick charged the Dominion the shared queue prices: an infantry order on line 1 and the Interceptor on line 2, no discount');
+});
