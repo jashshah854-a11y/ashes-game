@@ -27,19 +27,23 @@ was invented by the loop, not by you:
   "A Third Line", each with a Vessari, a Khessite, and a same day text.
 
 1. Calibration feel. Current numbers on master, measured with the
-   committed harness (tools/balance.js) and re-verified at Cycle 8
-   step 3: a commander who never acts falls on day 36 on all 8 standard
+   committed harness (tools/balance.js) and re-verified at Cycle 9
+   step 1: a commander who never acts falls on day 36 on all 8 standard
    seeds, inside the judge's 30 to 45 band; the scripted sensible player
    (which builds factories toward line 3) captures the enemy capital 8 of
-   8, on day 46 on 7 seeds and day 25 on seed 2024, with end strength
-   163.9 to 211.1 percent of the starting 72; a reckless player who
+   8, on day 43 on 7 seeds and day 28 on seed 2024, with end strength
+   190.3 to 265.3 percent of the starting 72; a reckless player who
    abandons the capital lane loses 8 of 8, on day 37. The capture moved
    later than the pre walls day 25 when fortifications landed in
    Cycle 8 step 1 (the Dominion now walls its capital and its river
-   province), and a new fortress profile that also walls its own
+   province), and a fortress profile that also walls its own
    capital and staging province wins the same 8 of 8 on the same days.
+   Cycle 9 step 1 (line efficiency) then moved the sensible capture
+   earlier again on 7 seeds (day 46 to 43) as practiced lines started
+   finishing units sooner, and 3 days later on seed 2024 (day 25 to
+   28), whose fast win turned on one early stack's exact timing.
    The bands, not the exact day, are the ruling. Questions: does day 36
-   feel right to you for a do-nothing commander, and does a day 46 win
+   feel right to you for a do-nothing commander, and does a day 43 win
    for sensible play feel right, or do you want the skeleton gentler
    while you learn it?
 
@@ -92,8 +96,16 @@ was invented by the loop, not by you:
    progress, prescribed in full in CYCLE_LOG: step 0 is done (the
    building badge now sits below the level badge, both show during
    an upgrade, and the fort check's new combined state run passes
-   17 of 17), and step 1 (the efficiency sim) is next. No new taste
-   item was created by step 0; it was a prescribed defect fix. The assessed branch items that were pending before
+   17 of 17), and step 1 (the efficiency sim) is now also done:
+   a line's efficiency starts at 100 percent, rises 2 percent per
+   funded working day to a 150 percent cap, drops back to 100 on a
+   retool, and affects only how many funded days a unit takes to
+   build (at the cap, infantry in 4 days and drones in 2), with
+   the steel drain per day and the listed steel cost unchanged;
+   step 2 (the panel shows efficiency and its live effect) is
+   next. No new taste item was created by step 0 or step 1; step 0
+   was a prescribed defect fix and step 1's numbers are loop
+   tuning under the judge's prescription. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -213,5 +225,6 @@ through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is complete through
 its step 4 judge (PASS WITH FIX-NOW FLAGS). Cycle 9 (Production
 Line Efficiency Ramps) is in progress: step 0 closed that judge
-flag, and step 1 (the efficiency sim) is next,
+flag, step 1 (the efficiency sim) is built, and step 2 (efficiency
+on screen) is next,
 and the work runs without waiting on any item above.
