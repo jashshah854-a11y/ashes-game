@@ -121,15 +121,15 @@ test('research: Drone Gen 2 changes drone attack and defense stats', () => {
   const s = Sim.createGame(41);
   const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
   const before = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(before, { attack: 3, defense: 2, supplyPenalty: 0 });
+  assert.deepStrictEqual(before, { attack: 3, defense: 2, supplyPenalty: 0, fortBonus: 0 });
   s.nations.player.researchPoints = Sim.CFG.droneGen2Cost;
   const res = Sim.researchDroneGen2(s, 'player');
   assert.strictEqual(res.ok, true);
   const after = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(after, { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, supplyPenalty: 0 });
+  assert.deepStrictEqual(after, { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, supplyPenalty: 0, fortBonus: 0 });
   // Infantry is untouched by drone research.
   const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
-  assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0 });
+  assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0, fortBonus: 0 });
 });
 
 test('win: capturing the enemy capital ends the game for the player', () => {
