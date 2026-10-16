@@ -22,7 +22,7 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'prov-explain', 'unit-details',
+   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
    'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
    'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
@@ -134,6 +134,8 @@
         if (p.factoryLevel > 0) {
           html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
         }
+        if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">Fort ' + p.fortLevel + '</span>';
+        if (p.fortBuild) html += ' <span class="fort-badge building">Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd</span>';
         if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
         if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
         var units = Sim.unitsIn(state, p.id);
@@ -185,6 +187,11 @@
     var enemyLines = (e.productionLines || []).length;
     var enemyNext = Sim.lineLockInfo(state, 'enemy', enemyLines + 1);
     el.statEnemyFactories.textContent = Sim.factoryLevels(state, 'enemy');
+    el.aiFortEq.textContent = Sim.CFG.aiFortifyEquipment;
+    var forts = Object.keys(state.provinces).map(function (k) { return state.provinces[k]; })
+      .filter(function (p) { return p.owner === 'enemy' && (p.fortLevel > 0 || p.fortBuild); })
+      .map(function (p) { return p.name + ' ' + (p.fortLevel || 0) + (p.fortBuild ? ' (to ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd)' : ''); });
+    el.statEnemyForts.textContent = forts.length ? forts.join(', ') : 'none';
     el.statEnemyLines.textContent = enemyLines + ' of ' + Sim.CFG.maxProductionLines +
       (enemyNext ? ' (next at ' + enemyNext.required + ' factory levels)' : '');
 
@@ -304,6 +311,28 @@
       'An unlocked line stays open even if you later lose factories.';
   }
 
+  // Fortification in plain words: level, the exact bonus, work under way.
+  function fortLine(p) {
+    var lvl = p.fortLevel || 0;
+    var holder = p.owner === 'player' ? 'your' : 'Dominion';
+    var line = 'Fortification: level ' + lvl + ' of ' + Sim.CFG.fortMaxLevel;
+    if (lvl > 0) line += ', +' + (lvl * Sim.CFG.fortDefensePctPerLevel) + '% defense for ' + holder + ' units defending here';
+    if (p.fortBuild) line += '. Being raised to level ' + p.fortBuild.toLevel + ', ' + p.fortBuild.daysLeft + (p.fortBuild.daysLeft === 1 ? ' day' : ' days') + ' left';
+    return line;
+  }
+
+  function renderFortButton(p, mine) {
+    var b = el.btnFort, lvl = p.fortLevel || 0;
+    var cost = Sim.CFG.fortCostPerLevel * (lvl + 1);
+    if (!mine) { b.disabled = true; b.textContent = 'Fortify (only your own provinces)'; return; }
+    if (lvl >= Sim.CFG.fortMaxLevel) { b.disabled = true; b.textContent = 'Fortification at max level'; return; }
+    if (p.fortBuild) { b.disabled = true; b.textContent = 'Fortifying: ' + p.fortBuild.daysLeft + ' days left'; return; }
+    var have = state.nations.player.equipment;
+    b.disabled = have < cost;
+    b.textContent = 'Fortify to level ' + (lvl + 1) + ' (' + cost + ' eq, ' + Sim.CFG.fortBuildDays + ' days, +' +
+      Sim.CFG.fortDefensePctPerLevel + '% defense)' + (have < cost ? ': need ' + cost + ', you have ' + have : '');
+  }
+
   function renderProvinceCard() {
     var p = selectedProvinceId ? state.provinces[selectedProvinceId] : null;
     var btnF = el.btnFactory;
@@ -311,6 +340,8 @@
       el.provName.textContent = 'No province selected';
       el.provDetails.textContent = 'Click any province to inspect it.';
       btnF.disabled = true;
+      el.btnFort.disabled = true;
+      el.btnFort.textContent = 'Fortify';
       el.provExplain.textContent = '';
       el.railActions.innerHTML = '';
       return;
@@ -330,6 +361,7 @@
       'Owner: ' + ownerName + '<br>' +
       'Steel output: ' + p.steel + ' per day<br>' +
       'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
+      fortLine(p) + '<br>' +
       supplyLine + '<br>' +
       'Units here: ' + Sim.unitsIn(state, p.id).length;
     renderRailActions(p);
@@ -339,6 +371,7 @@
     btnF.textContent = p.factoryLevel >= Sim.CFG.maxFactoryLevel
       ? 'Factory at max level'
       : 'Build / Upgrade Factory (' + cost + ' eq)';
+    renderFortButton(p, mine);
     el.provExplain.textContent = mine
       ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
         'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
@@ -396,7 +429,8 @@
       var defs = Sim.unitsIn(state, np.id).filter(function (d) { return d.nation === 'enemy'; });
       if (!defs.length) return;
       preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
-        ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included).';
+        ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
+        (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').';
       preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
         ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
       // If taking this province would start rail conversions, say so
@@ -414,6 +448,7 @@
     el.unitDetails.innerHTML =
       base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
       'Attack ' + st.attack + ', Defense ' + st.defense +
+      (st.fortBonus > 0 ? ' (includes +' + st.fortBonus + '% from fortifications here)' : '') +
       (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
       'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days on a production line.<br>' +
       supplyText + '<br>' +
@@ -610,6 +645,9 @@
   el.btnResearch.addEventListener('click', function () {
     Sim.researchDroneGen2(state, 'player');
     render();
+  });
+  el.btnFort.addEventListener('click', function () {
+    if (selectedProvinceId) { Sim.buildFortification(state, 'player', selectedProvinceId); render(); }
   });
   el.btnFactory.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildFactory(state, 'player', selectedProvinceId); render(); }

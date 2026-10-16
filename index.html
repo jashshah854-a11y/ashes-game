@@ -63,6 +63,7 @@
       <div id="prov-details" class="prov-details">Click any province to inspect it.</div>
       <div class="btn-col">
         <button id="btn-factory" type="button" disabled>Build / Upgrade Factory</button>
+        <button id="btn-fort" type="button" disabled>Fortify</button>
       </div>
       <div class="btn-col" id="rail-actions"></div>
       <p class="explain" id="prov-explain"></p>
@@ -80,10 +81,12 @@
       <div class="stat-row"><span>Drone generation</span><strong id="stat-enemy-gen">Gen 1</strong></div>
       <div class="stat-row"><span>Factory levels</span><strong id="stat-enemy-factories">0</strong></div>
       <div class="stat-row"><span>Production lines open</span><strong id="stat-enemy-lines">2</strong></div>
+      <div class="stat-row"><span>Fortified provinces</span><strong id="stat-enemy-forts">none</strong></div>
       <p class="explain">Dominion doctrine: it masses for 10 days, attacks only at clear
       superiority (about 1.5x your defense), and never attacks while its own units are
       out of supply. Starve its rail and it stalls. It always keeps a garrison of three
-      units on its capital.</p>
+      units on its capital. It fortifies its capital, then its Spine province facing the
+      river, whenever it holds <span id="ai-fort-eq">300</span> equipment.</p>
     </div>
 
     <div class="card log-card">
