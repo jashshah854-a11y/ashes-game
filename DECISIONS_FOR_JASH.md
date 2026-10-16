@@ -52,10 +52,13 @@ was invented by the loop, not by you:
    is ported and verified, with the loop written lore flagged at the top
    of this file for your rewrite or veto, per the lore rule; the loop
    does not stall waiting for approval. Steps 2 (codex panel and event
-   card UI), 3 (tests and balance), and 4 (judge) remain. One assessed
-   branch item is also pending its own step before step 2: the branch's
-   Cycle 6 judge flag 1 fix, which draws defenders for every targeted
-   province before any battle forms (see CYCLE_LOG).
+   card UI), 3 (tests and balance), and 4 (judge) remain. The assessed
+   branch item that was pending before step 2, the branch's Cycle 6
+   judge flag 1 fix (defenders drawn for every targeted province before
+   any battle forms), is now ported and verified (see CYCLE_LOG and
+   item 8). The remaining assessed branch item, judge flag 4 (the enemy
+   card showing the Dominion's factory levels and open lines), is a
+   candidate to ride with step 2's UI work.
 
 3. Rail conversion. It emerged from balance work and the judge voted
    keeper. It is in the game now: captured rail takes 4 days to convert
@@ -89,7 +92,17 @@ was invented by the loop, not by you:
    tuning, but whether a locked slot feels good or frustrating is taste.
    Flag it when you play Cycle 6 if it feels wrong.
 
+8. Defenders stay home (branch Cycle 6 judge flag 1, ported). The rule
+   the docs already stated is now the rule the code runs in all cases:
+   a unit standing on a province an enemy column marches on stays to
+   defend it that day and its own order is cancelled, even if its own
+   attack would have sorted first. The unit card now states this where
+   the order is given. Whether a stack under attack should always stay
+   home, rather than being allowed to march out, is also a feel
+   question; flag it when you play if it feels wrong.
+
 Nothing here blocks the loop. Cycle 6 is complete, the first 6
-reconciliation slices are decided, and Cycle 7 (the lore seed) step 1
-is built; the lore above is loop written and open for your rewrite or
-veto, and the cycle runs without waiting on any item above.
+reconciliation slices are decided, the branch judge flag 1 fix is
+ported, and Cycle 7 (the lore seed) step 1 is built; the lore above is
+loop written and open for your rewrite or veto, and the cycle runs
+without waiting on any item above.
