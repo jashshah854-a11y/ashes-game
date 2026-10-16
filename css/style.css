@@ -221,3 +221,19 @@ button.linkish:hover { background: none; color: #fff2c4; }
    instead of covering it. The current level stays visible the whole
    build, because that level is the bonus combat uses that day. */
 .fort-badge.building { top: 18px; }
+
+/* Cycle 13 step 2: intel and fog on the map. Remembered provinces are
+   dimmed with the supply overlay's hatched language over their
+   snapshot owner's color; dark provinces lose owner color entirely.
+   Ghost chips are a snapshot's unit figures, marked with their day. */
+.province.intel-remembered {
+  background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.38) 0 6px, rgba(0, 0, 0, 0) 6px 12px);
+}
+.province.owner-fog { background: #26262b; color: #99937f; }
+.province.owner-fog .steel { opacity: 0.6; }
+.unit-chip.ghost { border-style: dashed; opacity: 0.8; font-style: italic; }
+.intel-legend {
+  margin-top: 10px; font-size: 13px; line-height: 1.55; color: #c9c1ad;
+  background: #22252a; border: 1px solid #4a4232; border-radius: 4px; padding: 10px 12px;
+  max-width: 640px;
+}

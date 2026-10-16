@@ -19,15 +19,17 @@
   var pauseBeforeOverlay = null;
   var codexEntryId = 'ashwater';
   var prodNotice = ''; // the last refused queue or retool reason, shown in the production panel until the next attempt
+  var provNotice = ''; // the last refused agent planting reason, shown in the province card until the next attempt
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-manpower', 'stat-manpower-intake', 'manpower-explain',
    'stat-drone-gen', 'stat-jamming-gen', 'stat-interceptors', 'interceptor-explain',
+   'stat-intel-live', 'stat-agents', 'agent-explain',
    'btn-research', 'research-explain', 'btn-research-gen3', 'research-gen3-explain',
    'btn-research-jamming', 'research-jamming-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
+   'btn-factory', 'btn-fort', 'btn-agent', 'prov-notice', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'stat-enemy-jamming',
    'stat-enemy-interceptors', 'log', 'banner', 'rail-actions',
    'prod-summary', 'prod-notice', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
@@ -89,6 +91,7 @@
     cardQueue = [];
     shownTextureCount = 0;
     prodNotice = '';
+    provNotice = '';
     codexEntryId = 'ashwater';
     pauseBeforeOverlay = null;
     el.eventOverlay.classList.add('hidden');
@@ -129,6 +132,19 @@
     return '<span class="rail-bar ' + side + '"></span>';
   }
 
+  // Snapshot unit groups as ghost figures, marked with their day:
+  // the only unit figures a remembered province may show.
+  function ghostChips(snap) {
+    if (!snap || !snap.units.length) return '';
+    var html = '<span class="units">';
+    snap.units.forEach(function (g) {
+      var label = (g.type === 'drone' ? 'Drone' : g.type === 'infantry' ? 'Inf' : g.type) +
+        (g.count > 1 ? ' x' + g.count : '') + ' ' + g.totalStrength + 'hp';
+      html += '<span class="unit-chip ghost">Day ' + snap.day + ' ghost: ' + label + '</span>';
+    });
+    return html + '</span>';
+  }
+
   function renderMap() {
     var reach = reachableIds();
     var playerSupply = Sim.computeSupply(state, 'player');
@@ -136,32 +152,52 @@
     for (var y = 0; y < state.mapH; y++) {
       for (var x = 0; x < state.mapW; x++) {
         var p = state.provinces[Sim.provinceId(x, y)];
-        var cls = 'province owner-' + p.owner;
+        // Fog (Cycle 13 step 2): every tile's state comes from the
+        // sim's one intel readout. Owned provinces are live by that
+        // readout and render exactly as before. A remembered province
+        // keeps its snapshot's owner color, dimmed and hatched, and
+        // shows only its snapshot's badges and ghost figures. A dark
+        // province shows no owner color, badges, rail, or units at
+        // all: the theater map itself (name, ground, steel) is known,
+        // the military facts are not.
+        var intel = Sim.intelState(state, 'player', p.id);
+        var snap = intel === 'remembered' ? Sim.intelSnapshot(state, 'player', p.id) : null;
+        var shownOwner = intel === 'dark' ? 'fog' : (snap ? snap.owner : p.owner);
+        var cls = 'province owner-' + shownOwner + ' intel-' + intel;
         if (p.id === selectedProvinceId) cls += ' selected';
         if (reach[p.id]) cls += ' reachable';
         if (p.owner === 'player' && playerSupply[p.id] && !playerSupply[p.id].supplied) cls += ' unsupplied';
-        html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '">';
+        html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '" data-intel="' + intel + '">';
         html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
         html += '<span class="steel">Steel ' + p.steel + '</span>';
-        if (p.factoryLevel > 0) {
-          html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
-        }
-        if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">Fort ' + p.fortLevel + '</span>';
-        if (p.fortBuild) html += ' <span class="fort-badge building">Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd</span>';
-        if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
-        if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
-        var units = Sim.unitsIn(state, p.id);
-        if (units.length) {
-          html += '<span class="units">';
-          units.forEach(function (u) {
-            var st = Sim.unitStats(state, u);
-            var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack;
-            if (st.supplyPenalty > 0) label += ' <span class="sup-tag">-' + st.supplyPenalty + '%</span>';
-            var c = 'unit-chip ' + (u.nation === 'player' ? 'mine' : 'theirs');
-            if (u.id === selectedUnitId) c += ' picked';
-            html += '<span class="' + c + '">' + label + '</span>';
-          });
-          html += '</span>';
+        if (intel === 'live') {
+          if (p.factoryLevel > 0) {
+            html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
+          }
+          if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">Fort ' + p.fortLevel + '</span>';
+          if (p.fortBuild) html += ' <span class="fort-badge building">Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd</span>';
+          if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
+          if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
+          var units = Sim.unitsIn(state, p.id);
+          if (units.length) {
+            html += '<span class="units">';
+            units.forEach(function (u) {
+              var st = Sim.unitStats(state, u);
+              var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack;
+              if (st.supplyPenalty > 0) label += ' <span class="sup-tag">-' + st.supplyPenalty + '%</span>';
+              var c = 'unit-chip ' + (u.nation === 'player' ? 'mine' : 'theirs');
+              if (u.id === selectedUnitId) c += ' picked';
+              html += '<span class="' + c + '">' + label + '</span>';
+            });
+            html += '</span>';
+          }
+        } else if (intel === 'remembered' && snap) {
+          if (snap.factoryLevel > 0) {
+            html += ' <span class="factory-badge lvl' + snap.factoryLevel + '">Factory ' + snap.factoryLevel + '</span>';
+          }
+          if (snap.fortLevel > 0) html += ' <span class="fort-badge lvl' + snap.fortLevel + '">Fort ' + snap.fortLevel + '</span>';
+          if (snap.fortBuild) html += ' <span class="fort-badge building">Fort ' + snap.fortBuild.toLevel + ' in ' + snap.fortBuild.daysLeft + 'd</span>';
+          html += ghostChips(snap);
         }
         html += '</button>';
       }
@@ -204,6 +240,20 @@
       'production line to Interceptors (' + Sim.CFG.unitTypes.interceptor.steelCost + ' steel over ' +
       Sim.CFG.unitTypes.interceptor.buildDays + ' days, plus ' + Sim.manpowerCost('interceptor') +
       ' manpower paid when queued); a finished Interceptor joins this stockpile instead of deploying.';
+    // Intel headline and agent stock, from the sim's intel readouts
+    // only: provinces under live observation now, of the whole map,
+    // and the agents waiting to be planted.
+    el.statIntelLive.textContent = Sim.intelLiveCount(state, 'player') + ' of ' +
+      Object.keys(state.provinces).length;
+    el.statAgents.textContent = Sim.agentStock(state, 'player');
+    el.agentExplain.textContent =
+      'Agents are your deep eye: an agent watches one province you do not hold, live, until that ' +
+      'province changes owner. Build one by retooling a production line to Agent (' +
+      Sim.CFG.unitTypes.agent.steelCost + ' steel over ' + Sim.CFG.unitTypes.agent.buildDays +
+      ' days, plus ' + Sim.manpowerCost('agent') + ' manpower paid when queued); a finished Agent ' +
+      'joins this stockpile instead of deploying. Plant one from the card of any province you do ' +
+      'not hold, with its Plant agent button. An agent reveals its province only, never its neighbors; ' +
+      'drone wings are the wide eye, seeing two provinces away. Fog gates information, never orders.';
     el.btnResearch.disabled = n.droneGen2 || n.researchPoints < Sim.CFG.droneGen2Cost;
     el.btnResearch.textContent = n.droneGen2
       ? 'Drone Gen 2 fielded'
@@ -359,6 +409,7 @@
       Sim.queuedUnits(state, 'player') + ' units in queues. ' +
       'Manpower pool: ' + Sim.manpowerPool(state, 'player') + ' (queueing draws from this pool). ' +
       'Interceptor stock: ' + Sim.interceptorStock(state, 'player') + ' (finished Interceptors join this stockpile). ' +
+      'Agent stock: ' + Sim.agentStock(state, 'player') + ' (finished Agents join this stockpile). ' +
       'Finished units deploy at ' + capName + '.';
     // A refused queue or retool attempt shows its reason here, in the
     // open, until the next attempt replaces or clears it.
@@ -368,7 +419,7 @@
     el.productionLines.innerHTML = '';
     (n.productionLines || []).forEach(function (line) {
       var t = Sim.CFG.unitTypes[line.template];
-      var otherTemplates = ['infantry', 'drone', 'interceptor'].filter(function (x) { return x !== line.template; });
+      var otherTemplates = Object.keys(Sim.CFG.unitTypes).filter(function (x) { return x !== line.template; });
 
       var row = document.createElement('div');
       row.className = 'prod-line';
@@ -499,50 +550,117 @@
       Sim.CFG.fortDefensePctPerLevel + '% defense)' + (have < cost ? ': need ' + cost + ', you have ' + have : '');
   }
 
+  // How a hidden province becomes known, in plain words, stated
+  // wherever a hidden province is looked at.
+  function revealText(name) {
+    return 'To see ' + name + ' live: bring one of your units next to it, bring a drone wing ' +
+      'within two provinces of it, or plant an agent there.';
+  }
+
+  // A snapshot's unit groups in plain words, for the inspector and
+  // the attack preview: counts and total strength, as recorded.
+  function snapshotUnitsText(snap) {
+    if (!snap || !snap.units.length) return 'none seen';
+    return snap.units.map(function (g) {
+      return g.count + ' ' + Sim.CFG.unitTypes[g.type].label + ' (' + g.totalStrength + ' total strength, ' +
+        (g.nation === 'player' ? 'yours' : 'Dominion') + ')';
+    }).join(', ');
+  }
+
+  function snapshotFortLine(snap) {
+    var line = 'Fortification when last seen: level ' + snap.fortLevel + ' of ' + Sim.CFG.fortMaxLevel;
+    if (snap.fortLevel > 0) line += ', +' + (snap.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% defense for its holder then';
+    if (snap.fortBuild) line += '. Was being raised to level ' + snap.fortBuild.toLevel + ', ' + snap.fortBuild.daysLeft + ' days left then';
+    return line;
+  }
+
+  // The Plant agent control: present on every province card, stated
+  // plainly. On a province the player does not hold it stays enabled
+  // even with an empty stock, so a click surfaces the sim's refusal
+  // reason in the card notice instead of silently doing nothing.
+  function renderAgentButton(p) {
+    var b = el.btnAgent;
+    if (!p) { b.disabled = true; b.textContent = 'Plant agent'; return; }
+    if (p.owner === 'player') {
+      b.disabled = true;
+      b.textContent = 'Plant agent (your own provinces need none)';
+      return;
+    }
+    b.disabled = false;
+    b.textContent = 'Plant agent in ' + p.name + ' (stock: ' + Sim.agentStock(state, 'player') + ')';
+  }
+
   function renderProvinceCard() {
     var p = selectedProvinceId ? state.provinces[selectedProvinceId] : null;
     var btnF = el.btnFactory;
+    el.provNotice.textContent = provNotice;
+    el.provNotice.className = provNotice ? 'prod-rejected' : 'hidden';
     if (!p) {
       el.provName.textContent = 'No province selected';
       el.provDetails.textContent = 'Click any province to inspect it.';
       btnF.disabled = true;
       el.btnFort.disabled = true;
       el.btnFort.textContent = 'Fortify';
+      renderAgentButton(null);
       el.provExplain.textContent = '';
       el.railActions.innerHTML = '';
       return;
     }
     el.provName.textContent = p.name + (p.isCapital ? ' (capital)' : '');
-    var ownerName = p.owner === 'player' ? 'Yours' : 'Dominion';
-    var sup = Sim.computeSupply(state, p.owner)[p.id];
-    var supplyLine = 'Supply: ';
-    if (sup && sup.supplied) {
-      supplyLine += 'fed by rail, ' + sup.hops + ' of ' + Sim.CFG.supplyMaxHops + ' hops from the capital';
-    } else if (sup) {
-      supplyLine += 'NOT supplied (' + sup.reason + '). Units here weaken daily.';
-    } else {
-      supplyLine += 'unknown';
-    }
-    el.provDetails.innerHTML =
-      'Owner: ' + ownerName + '<br>' +
-      'Steel output: ' + p.steel + ' per day<br>' +
-      'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
-      fortLine(p) + '<br>' +
-      supplyLine + '<br>' +
-      'Units here: ' + Sim.unitsIn(state, p.id).length;
-    renderRailActions(p);
     var mine = p.owner === 'player';
+    var intel = Sim.intelState(state, 'player', p.id);
+    if (intel === 'live') {
+      var ownerName = mine ? 'Yours' : 'Dominion';
+      var sup = Sim.computeSupply(state, p.owner)[p.id];
+      var supplyLine = 'Supply: ';
+      if (sup && sup.supplied) {
+        supplyLine += 'fed by rail, ' + sup.hops + ' of ' + Sim.CFG.supplyMaxHops + ' hops from the capital';
+      } else if (sup) {
+        supplyLine += 'NOT supplied (' + sup.reason + '). Units here weaken daily.';
+      } else {
+        supplyLine += 'unknown';
+      }
+      el.provDetails.innerHTML =
+        'Intel: live, seen today (day ' + state.day + '). What follows is current.<br>' +
+        'Owner: ' + ownerName + '<br>' +
+        'Steel output: ' + p.steel + ' per day<br>' +
+        'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
+        fortLine(p) + '<br>' +
+        supplyLine + '<br>' +
+        'Units here: ' + Sim.unitsIn(state, p.id).length;
+      el.provExplain.textContent = mine
+        ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
+          'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
+          lineUnlockText()
+        : 'Enemy province, seen live today. March a unit in to take it.';
+    } else if (intel === 'remembered') {
+      var snap = Sim.intelSnapshot(state, 'player', p.id);
+      el.provDetails.innerHTML =
+        'Last seen on day ' + snap.day + ': this may have changed since.<br>' +
+        'Owner when last seen: ' + (snap.owner === 'player' ? 'Yours' : 'Dominion') + '<br>' +
+        'Factory level when last seen: ' + snap.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
+        snapshotFortLine(snap) + '<br>' +
+        'Rail when last seen: ' + (snap.rail ? 'rail touched this province' : 'no rail touched this province') + '<br>' +
+        'Units when last seen: ' + snapshotUnitsText(snap);
+      el.provExplain.textContent =
+        'These figures are from day ' + snap.day + ', not today, and nothing here is current. ' +
+        revealText(p.name) + ' You may still march or attack into it: fog gates information, never orders.';
+    } else {
+      el.provDetails.innerHTML =
+        'Nothing is known beyond the map: this province has never been seen, so no owner, units, ' +
+        'factories, forts, or rail state is shown for it.<br>' + revealText(p.name);
+      el.provExplain.textContent =
+        'Fog gates information, never orders: you may still march or attack toward it, but you will ' +
+        'be moving blind until something sees it.';
+    }
+    renderRailActions(p);
     var cost = Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1);
     btnF.disabled = !(mine && p.factoryLevel < Sim.CFG.maxFactoryLevel && state.nations.player.equipment >= cost);
     btnF.textContent = p.factoryLevel >= Sim.CFG.maxFactoryLevel
       ? 'Factory at max level'
       : 'Build / Upgrade Factory (' + cost + ' eq)';
     renderFortButton(p, mine);
-    el.provExplain.textContent = mine
-      ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
-        'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
-        lineUnlockText()
-      : 'Enemy province. March a unit in to take it.';
+    renderAgentButton(p);
   }
 
   // Rail build buttons for the selected province: one per neighbor that
@@ -593,6 +711,28 @@
     Sim.neighborsOf(state, state.provinces[u.provinceId]).forEach(function (np) {
       if (np.owner !== 'enemy') return;
       var defs = Sim.unitsIn(state, np.id).filter(function (d) { return d.nation === 'enemy'; });
+      // Fog gates the preview, never the order (Cycle 13 step 2):
+      // exact shared numbers only for a target seen live today. A
+      // remembered target shows its snapshot, labelled with its day;
+      // a dark target shows no enemy figures at all. Both state in
+      // plain words that the true numbers are not known and how to
+      // make them known.
+      var npIntel = Sim.intelState(state, 'player', np.id);
+      if (npIntel !== 'live') {
+        var npSnap = Sim.intelSnapshot(state, 'player', np.id);
+        var snapDefended = npSnap && npSnap.units.some(function (g) { return g.nation === 'enemy'; });
+        if (!defs.length && !snapDefended) return;
+        if (npIntel === 'remembered' && npSnap) {
+          preview += '<br>Attack ' + np.name + ': last seen on day ' + npSnap.day + '. Defenders then: ' +
+            snapshotUnitsText(npSnap) + '; fort level then: ' + npSnap.fortLevel +
+            '. The true numbers today are not known. ' + revealText(np.name);
+        } else {
+          preview += '<br>Attack ' + np.name + ': nothing is known about its defenders today; ' +
+            'no enemy figures are shown for a province you have never seen. ' +
+            'The true numbers today are not known. ' + revealText(np.name);
+        }
+        return;
+      }
       if (!defs.length) return;
       preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
@@ -930,6 +1070,12 @@
   });
   el.btnFactory.addEventListener('click', function () {
     if (selectedProvinceId) { Sim.buildFactory(state, 'player', selectedProvinceId); render(); }
+  });
+  el.btnAgent.addEventListener('click', function () {
+    if (!selectedProvinceId) return;
+    var res = Sim.plantAgent(state, 'player', selectedProvinceId);
+    provNotice = res && !res.ok ? res.reason : '';
+    render();
   });
 
   newGame();
