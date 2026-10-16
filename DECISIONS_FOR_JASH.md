@@ -238,7 +238,16 @@ each printing the same no effect sentence as the turning point cards:
    reason in the panel, and the enemy card shows the Dominion's
    pool and intake by the same numbers, verified by the new
    tools/manpower-check.js (15 of 15 in a real browser).
-   Steps 3 (tests and balance) and 4 (judge) remain. Its judge parked
+   Step 3 is now also done: 7 formal manpower tests bring the
+   suite to 80, the recorded binding trace on seed 42 (queueing
+   ahead pays for 13 orders and the 14th is refused for manpower,
+   20 in the pool against a 25 cost) is pinned as a test, the
+   non vacuity mutant (intake accrued only for the player) fails
+   exactly the AI parity test, and the balance rerun is committed
+   as tools/baseline-cycle11.txt with every ruling band passing
+   (byte identical to the Cycle 9 baseline; the harness profiles
+   themselves never bind, honestly recorded in CYCLE_LOG).
+   Step 4 (judge) remains. Its judge parked
    four taste questions with you, undecided by
    the prescription: whether manpower should also gate factory
    or fortification construction crews, whether the pool should
@@ -386,6 +395,7 @@ shared queueProduction path, the identical gate for the AI)
 is done, step 2 (UI: pool and intake on the nation and enemy
 cards, manpower costs on the production rows and the unit
 card, a visible queue refusal, tools/manpower-check.js 15
-of 15) is done, and steps 3 (tests and balance) and 4
-(judge) remain; the work runs without waiting on any item
-above.
+of 15) is done, step 3 (tests and balance: suite 80, the
+binding trace pinned, tools/baseline-cycle11.txt committed)
+is done, and step 4 (judge) remains; the work runs without
+waiting on any item above.
