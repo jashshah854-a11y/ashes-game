@@ -294,7 +294,18 @@ each printing the same no effect sentence as the turning point cards:
    8 of 8 on reportDays spread 35 to 89, reckless loses
    8 of 8), and the five taste questions above stay
    parked exactly as the judge left them, undecided by
-   this step. Steps 2 to 4 remain.
+   this step. Step 2 is now also done: the cost exchange
+   scoreboard shows both nations' destroyed, lost, forced,
+   suffered, and net in steel with a plain words headline
+   naming who is bleeding faster, the attack preview states
+   the launches an attack with drones triggers and both
+   effectiveness percents with their generation numbers,
+   the Gen 3 and jamming research surfaces and the enemy
+   card's generations and stock are on screen, the drone
+   wing unit card states its generation, production lines
+   can be retooled to Interceptors from the panel, and the
+   new tools/drone-ew-check.js passes 28 of 28 in a real
+   browser. Steps 3 and 4 remain.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -443,5 +454,7 @@ and EW with the cost exchange scoreboard) is prescribed in
 full in CYCLE_LOG, starting at step 1 with no step 0 and
 no carried flag; step 1 (the sim: interceptor launches,
 the exchange ledger, and the EW generation counter) is
-done, and steps 2 to 4 remain; the work runs without
+done, step 2 (the scoreboard, preview lines, and research
+surfaces on screen, drone-ew check 28 of 28) is done, and
+steps 3 and 4 remain; the work runs without
 waiting on any item above.
