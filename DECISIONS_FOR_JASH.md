@@ -57,7 +57,14 @@ was invented by the loop, not by you:
    and the turning points so far. Step 3 (tests and balance) is now
    also built: 6 lore and beat tests bring the suite to 49, all
    passing, and the balance rerun is byte identical to the committed
-   baseline. Step 4 (judge) remains. The assessed branch items that were pending before
+   baseline. Step 4 (judge) is now also done: a fresh judge with no
+   builder context returned CONDITIONAL PASS (EU5 lore FORMING, up
+   from ABSENT), its one fix-now flag was documentation and is closed,
+   one staged card and banner defect is carried to Cycle 8 step 0,
+   and its taste questions are items 9 to 11 below. Cycle 7 is
+   complete. Cycle 8, fortifications paid in equipment, is prescribed
+   next: step 0 closes that carried defect, then sim, UI, tests and
+   balance, and a fresh judge, in that order. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -105,8 +112,55 @@ was invented by the loop, not by you:
    home, rather than being allowed to march out, is also a feel
    question; flag it when you play if it feels wrong.
 
+9. Lore asymmetry against game symmetry (Cycle 7 judge, items F1 and
+   F3, and its taste question T1). The judge proved, and the loop
+   verified on master, that the player text of "The Second
+   Generation" can never be the one a campaign shows: both nations
+   earn research at the same flat rate and the Dominion researches
+   the first day it can afford it, so the best you can reach is both
+   sides on day 21, never the Vessari alone first. The both text of
+   "Blood on the Spine" also never fired in 200 passive campaigns
+   the loop ran. Separately, three passages in the lore imply edges
+   the game does not give anyone: Khessograd's walls against
+   Vesskar's walls that are "not much", the Dominion's old and
+   enormous foundries, and Vessari steel that is "never enough",
+   while in the game both nations start with identical steel,
+   equipment, and research. And the two capital entries describe
+   only the capital fall ending; neither mentions that a campaign
+   also ends on day 150 with a survival victory if your capital
+   still stands. Your call, in your own time: should the game grow
+   asymmetries to match the text (a Vessari research edge, real
+   capital walls, uneven steel), should the text be rewritten to
+   match the symmetric game, or is the gap acceptable as unreliable
+   national memory, which both entries already play with? Nothing
+   is blocked; the unreachable texts sit in the codex data and
+   simply never show.
+
+10. Event cards hard pause the war (Cycle 7 judge, taste question
+    T2). Every turning point card currently stops the clock until
+    you press Continue; two cards landing on one day (day 21 in the
+    standard passive run) pause twice in a row. Keep the hard pause
+    on every card, pause only on the first card of a day, or let
+    cards queue without pausing? Your feel call when you play it.
+
+11. Event cards with a choice (Cycle 7 judge, taste question T3).
+    A later lore pass could offer a choice on a card with a real
+    effect in the game. That would break the sentence every card
+    currently prints, that it changes nothing in the game, so the
+    loop will not drift into it: only if you say so, and then the
+    printed promise changes with it.
+
+12. Capital starting fortifications (Cycle 8 prescription). The
+    fortifications cycle the judge prescribed starts every capital
+    unwalled, like every other province, until you rule otherwise.
+    If capitals should start with a wall level (which would also
+    give the Khessograd entry's walls a mechanic), say so before or
+    during Cycle 8; the default the loop will build is unwalled.
+
 Nothing here blocks the loop. Cycle 6 is complete, the first 6
 reconciliation slices are decided, both assessed branch judge flag
-fixes (1 and 4) are ported, and Cycle 7 (the lore seed) steps 1 to 3
-are built; the lore above is loop written and open for your rewrite or
-veto, and the cycle runs without waiting on any item above.
+fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
+through its step 4 judge; the lore above is loop written and open for
+your rewrite or veto. Cycle 8 (fortifications) is prescribed next,
+starting with step 0 closing the one carried card and banner defect,
+and the cycle runs without waiting on any item above.
