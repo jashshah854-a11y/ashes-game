@@ -208,6 +208,42 @@
     return d;
   }
 
+  // Funded working days until this line reaches the efficiency cap,
+  // from the sim's own CFG numbers. Presentation only: the effect of
+  // efficiency itself is computed only in Sim's readouts.
+  function fundedDaysToCap(line) {
+    var eff = Sim.lineEfficiency(line);
+    if (eff >= Sim.CFG.lineEfficiencyCap) return 0;
+    return Math.ceil((Sim.CFG.lineEfficiencyCap - eff) / Sim.CFG.lineEfficiencyRisePerDay);
+  }
+
+  function dayWord(n) { return n === 1 ? 'day' : 'days'; }
+
+  // Efficiency in plain words for one line: the percent, what it does
+  // (the live build days from Sim.lineBuildDays against the base days),
+  // and how far the cap is. A fresh line and a capped line each say so.
+  function efficiencyLine(line, t) {
+    var eff = Sim.lineEfficiency(line);
+    var floor = Sim.CFG.lineEfficiencyFloor;
+    var cap = Sim.CFG.lineEfficiencyCap;
+    var live = Sim.lineBuildDays(line);
+    if (eff >= cap) {
+      return 'Efficiency ' + eff + '%: full efficiency. A fresh unit takes ' +
+        live + ' ' + dayWord(live) + ' here instead of the base ' + t.buildDays + ' ' + dayWord(t.buildDays) + '.';
+    }
+    if (eff <= floor) {
+      var toCap = fundedDaysToCap(line);
+      return 'Efficiency ' + eff + '%, the starting level: this line has not practiced yet. ' +
+        'A fresh unit takes the base ' + t.buildDays + ' ' + dayWord(t.buildDays) + ' here. ' +
+        'It gains +' + Sim.CFG.lineEfficiencyRisePerDay + '% per funded working day and reaches ' +
+        'full efficiency (' + cap + '%) after ' + toCap + ' funded working ' + dayWord(toCap) + '.';
+    }
+    var left = fundedDaysToCap(line);
+    return 'Efficiency ' + eff + '% and rising: a fresh unit takes ' + live + ' ' + dayWord(live) +
+      ' here instead of the base ' + t.buildDays + ' ' + dayWord(t.buildDays) + '. ' +
+      left + ' funded working ' + dayWord(left) + ' to full efficiency (' + cap + '%).';
+  }
+
   // Production panel: one row per line, every number the sim uses shown
   // in plain words (what it builds, how long is left, what it drains).
   function renderProduction() {
@@ -230,15 +266,18 @@
       row.className = 'prod-line';
 
       row.appendChild(textDiv('prod-title', 'Line ' + line.id + ': ' + t.label));
-      row.appendChild(textDiv('prod-row', t.steelCost + ' steel over ' + t.buildDays + ' days'));
+      row.appendChild(textDiv('prod-row', t.steelCost + ' steel over ' + Sim.lineBuildDays(line) +
+        ' ' + dayWord(Sim.lineBuildDays(line)) + ' at current efficiency (base ' + t.buildDays + ' ' + dayWord(t.buildDays) + ')'));
+      row.appendChild(textDiv('prod-row prod-eff', efficiencyLine(line, t)));
       row.appendChild(textDiv('prod-row', line.queue + ' in queue (max ' + Sim.CFG.maxQueuePerLine + ')'));
 
       if (line.queue <= 0) {
         row.appendChild(textDiv('prod-row prod-idle', 'Idle. Queue a unit to start building.'));
       } else {
-        var daysLeft = t.buildDays - line.progressDays;
+        var daysLeft = Sim.lineDaysLeft(line);
         row.appendChild(textDiv('prod-row',
-          line.progressDays + ' of ' + t.buildDays + ' days paid, ' + daysLeft + ' days left'));
+          line.progressDays + ' funded ' + dayWord(line.progressDays) + ' paid, ' + daysLeft +
+          ' ' + dayWord(daysLeft) + ' left at the current efficiency'));
         row.appendChild(textDiv('prod-row',
           Sim.lineSteelPerDay(line.template) + ' steel per day while working'));
       }
@@ -246,10 +285,24 @@
       if (line.stalled) {
         row.appendChild(textDiv('prod-stalled', 'Stalled: not enough steel today. No progress made.'));
       }
-      if (line.progressDays > 0) {
-        var steelSpent = line.progressDays * Sim.lineSteelPerDay(line.template);
-        row.appendChild(textDiv('prod-note',
-          'Retooling scraps the unit in progress and loses the ' + steelSpent + ' steel already spent on it.'));
+      // Retool warning, computed live and shown before any click: the
+      // steel already spent on the unit in progress, and the efficiency
+      // the retool drops back to the floor, beside each other.
+      var effNow = Sim.lineEfficiency(line);
+      var effLost = effNow - Sim.CFG.lineEfficiencyFloor;
+      if (line.progressDays > 0 || effLost > 0) {
+        var note = '';
+        if (line.progressDays > 0) {
+          var steelSpent = line.progressDays * Sim.lineSteelPerDay(line.template);
+          note = 'Retooling scraps the unit in progress and loses the ' + steelSpent + ' steel already spent on it.';
+          note += effLost > 0
+            ? ' It also drops efficiency from ' + effNow + '% back to ' + Sim.CFG.lineEfficiencyFloor + '%, losing ' + effLost + ' points of efficiency.'
+            : ' Efficiency is at its starting ' + Sim.CFG.lineEfficiencyFloor + '%, so retooling loses no efficiency.';
+        } else {
+          note = 'Retooling drops efficiency from ' + effNow + '% back to ' + Sim.CFG.lineEfficiencyFloor +
+            '%, losing ' + effLost + ' points of efficiency. No unit is in progress, so no steel is lost.';
+        }
+        row.appendChild(textDiv('prod-note', note));
       }
 
       var btns = document.createElement('div');
@@ -450,7 +503,7 @@
       'Attack ' + st.attack + ', Defense ' + st.defense +
       (st.fortBonus > 0 ? ' (includes +' + st.fortBonus + '% from fortifications here)' : '') +
       (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
-      'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days on a production line.<br>' +
+      'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days at base speed on a production line (a practiced line builds faster; the Production panel shows each line\'s live days).<br>' +
       supplyText + '<br>' +
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
   }
