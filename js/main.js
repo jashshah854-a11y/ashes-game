@@ -24,11 +24,17 @@
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
    'stat-manpower', 'stat-manpower-intake', 'manpower-explain',
-   'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
+   'stat-drone-gen', 'stat-jamming-gen', 'stat-interceptors', 'interceptor-explain',
+   'btn-research', 'research-explain', 'btn-research-gen3', 'research-gen3-explain',
+   'btn-research-jamming', 'research-jamming-explain', 'prov-name', 'prov-details',
    'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
-   'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
+   'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'stat-enemy-jamming',
+   'stat-enemy-interceptors', 'log', 'banner', 'rail-actions',
    'prod-summary', 'prod-notice', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
    'stat-enemy-manpower', 'stat-enemy-manpower-intake',
+   'ex-player-destroyed', 'ex-player-lost', 'ex-player-forced', 'ex-player-suffered', 'ex-player-net',
+   'ex-enemy-destroyed', 'ex-enemy-lost', 'ex-enemy-forced', 'ex-enemy-suffered', 'ex-enemy-net',
+   'ex-headline', 'ex-explain',
    'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close'
@@ -188,11 +194,49 @@
       'It grows by ' + Sim.CFG.manpowerPerProvincePerDay + ' per day for each province you hold ' +
       '(you hold ' + playerProvs + ', so ' + Sim.manpowerIntake(state, 'player') + ' per day). ' +
       'Taking ground raises the intake, losing ground lowers it.';
-    el.statDroneGen.textContent = n.droneGen2 ? 'Gen 2' : 'Gen 1';
+    el.statDroneGen.textContent = 'Gen ' + Sim.droneGeneration(state, 'player');
+    el.statJammingGen.textContent = 'Gen ' + Sim.jammingGeneration(state, 'player');
+    el.statInterceptors.textContent = Sim.interceptorStock(state, 'player');
+    el.interceptorExplain.textContent =
+      'Interceptors launch on their own when enemy drone wings attack a province you defend: ' +
+      'one per attacking drone wing, up to the stock on hand, and each launch costs ' +
+      Sim.interceptorCost() + ' steel on the exchange scoreboard. Build more by retooling a ' +
+      'production line to Interceptors (' + Sim.CFG.unitTypes.interceptor.steelCost + ' steel over ' +
+      Sim.CFG.unitTypes.interceptor.buildDays + ' days, plus ' + Sim.manpowerCost('interceptor') +
+      ' manpower paid when queued); a finished Interceptor joins this stockpile instead of deploying.';
     el.btnResearch.disabled = n.droneGen2 || n.researchPoints < Sim.CFG.droneGen2Cost;
     el.btnResearch.textContent = n.droneGen2
       ? 'Drone Gen 2 fielded'
       : 'Research Drone Gen 2 (' + Sim.CFG.droneGen2Cost + ' pts)';
+    // Drone Gen 3, in the Gen 2 button pattern: cost, prerequisite, and
+    // current state are all stated on the button and its explain line.
+    el.btnResearchGen3.disabled = !!n.droneGen3 || !n.droneGen2 || n.researchPoints < Sim.CFG.droneGen3Cost;
+    el.btnResearchGen3.textContent = n.droneGen3
+      ? 'Drone Gen 3 fielded'
+      : (!n.droneGen2
+        ? 'Research Drone Gen 3 (' + Sim.CFG.droneGen3Cost + ' pts, requires Drone Gen 2 first)'
+        : 'Research Drone Gen 3 (' + Sim.CFG.droneGen3Cost + ' pts)');
+    el.researchGen3Explain.textContent = n.droneGen3
+      ? 'Drone Gen 3 is fielded: every drone wing is attack ' + Sim.CFG.droneGen3.attack +
+        ', defense ' + Sim.CFG.droneGen3.defense + ', and your drone generation is 3.'
+      : 'Gen 3 raises every drone wing to attack ' + Sim.CFG.droneGen3.attack + ', defense ' +
+        Sim.CFG.droneGen3.defense + ', and raises your drone generation to 3 for the ' +
+        'effectiveness counter. It requires Drone Gen 2 first.';
+    // Jamming, bought in order through the one research path: the
+    // button names the next generation, its cost, and its state.
+    var jamGen = Sim.jammingGeneration(state, 'player');
+    var jamDone = jamGen >= Sim.CFG.jammingCosts.length;
+    el.btnResearchJamming.disabled = jamDone || n.researchPoints < Sim.CFG.jammingCosts[Math.min(jamGen, Sim.CFG.jammingCosts.length - 1)];
+    el.btnResearchJamming.textContent = jamDone
+      ? 'Jamming Gen ' + jamGen + ' fielded'
+      : 'Research Jamming Gen ' + (jamGen + 1) + ' (' + Sim.CFG.jammingCosts[jamGen] + ' pts)';
+    el.researchJammingExplain.textContent = jamDone
+      ? 'Jamming is at Gen ' + jamGen + ', the highest generation. Enemy drone wings fight at the ' +
+        'effectiveness the shared readout gives against it.'
+      : 'Jamming Gen ' + (jamGen + 1) + ' costs ' + Sim.CFG.jammingCosts[jamGen] + ' pts' +
+        (jamGen > 0 ? ', bought after Jamming Gen ' + jamGen : '') +
+        '. Each jamming generation lowers enemy drone effectiveness through the shared readout. ' +
+        'Jamming does not blunt interceptor launches.';
 
     var e = state.nations.enemy;
     var enemyProvs = Object.keys(state.provinces).filter(function (k) {
@@ -200,7 +244,9 @@
     }).length;
     el.statEnemyProvs.textContent = enemyProvs;
     el.statEnemyUnits.textContent = Sim.unitsOf(state, 'enemy').length;
-    el.statEnemyGen.textContent = e.droneGen2 ? 'Gen 2' : 'Gen 1';
+    el.statEnemyGen.textContent = 'Gen ' + Sim.droneGeneration(state, 'enemy');
+    el.statEnemyJamming.textContent = 'Gen ' + Sim.jammingGeneration(state, 'enemy');
+    el.statEnemyInterceptors.textContent = Sim.interceptorStock(state, 'enemy');
     // The Dominion opens lines by the same factory thresholds you do, so its
     // factory total says when its next line arrives.
     var enemyLines = (e.productionLines || []).length;
@@ -218,9 +264,43 @@
     el.statEnemyManpower.textContent = Sim.manpowerPool(state, 'enemy');
     el.statEnemyManpowerIntake.textContent = Sim.manpowerIntake(state, 'enemy');
 
+    renderExchange();
     renderProduction();
     renderProvinceCard();
     renderUnitCard();
+  }
+
+  // Cost exchange scoreboard: every figure comes from the sim's
+  // exchange readouts on every render, and nothing here (or anywhere
+  // in the UI) writes to the ledger. The headline states the net in
+  // plain words: whose net is positive is destroying and forcing more
+  // than it loses, so the other side is bleeding steel faster.
+  function renderExchange() {
+    var p = Sim.exchangeRecord(state, 'player');
+    var e = Sim.exchangeRecord(state, 'enemy');
+    el.exPlayerDestroyed.textContent = p.destroyed;
+    el.exPlayerLost.textContent = p.lost;
+    el.exPlayerForced.textContent = p.forced;
+    el.exPlayerSuffered.textContent = p.suffered;
+    el.exPlayerNet.textContent = p.net;
+    el.exEnemyDestroyed.textContent = e.destroyed;
+    el.exEnemyLost.textContent = e.lost;
+    el.exEnemyForced.textContent = e.forced;
+    el.exEnemySuffered.textContent = e.suffered;
+    el.exEnemyNet.textContent = e.net;
+    if (p.net > 0) {
+      el.exHeadline.textContent = 'The Dominion is bleeding faster: your net exchange is +' + p.net +
+        ' steel, so you have destroyed and forced ' + p.net + ' steel more than you have lost and been forced to spend.';
+    } else if (p.net < 0) {
+      el.exHeadline.textContent = 'You are bleeding faster: your net exchange is ' + p.net +
+        ' steel, so the Dominion has destroyed and forced ' + (-p.net) + ' steel more than it has lost and been forced to spend.';
+    } else {
+      el.exHeadline.textContent = 'The exchange is even: neither side is bleeding faster, and both net exchanges are 0 steel.';
+    }
+    el.exExplain.textContent = 'Net is destroyed plus launches forced, minus lost and launches suffered, all in steel. ' +
+      'A drone wing costs ' + Sim.CFG.unitTypes.drone.steelCost + ' steel and an interceptor launch costs ' +
+      Sim.interceptorCost() + ' steel, so a drone that dies forcing a launch still wins its exchange. ' +
+      'This board records steel only: it decides nothing, pays for nothing, and changes no win condition.';
   }
 
   // Small helper: a div with a class and plain text content.
@@ -278,6 +358,7 @@
       'Production drain: ' + Sim.productionDrain(state, 'player') + ' steel per day. ' +
       Sim.queuedUnits(state, 'player') + ' units in queues. ' +
       'Manpower pool: ' + Sim.manpowerPool(state, 'player') + ' (queueing draws from this pool). ' +
+      'Interceptor stock: ' + Sim.interceptorStock(state, 'player') + ' (finished Interceptors join this stockpile). ' +
       'Finished units deploy at ' + capName + '.';
     // A refused queue or retool attempt shows its reason here, in the
     // open, until the next attempt replaces or clears it.
@@ -287,8 +368,7 @@
     el.productionLines.innerHTML = '';
     (n.productionLines || []).forEach(function (line) {
       var t = Sim.CFG.unitTypes[line.template];
-      var otherTemplate = line.template === 'infantry' ? 'drone' : 'infantry';
-      var other = Sim.CFG.unitTypes[otherTemplate];
+      var otherTemplates = ['infantry', 'drone', 'interceptor'].filter(function (x) { return x !== line.template; });
 
       var row = document.createElement('div');
       row.className = 'prod-line';
@@ -348,15 +428,17 @@
       });
       btns.appendChild(qBtn);
 
-      var rBtn = document.createElement('button');
-      rBtn.type = 'button';
-      rBtn.textContent = 'Retool to ' + other.label;
-      rBtn.addEventListener('click', function () {
-        var res = Sim.assignLineTemplate(state, 'player', line.id, otherTemplate);
-        prodNotice = res && !res.ok ? res.reason : '';
-        render();
+      otherTemplates.forEach(function (tpl) {
+        var rBtn = document.createElement('button');
+        rBtn.type = 'button';
+        rBtn.textContent = 'Retool to ' + Sim.CFG.unitTypes[tpl].label;
+        rBtn.addEventListener('click', function () {
+          var res = Sim.assignLineTemplate(state, 'player', line.id, tpl);
+          prodNotice = res && !res.ok ? res.reason : '';
+          render();
+        });
+        btns.appendChild(rBtn);
       });
-      btns.appendChild(rBtn);
 
       row.appendChild(btns);
       el.productionLines.appendChild(row);
@@ -517,6 +599,33 @@
         (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').';
       preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
         ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
+      // Drone and EW lines, from the same readouts the battle uses:
+      // effectiveness for each side that fields drones in this fight,
+      // with the two generation numbers that produced it, and the
+      // interceptor launches an attack with drones would trigger.
+      var myDrones = stack.filter(function (x) { return x.type === 'drone'; }).length;
+      var theirDrones = defs.filter(function (x) { return x.type === 'drone'; }).length;
+      if (myDrones > 0) {
+        preview += '<br>Your drone wings fight at ' + Sim.droneEffectiveness(state, 'player', 'enemy') +
+          '% effectiveness (your drone generation ' + Sim.droneGeneration(state, 'player') +
+          ' against their jamming generation ' + Sim.jammingGeneration(state, 'enemy') + ').';
+        var enemyStock = Sim.interceptorStock(state, 'enemy');
+        if (enemyStock > 0) {
+          var launches = Math.min(enemyStock, myDrones);
+          preview += '<br>Attacking with ' + myDrones + (myDrones === 1 ? ' drone wing' : ' drone wings') +
+            ' triggers ' + launches + (launches === 1 ? ' interceptor launch' : ' interceptor launches') +
+            ' from their stock of ' + enemyStock + ', costing them ' + (launches * Sim.interceptorCost()) +
+            ' steel. The targeted drone wings die to the interceptors before the battle and their attack never counts.';
+        } else {
+          preview += '<br>Attacking with ' + myDrones + (myDrones === 1 ? ' drone wing' : ' drone wings') +
+            ' triggers no interceptor launches: their stock is empty.';
+        }
+      }
+      if (theirDrones > 0) {
+        preview += '<br>Their drone wings fight at ' + Sim.droneEffectiveness(state, 'enemy', 'player') +
+          '% effectiveness (their drone generation ' + Sim.droneGeneration(state, 'enemy') +
+          ' against your jamming generation ' + Sim.jammingGeneration(state, 'player') + ').';
+      }
       // If taking this province would start rail conversions, say so
       // before the player commits, never as a surprise after the fact.
       var converting = Sim.neighborEdges(state, np).filter(function (ne) {
@@ -533,7 +642,8 @@
       base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
       'Attack ' + st.attack + ', Defense ' + st.defense +
       (st.fortBonus > 0 ? ' (includes +' + st.fortBonus + '% from fortifications here)' : '') +
-      (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
+      (u.type === 'drone' ? ' (Drone generation ' + Sim.droneGeneration(state, u.nation) +
+        ', fighting at ' + Sim.droneEffectiveness(state, u.nation) + '% effectiveness)' : '') + '<br>' +
       'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days at base speed on a production line (a practiced line builds faster; the Production panel shows each line\'s live days), plus ' + Sim.manpowerCost(u.type) + ' manpower paid in full from the pool when queued.<br>' +
       supplyText + '<br>' +
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
@@ -805,6 +915,14 @@
   el.btnNew.addEventListener('click', newGame);
   el.btnResearch.addEventListener('click', function () {
     Sim.researchDroneGen2(state, 'player');
+    render();
+  });
+  el.btnResearchGen3.addEventListener('click', function () {
+    Sim.researchDroneGen3(state, 'player');
+    render();
+  });
+  el.btnResearchJamming.addEventListener('click', function () {
+    Sim.researchJamming(state, 'player');
     render();
   });
   el.btnFort.addEventListener('click', function () {

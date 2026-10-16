@@ -46,8 +46,15 @@
       <div class="stat-row"><span>Manpower intake / day</span><strong id="stat-manpower-intake">0</strong></div>
       <div class="stat-row"><span>Research points</span><strong id="stat-research">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-drone-gen">Gen 1</strong></div>
+      <div class="stat-row"><span>Jamming generation</span><strong id="stat-jamming-gen">Gen 0</strong></div>
+      <div class="stat-row"><span>Interceptor stock</span><strong id="stat-interceptors">0</strong></div>
       <button id="btn-research" type="button">Research Drone Gen 2 (60 pts)</button>
       <p class="explain" id="research-explain">Gen 2 raises every drone wing to attack 5, defense 3.</p>
+      <button id="btn-research-gen3" type="button">Research Drone Gen 3 (90 pts)</button>
+      <p class="explain" id="research-gen3-explain"></p>
+      <button id="btn-research-jamming" type="button">Research Jamming Gen 1 (50 pts)</button>
+      <p class="explain" id="research-jamming-explain"></p>
+      <p class="explain" id="interceptor-explain"></p>
       <p class="explain" id="manpower-explain"></p>
     </div>
 
@@ -58,9 +65,10 @@
       <div id="production-lines" class="production-lines"></div>
       <p class="explain" id="prod-explain">Lines build one unit at a time and drain steel every day
       while they work. Lines are paid before factories. If the steel stockpile cannot pay a line
-      for a day, that line stalls and makes no progress. A finished unit deploys at your capital. A line that keeps building
+      for a day, that line stalls and makes no progress. A finished unit deploys at your capital; a finished
+      Interceptor does not deploy, it joins your interceptor stockpile. A line that keeps building
       the same template gains efficiency on every funded working day and finishes units sooner, up to full efficiency at 150%.
-      Retooling a line to the other template scraps the unit in progress, loses the steel already spent on it, and drops
+      Retooling a line to a different template scraps the unit in progress, loses the steel already spent on it, and drops
       the line's efficiency back to its starting 100%. Queuing a unit also pays its manpower cost in full from your
       manpower pool, beside its steel cost; a queue attempt the pool cannot pay is refused, and the panel shows the reason.</p>
     </div>
@@ -86,6 +94,8 @@
       <div class="stat-row"><span>Provinces held</span><strong id="stat-enemy-provs">0</strong></div>
       <div class="stat-row"><span>Units in the field</span><strong id="stat-enemy-units">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-enemy-gen">Gen 1</strong></div>
+      <div class="stat-row"><span>Jamming generation</span><strong id="stat-enemy-jamming">Gen 0</strong></div>
+      <div class="stat-row"><span>Interceptor stock</span><strong id="stat-enemy-interceptors">0</strong></div>
       <div class="stat-row"><span>Factory levels</span><strong id="stat-enemy-factories">0</strong></div>
       <div class="stat-row"><span>Production lines open</span><strong id="stat-enemy-lines">2</strong></div>
       <div class="stat-row"><span>Manpower pool</span><strong id="stat-enemy-manpower">0</strong></div>
@@ -96,6 +106,22 @@
       out of supply. Starve its rail and it stalls. It always keeps a garrison of three
       units on its capital. It fortifies its capital, then its Spine province facing the
       river, whenever it holds <span id="ai-fort-eq">300</span> equipment.</p>
+    </div>
+
+    <div class="card" id="exchange-card">
+      <h2>Cost exchange scoreboard</h2>
+      <div class="stat-row"><span>Vessari destroyed (steel)</span><strong id="ex-player-destroyed">0</strong></div>
+      <div class="stat-row"><span>Vessari lost (steel)</span><strong id="ex-player-lost">0</strong></div>
+      <div class="stat-row"><span>Vessari launches forced (steel)</span><strong id="ex-player-forced">0</strong></div>
+      <div class="stat-row"><span>Vessari launches suffered (steel)</span><strong id="ex-player-suffered">0</strong></div>
+      <div class="stat-row"><span>Vessari net exchange (steel)</span><strong id="ex-player-net">0</strong></div>
+      <div class="stat-row"><span>Dominion destroyed (steel)</span><strong id="ex-enemy-destroyed">0</strong></div>
+      <div class="stat-row"><span>Dominion lost (steel)</span><strong id="ex-enemy-lost">0</strong></div>
+      <div class="stat-row"><span>Dominion launches forced (steel)</span><strong id="ex-enemy-forced">0</strong></div>
+      <div class="stat-row"><span>Dominion launches suffered (steel)</span><strong id="ex-enemy-suffered">0</strong></div>
+      <div class="stat-row"><span>Dominion net exchange (steel)</span><strong id="ex-enemy-net">0</strong></div>
+      <p class="explain" id="ex-headline"></p>
+      <p class="explain" id="ex-explain"></p>
     </div>
 
     <div class="card log-card">
