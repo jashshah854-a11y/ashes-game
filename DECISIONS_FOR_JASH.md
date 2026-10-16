@@ -275,6 +275,26 @@ each printing the same no effect sentence as the turning point cards:
    (Cycle 12 deliberately keeps jamming on drone fighting power
    only); and whether Drone Gen 3 should change how a drone wing
    looks on the map beyond its numbers.
+   Cycle 12 step 1 is now also done: the sim carries the
+   interceptor stockpile (starting at 4, replenished only by
+   building the Interceptor production template at 50 steel
+   over 5 days and 10 manpower, 3.33 times a drone wing's
+   steel), automatic launches inside the shared combat path
+   (one per attacking drone wing up to stock, before the
+   first round, the drone's attack never counting), the
+   record only exchange ledger in steel with its net
+   readout, and the EW counter (Drone Gen 3 at 90 points
+   with base drone stats 6 and 4, Jamming Gen 1 and 2 at
+   50 and 80, effectiveness 100 plus 25 times the
+   generation difference, clamped 50 to 150, applied in
+   unitStats; at the start the difference is plus 1 for
+   both nations, so starting drones fight at 125 percent).
+   Every ruling band passes on the balance rerun with no
+   tuning slice (passive day 36 on all 8, sensible wins
+   8 of 8 on reportDays spread 35 to 89, reckless loses
+   8 of 8), and the five taste questions above stay
+   parked exactly as the judge left them, undecided by
+   this step. Steps 2 to 4 remain.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -421,5 +441,7 @@ is done, and step 4 (a fresh judge) is done: PASS, no
 fix-now flags, so Cycle 11 is complete. Cycle 12 (Drones
 and EW with the cost exchange scoreboard) is prescribed in
 full in CYCLE_LOG, starting at step 1 with no step 0 and
-no carried flag; the work runs without waiting on any
-item above.
+no carried flag; step 1 (the sim: interceptor launches,
+the exchange ledger, and the EW generation counter) is
+done, and steps 2 to 4 remain; the work runs without
+waiting on any item above.
