@@ -237,3 +237,24 @@ button.linkish:hover { background: none; color: #fff2c4; }
   background: #22252a; border: 1px solid #4a4232; border-radius: 4px; padding: 10px 12px;
   max-width: 640px;
 }
+
+/* Cycle 14 step 2: navy marks on the map. Coast and flotilla badges
+   sit in the tile text flow like the factory badge, never over the
+   fort badge at the top right. River edges draw as a blue bar on the
+   shared border, offset from the rail bar; a supported river edge
+   draws thicker and green, so support is visible at a glance. */
+.coast-badge {
+  display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: 2px;
+  background: rgba(20, 60, 90, 0.8); color: #bfe3f5; font-weight: bold;
+}
+.flotilla-badge {
+  display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: 2px;
+  background: rgba(10, 40, 60, 0.9); color: #9fe0d8; font-weight: bold;
+  border: 1px solid #5f8f8a;
+}
+.river-bar { position: absolute; background: #7fb3d9; z-index: 1; }
+.river-bar.r { right: 6px; top: 18%; bottom: 18%; width: 3px; }
+.river-bar.b { bottom: 6px; left: 18%; right: 18%; height: 3px; }
+.river-bar.supported { background: #9fe08a; }
+.river-bar.r.supported { width: 5px; }
+.river-bar.b.supported { height: 5px; }

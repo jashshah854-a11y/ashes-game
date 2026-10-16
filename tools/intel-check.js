@@ -6,6 +6,12 @@
 // this file from the sim's own readouts (Sim.intelState,
 // Sim.intelLiveCount, Sim.intelSnapshot, Sim.agentStock,
 // Sim.stackPower, Sim.plantAgent) and CFG, never copied from a panel.
+// Cycle 14 step 2 adjustment, named: the live preview's expected
+// stack power is now computed through Sim.stackPower with the
+// target named, because the navy UI states the river crossing
+// penalty inside the attack numbers for the river edge target
+// p5_3; the assertion itself and this check's total (31) are
+// unchanged, only its expected number follows the shared readout.
 // Cycle 14 step 0 extension: the factory button on the province
 // card is gated by the same readout. Two dark provinces whose true
 // factory levels differ (computed from the node mirror) must
@@ -124,7 +130,7 @@ async function tiles(page) {
     const frontUnits = Sim.unitsIn(fresh, front);
     const myStack = Sim.unitsIn(fresh, 'p4_3').filter((u) => u.nation === 'player');
     const theirDefs = frontUnits.filter((u) => u.nation === 'enemy');
-    const livePreview = 'Attack ' + frontName + ': your stack power ' + Sim.stackPower(fresh, myStack, 'attack') +
+    const livePreview = 'Attack ' + frontName + ': your stack power ' + Sim.stackPower(fresh, myStack, 'attack', { toId: front }) +
       ' vs their defense ' + Sim.stackPower(fresh, theirDefs, 'defense');
     // Cycle 14 step 0 staging: a second dark province whose true
     // factory level differs from the dark capital's, so the two

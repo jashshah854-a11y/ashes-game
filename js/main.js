@@ -19,7 +19,7 @@
   var pauseBeforeOverlay = null;
   var codexEntryId = 'ashwater';
   var prodNotice = ''; // the last refused queue or retool reason, shown in the production panel until the next attempt
-  var provNotice = ''; // the last refused agent planting reason, shown in the province card until the next attempt
+  var provNotice = ''; // the last refused province card action reason (agent planting or flotilla stationing), shown until the next attempt
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
@@ -27,9 +27,11 @@
    'stat-manpower', 'stat-manpower-intake', 'manpower-explain',
    'stat-drone-gen', 'stat-jamming-gen', 'stat-interceptors', 'interceptor-explain',
    'stat-intel-live', 'stat-agents', 'agent-explain',
+   'stat-flotillas', 'stat-coastal-player', 'stat-coastal-enemy',
+   'stat-blockade-player', 'stat-blockade-enemy', 'navy-explain',
    'btn-research', 'research-explain', 'btn-research-gen3', 'research-gen3-explain',
    'btn-research-jamming', 'research-jamming-explain', 'prov-name', 'prov-details',
-   'btn-factory', 'btn-fort', 'btn-agent', 'prov-notice', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
+   'btn-factory', 'btn-fort', 'btn-agent', 'btn-flotilla', 'prov-notice', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'stat-enemy-jamming',
    'stat-enemy-interceptors', 'log', 'banner', 'rail-actions',
    'prod-summary', 'prod-notice', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
@@ -132,6 +134,19 @@
     return '<span class="rail-bar ' + side + '"></span>';
   }
 
+  // River state of the edge from this province toward a neighbor id,
+  // as a blue bar on the shared border (Cycle 14 step 2). A river edge
+  // a flotilla of yours supports (stationed at either bank) draws in
+  // the supported style, so a supported crossing is distinguishable
+  // from an unsupported one where the player plans. Presentation
+  // only: support itself is Sim.riverCrossingSupported.
+  function riverBar(p, neighborId, side) {
+    var e = Sim.edgeBetween(state, p.id, neighborId);
+    if (!e || e.terrain !== 'river') return '';
+    var supported = Sim.riverCrossingSupported(state, 'player', p.id, neighborId);
+    return '<span class="river-bar ' + side + (supported ? ' supported' : '') + '"></span>';
+  }
+
   // Snapshot unit groups as ghost figures, marked with their day:
   // the only unit figures a remembered province may show.
   function ghostChips(snap) {
@@ -170,14 +185,23 @@
         html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '" data-intel="' + intel + '">';
         html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
         html += '<span class="steel">Steel ' + p.steel + '</span>';
+        // Navy marks (Cycle 14 step 2): coastal is map geography, so
+        // its badge shows in every intel state; a stationed flotilla
+        // is a military fact, so its badge shows only on a live tile.
+        if (p.coastal) html += ' <span class="coast-badge">Coast</span>';
         if (intel === 'live') {
           if (p.factoryLevel > 0) {
             html += ' <span class="factory-badge lvl' + p.factoryLevel + '">Factory ' + p.factoryLevel + '</span>';
           }
           if (p.fortLevel > 0) html += ' <span class="fort-badge lvl' + p.fortLevel + '">Fort ' + p.fortLevel + '</span>';
           if (p.fortBuild) html += ' <span class="fort-badge building">Fort ' + p.fortBuild.toLevel + ' in ' + p.fortBuild.daysLeft + 'd</span>';
+          if (p.flotilla) {
+            html += ' <span class="flotilla-badge">Flotilla: ' + (p.flotilla === 'player' ? 'Yours' : 'Dominion') + '</span>';
+          }
           if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
           if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
+          if (x + 1 < state.mapW) html += riverBar(p, Sim.provinceId(x + 1, y), 'r');
+          if (y + 1 < state.mapH) html += riverBar(p, Sim.provinceId(x, y + 1), 'b');
           var units = Sim.unitsIn(state, p.id);
           if (units.length) {
             html += '<span class="units">';
@@ -254,6 +278,26 @@
       'joins this stockpile instead of deploying. Plant one from the card of any province you do ' +
       'not hold, with its Plant agent button. An agent reveals its province only, never its neighbors; ' +
       'drone wings are the wide eye, seeing two provinces away. Fog gates information, never orders.';
+    // Navy, from the sim's one coastal and blockade readout family
+    // only: the flotilla stock, both nations' coastal control counts,
+    // and the steel each side loses to blockade today, with the
+    // threshold and the whole system stated in plain words.
+    el.statFlotillas.textContent = Sim.flotillaStock(state, 'player');
+    el.statCoastalPlayer.textContent = Sim.coastalControlCount(state, 'player');
+    el.statCoastalEnemy.textContent = Sim.coastalControlCount(state, 'enemy');
+    el.statBlockadePlayer.textContent = Sim.blockadeLoss(state, 'player');
+    el.statBlockadeEnemy.textContent = Sim.blockadeLoss(state, 'enemy');
+    el.navyExplain.textContent =
+      'Navy: flotillas are built on production lines (' + Sim.CFG.unitTypes.flotilla.steelCost +
+      ' steel over ' + Sim.CFG.unitTypes.flotilla.buildDays + ' days, plus ' +
+      Sim.manpowerCost('flotilla') + ' manpower paid when queued) and stationed from the card of ' +
+      'a coastal or river province you hold. A coastal province is controlled by the nation that ' +
+      'owns it and stations a flotilla there, or holds it with units. Control at least ' +
+      Sim.CFG.blockadeCoastalThreshold + ' of the other nation\'s home coastal provinces and that ' +
+      'nation loses ' + Sim.CFG.blockadeSteelPct + '% of its daily steel income to blockade; the ' +
+      'same rule binds you. A flotilla stationed at either bank of a river removes the ' +
+      Sim.CFG.riverCrossingPct + '% river crossing penalty for its nation\'s crossings of that ' +
+      'edge. Flotillas never carry troops and there are no invasions.';
     el.btnResearch.disabled = n.droneGen2 || n.researchPoints < Sim.CFG.droneGen2Cost;
     el.btnResearch.textContent = n.droneGen2
       ? 'Drone Gen 2 fielded'
@@ -410,6 +454,7 @@
       'Manpower pool: ' + Sim.manpowerPool(state, 'player') + ' (queueing draws from this pool). ' +
       'Interceptor stock: ' + Sim.interceptorStock(state, 'player') + ' (finished Interceptors join this stockpile). ' +
       'Agent stock: ' + Sim.agentStock(state, 'player') + ' (finished Agents join this stockpile). ' +
+      'Flotilla stock: ' + Sim.flotillaStock(state, 'player') + ' (finished Flotillas join this stockpile). ' +
       'Finished units deploy at ' + capName + '.';
     // A refused queue or retool attempt shows its reason here, in the
     // open, until the next attempt replaces or clears it.
@@ -590,6 +635,62 @@
     b.textContent = 'Plant agent in ' + p.name + ' (stock: ' + Sim.agentStock(state, 'player') + ')';
   }
 
+  // River crossings from a province, in plain words, from the sim's
+  // support readout: whether a flotilla of the player's supports any
+  // river edge touching this province, and what that means for the
+  // crossing penalty. An empty string for a province with no river
+  // edge, so landlocked cards state no river line at all.
+  function riverSupportLine(p) {
+    var riverNeighbors = Sim.neighborEdges(state, p).filter(function (ne) { return ne.edge.terrain === 'river'; });
+    if (!riverNeighbors.length) return '';
+    var supported = riverNeighbors.some(function (ne) {
+      return Sim.riverCrossingSupported(state, 'player', p.id, ne.province.id);
+    });
+    if (supported) {
+      return 'River crossings for you: supported by a flotilla at one bank, so no ' +
+        Sim.CFG.riverCrossingPct + '% crossing penalty on your attacks across the river here.';
+    }
+    return 'River crossings for you: not supported. Your attacks across the river here lose ' +
+      Sim.CFG.riverCrossingPct + '% attack until a flotilla of yours is stationed at either bank.';
+  }
+
+  // Navy geography lines for a province card, the same in every intel
+  // state because coast and river are map geography: coastal or not,
+  // river or not. The stationed flotilla is a military fact and is
+  // stated only by the live branch of renderProvinceCard.
+  function navyGeographyLine(p) {
+    return 'Coastal: ' + (p.coastal ? 'yes, this province faces the sea' : 'no') + '. ' +
+      'River: ' + (Sim.isRiverProvince(state, p.id) ? 'yes, this province stands on the river' : 'no') + '.';
+  }
+
+  // The Deploy flotilla control, in the Plant agent pattern: on a
+  // province class that can never take a flotilla (not the player's,
+  // or neither coastal nor river, or already stationed) it is
+  // disabled with its reason on the button; on an eligible owned
+  // province it stays enabled even with an empty stock, so a click
+  // surfaces the sim's refusal reason in the card notice.
+  function renderFlotillaButton(p) {
+    var b = el.btnFlotilla;
+    if (!p) { b.disabled = true; b.textContent = 'Deploy flotilla'; return; }
+    if (p.owner !== 'player') {
+      b.disabled = true;
+      b.textContent = 'Deploy flotilla (only your own provinces)';
+      return;
+    }
+    if (!p.coastal && !Sim.isRiverProvince(state, p.id)) {
+      b.disabled = true;
+      b.textContent = 'Deploy flotilla (needs coastal or river ground)';
+      return;
+    }
+    if (p.flotilla) {
+      b.disabled = true;
+      b.textContent = 'Deploy flotilla (a flotilla is already stationed here)';
+      return;
+    }
+    b.disabled = false;
+    b.textContent = 'Deploy flotilla in ' + p.name + ' (stock: ' + Sim.flotillaStock(state, 'player') + ')';
+  }
+
   function renderProvinceCard() {
     var p = selectedProvinceId ? state.provinces[selectedProvinceId] : null;
     var btnF = el.btnFactory;
@@ -602,6 +703,7 @@
       el.btnFort.disabled = true;
       el.btnFort.textContent = 'Fortify';
       renderAgentButton(null);
+      renderFlotillaButton(null);
       el.provExplain.textContent = '';
       el.railActions.innerHTML = '';
       return;
@@ -626,6 +728,11 @@
         'Steel output: ' + p.steel + ' per day<br>' +
         'Factory level: ' + p.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
         fortLine(p) + '<br>' +
+        navyGeographyLine(p) + '<br>' +
+        'Flotilla: ' + (p.flotilla
+          ? 'stationed here, ' + (p.flotilla === 'player' ? 'yours' : 'Dominion')
+          : 'none stationed here') + '<br>' +
+        (riverSupportLine(p) ? riverSupportLine(p) + '<br>' : '') +
         supplyLine + '<br>' +
         'Units here: ' + Sim.unitsIn(state, p.id).length;
       el.provExplain.textContent = mine
@@ -641,14 +748,17 @@
         'Factory level when last seen: ' + snap.factoryLevel + ' of ' + Sim.CFG.maxFactoryLevel + '<br>' +
         snapshotFortLine(snap) + '<br>' +
         'Rail when last seen: ' + (snap.rail ? 'rail touched this province' : 'no rail touched this province') + '<br>' +
-        'Units when last seen: ' + snapshotUnitsText(snap);
+        'Units when last seen: ' + snapshotUnitsText(snap) + '<br>' +
+        navyGeographyLine(p) + '<br>' +
+        'Flotilla: not shown. Snapshots do not record flotillas, and nothing current is known about one here.';
       el.provExplain.textContent =
         'These figures are from day ' + snap.day + ', not today, and nothing here is current. ' +
         revealText(p.name) + ' You may still march or attack into it: fog gates information, never orders.';
     } else {
       el.provDetails.innerHTML =
         'Nothing is known beyond the map: this province has never been seen, so no owner, units, ' +
-        'factories, forts, or rail state is shown for it.<br>' + revealText(p.name);
+        'factories, forts, or rail state is shown for it.<br>' + revealText(p.name) + '<br>' +
+        navyGeographyLine(p);
       el.provExplain.textContent =
         'Fog gates information, never orders: you may still march or attack toward it, but you will ' +
         'be moving blind until something sees it.';
@@ -672,6 +782,7 @@
     }
     renderFortButton(p, mine);
     renderAgentButton(p);
+    renderFlotillaButton(p);
   }
 
   // Rail build buttons for the selected province: one per neighbor that
@@ -745,11 +856,31 @@
         return;
       }
       if (!defs.length) return;
-      preview += '<br>Attack ' + np.name + ': your stack power ' + myPower +
+      // River crossings (Cycle 14 step 2): the attack numbers for a
+      // target are the shared stackPower for that target, which
+      // prices the crossing per unit from its own province, so the
+      // preview and the battle can never disagree. The crossing is
+      // then named in its own line, with its percent, and stated
+      // removed when a flotilla supports the edge.
+      var attackPower = Sim.stackPower(state, stack, 'attack', { toId: np.id });
+      preview += '<br>Attack ' + np.name + ': your stack power ' + attackPower +
         ' vs their defense ' + Sim.stackPower(state, defs, 'defense') + ' (supply effects included' +
         (np.fortLevel > 0 ? '; includes +' + (np.fortLevel * Sim.CFG.fortDefensePctPerLevel) + '% from level ' + np.fortLevel + ' fortifications' : '') + ').';
-      preview += '<br>If they march out and meet you on the road: your attack ' + myPower +
-        ' vs their attack ' + Sim.stackPower(state, defs, 'attack') + '.';
+      var npEdge = Sim.edgeBetween(state, u.provinceId, np.id);
+      if (npEdge && npEdge.terrain === 'river') {
+        if (Sim.riverCrossingSupported(state, 'player', u.provinceId, np.id)) {
+          preview += '<br>River crossing to ' + np.name + ': a flotilla of yours stationed at either bank ' +
+            'supports this crossing, so the ' + Sim.CFG.riverCrossingPct + '% river crossing penalty does ' +
+            'not apply. Your stack power above is your full attack.';
+        } else {
+          preview += '<br>River crossing to ' + np.name + ': your attack loses ' +
+            Sim.riverCrossingPenaltyFor(state, stack[0], np.id) + '% crossing the river without flotilla ' +
+            'support, already included in your stack power above. Station a flotilla at either bank (' +
+            state.provinces[u.provinceId].name + ' or ' + np.name + ') to remove it.';
+        }
+      }
+      preview += '<br>If they march out and meet you on the road: your attack ' + attackPower +
+        ' vs their attack ' + Sim.stackPower(state, defs, 'attack', { toId: u.provinceId }) + '.';
       // Drone and EW lines, from the same readouts the battle uses:
       // effectiveness for each side that fields drones in this fight,
       // with the two generation numbers that produced it, and the
@@ -1085,6 +1216,12 @@
   el.btnAgent.addEventListener('click', function () {
     if (!selectedProvinceId) return;
     var res = Sim.plantAgent(state, 'player', selectedProvinceId);
+    provNotice = res && !res.ok ? res.reason : '';
+    render();
+  });
+  el.btnFlotilla.addEventListener('click', function () {
+    if (!selectedProvinceId) return;
+    var res = Sim.deployFlotilla(state, 'player', selectedProvinceId);
     provNotice = res && !res.ok ? res.reason : '';
     render();
   });
