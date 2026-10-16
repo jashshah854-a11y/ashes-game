@@ -318,9 +318,19 @@ each printing the same no effect sentence as the turning point cards:
    scoreboard's honest limit is stated in BACKLOG.md:
    it records steel only, decides nothing, pays for
    nothing, and changes no win condition. Step 4 (a
-   fresh judge) remains. The five taste questions above
-   stay parked exactly as the Cycle 11 judge left them,
-   undecided by this step.
+   fresh judge) is now also done: PASS, no fix-now
+   flags, so Cycle 12 is complete, and Cycle 13 (Intel
+   and Fog) is prescribed in full in CYCLE_LOG, starting
+   at step 1 with no step 0 and no carried flag. The
+   five taste questions above stay parked exactly as
+   the Cycle 11 judge left them, undecided by this step,
+   and the Cycle 13 judge parks six more taste questions
+   with you (dark provinces hiding geography, ghost chips
+   for remembered provinces, fogging the aggregate
+   panels, a fog bound AI, agent removal and flavor, and
+   a recon sortie order), recorded in the closing
+   summary at the end of this file, all undecided and
+   blocking nothing.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -473,5 +483,46 @@ done, step 2 (the scoreboard, preview lines, and research
 surfaces on screen, drone-ew check 28 of 28) is done,
 step 3 (tests and balance: suite 90, the movement trace
 recorded, tools/baseline-cycle12.txt committed) is done,
-and step 4 (a fresh judge) remains; the work runs without
-waiting on any item above.
+and step 4 (a fresh judge) is now also done: PASS, no
+fix-now flags, the judge independently rerunning the
+suite (90 pass), the balance diff (byte identical to
+tools/baseline-cycle12.txt), and all six browser checks,
+reproducing the movement trace (sensible seed 42, net
+plus 445, 8 Dominion launches) and the non vacuity
+mutant (89 pass, 1 fail on the current suite, clean at
+80 on the pre step suite), and verifying in code that
+every exchange and effectiveness number traces to the
+CFG costs and the one shared readout and that the
+ledger is read by no rule. Cycle 12 is complete. The
+five taste questions above stay parked exactly as the
+Cycle 11 judge left them, undecided by every Cycle 12
+step; the judge verified the loop used only the
+prescribed defaults (launches automatic, the plain word
+interceptor, a steel only scoreboard, jamming on drone
+fighting power only, no map appearance change for Gen 3).
+Cycle 13 (Intel and Fog) is prescribed in full in
+CYCLE_LOG at Cycle 12 step 4, starting at step 1 with
+no step 0 and no carried flag: fog as an information
+layer only that changes no battle number, one shared
+intelState readout (live, remembered, or dark) from
+owned ground, units, drone wings at sight range 2, and
+agents, per nation snapshots no rule reads, and agents
+built only through a priced production path and placed
+through one public command, with the scripted AI not
+reading intel in this cycle. Its judge parks six more
+taste questions with you, also undecided and blocking
+nothing: whether dark provinces should hide even
+geography, names, and owner color (the loop default
+keeps the theater map known and hides only military
+fact); whether remembered provinces should show ghost
+unit chips on the map or snapshot numbers only in the
+inspector; whether the war level aggregate panels
+should be fogged in a later cycle or stay known as
+general war intelligence; whether the scripted AI
+should become fog bound in a later cycle; whether
+agents should be removable or counterable, gain
+neighbors, or get a flavor name beyond the plain word
+agent; and whether a later cycle should add a non
+combat recon sortie order for drone wings. After
+Cycle 13, in the stated order: navy. The work runs
+without waiting on any item above.
