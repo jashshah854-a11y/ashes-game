@@ -50,6 +50,22 @@
 // Research gains Drone Gen 3 (needs Gen 2, base stats 6 and 4) and
 // Jamming Gen 1 then Gen 2, bought from the same research pool.
 //
+// Cycle 13 step 1 note: intel and fog. Fog is an information layer
+// only: it changes no combat, supply, production, price, odds,
+// research, movement, or win rule, and no battle number. Sight is
+// computed by one readout family (intelState and its kin) from owned
+// ground and its neighbors, units and their neighbors, drone wings
+// at sight range 2 through the province graph, and agents. At the
+// end of each tick intelPhase records a per nation snapshot of every
+// province live to that nation that day; a remembered province is
+// one with a snapshot that is not live today, a dark province has
+// no snapshot. No rule reads intel state or a snapshot. Agents are
+// built only through a priced production template (40 steel over
+// 4 days, 60 manpower at queue time) whose completion adds to an
+// agent stockpile, and are placed only through plantAgent, which
+// makes one province the nation does not own live to it, that
+// province only, until the province changes owner.
+//
 // Cycle 11 step 1 note: manpower. Each nation holds one manpower pool.
 // It starts at CFG.manpowerStart, grows every day by
 // CFG.manpowerPerProvincePerDay for each province the nation owns
@@ -98,6 +114,10 @@
     ewFloorPct: 50,               // drone effectiveness floor, percent
     ewCapPct: 150,                // drone effectiveness cap, percent
     interceptorStart: 4,          // interceptors each nation starts with, identical for player and AI
+    ownedSightRange: 1,           // provinces past owned ground that ownership alone makes live
+    unitSightRange: 1,            // provinces past a unit's province that presence makes live (infantry and every non drone unit)
+    droneSightRange: 2,           // provinces past a drone wing's province that drone recon makes live, through the graph
+    campaignIntel: true,          // record per nation intel snapshots (state.intel); no rule reads them
     factoryCostPerLevel: 40,      // equipment, multiplied by target level
     maxFactoryLevel: 3,
     infantryCost: 30,
@@ -136,7 +156,12 @@
       // A production template only: a finished Interceptor joins the
       // nation's interceptor stockpile and never takes the field, so
       // its attack, defense, and strength are never used in a battle.
-      interceptor: { label: 'Interceptor',    attack: 0, defense: 0, strength: 1,  cost: 50, steelCost: 50, buildDays: 5, manpowerCost: 10 }
+      interceptor: { label: 'Interceptor',    attack: 0, defense: 0, strength: 1,  cost: 50, steelCost: 50, buildDays: 5, manpowerCost: 10 },
+      // A production template only, in the Interceptor pattern: a
+      // finished Agent joins the nation's agent stockpile and never
+      // takes the field, so its attack, defense, and strength are
+      // never used in a battle. It is placed by plantAgent.
+      agent: { label: 'Agent',    attack: 0, defense: 0, strength: 1,  cost: 40, steelCost: 40, buildDays: 4, manpowerCost: 60 }
     },
     droneGen2: { attack: 5, defense: 3 },  // drone stats once Drone Gen 2 is researched
     droneGen3: { attack: 6, defense: 4 }   // drone stats once Drone Gen 3 is researched
@@ -473,6 +498,215 @@
   function exchangeSuffered(state, nationId) { return exchangeRecord(state, nationId).suffered; }
   function exchangeNet(state, nationId) { return exchangeRecord(state, nationId).net; }
 
+  // ---------- Intel and fog (Cycle 13) ----------
+  // The one sight computation every intel number comes from, in the
+  // readout family pattern: intelState, intelIsLive, intelLastSeenDay,
+  // intelSnapshot, intelLiveProvinces, and intelLiveCount all read the
+  // set liveProvinceSet builds, and the step 2 surfaces will read the
+  // same functions, so the map, the inspector, and the preview can
+  // never disagree about what a nation can see. Fog gates information
+  // only: no price, odds estimate, AI decision, research choice,
+  // movement rule, or win check reads intel state or a snapshot, and
+  // the scripted AI's decisions are unchanged by fog in this cycle.
+  function ensureIntel(state, nationId) {
+    if (!state.intel) state.intel = {};
+    if (!state.intel[nationId]) state.intel[nationId] = { snapshots: {}, agents: {} };
+    if (!state.intel[nationId].snapshots) state.intel[nationId].snapshots = {};
+    if (!state.intel[nationId].agents) state.intel[nationId].agents = {};
+    return state.intel[nationId];
+  }
+
+  function agentStock(state, nationId) {
+    var n = state.nations[nationId];
+    if (typeof n.agents !== 'number') n.agents = 0;
+    return n.agents;
+  }
+
+  function agentCost() { return CFG.unitTypes.agent.steelCost; }
+
+  // Planted agents that still hold: an agent watches the province it
+  // was planted in until that province changes owner, so a placement
+  // whose province has changed hands since planting counts for
+  // nothing, here and everywhere, whether or not intelPhase has had
+  // a tick to clear the record.
+  function liveAgents(state, nationId) {
+    var rec = ensureIntel(state, nationId).agents;
+    return Object.keys(rec).filter(function (pid) {
+      var prov = state.provinces[pid];
+      return prov && prov.owner === rec[pid].owner;
+    }).sort().map(function (pid) {
+      return { provinceId: pid, owner: rec[pid].owner };
+    });
+  }
+
+  // Add every province within range graph hops of a start province,
+  // the start included, regardless of who owns the ground passed
+  // over: a drone wing flies, and presence reaches across a border
+  // the same way ownership does.
+  function addSight(state, set, startId, range) {
+    var seen = {};
+    var frontier = [startId];
+    seen[startId] = 0;
+    set[startId] = true;
+    while (frontier.length) {
+      var next = [];
+      frontier.forEach(function (pid) {
+        if (seen[pid] >= range) return;
+        neighborsOf(state, state.provinces[pid]).forEach(function (p) {
+          if (seen[p.id] != null) return;
+          seen[p.id] = seen[pid] + 1;
+          set[p.id] = true;
+          next.push(p.id);
+        });
+      });
+      frontier = next;
+    }
+  }
+
+  // The provinces live to a nation right now, as a set of ids:
+  // owned ground plus CFG.ownedSightRange past it; every province
+  // holding one of its units plus CFG.unitSightRange past it, with
+  // a drone wing reaching CFG.droneSightRange instead; and each
+  // planted agent's province, that province only, no neighbors.
+  function liveProvinceSet(state, nationId) {
+    var set = {};
+    nationProvinces(state, nationId).forEach(function (p) {
+      addSight(state, set, p.id, CFG.ownedSightRange);
+    });
+    state.units.forEach(function (u) {
+      if (u.nation !== nationId || u.strength <= 0) return;
+      addSight(state, set, u.provinceId, u.type === 'drone' ? CFG.droneSightRange : CFG.unitSightRange);
+    });
+    liveAgents(state, nationId).forEach(function (a) { set[a.provinceId] = true; });
+    return set;
+  }
+
+  function intelLiveProvinces(state, nationId) {
+    var set = liveProvinceSet(state, nationId);
+    return Object.keys(set).sort();
+  }
+
+  function intelLiveCount(state, nationId) {
+    return intelLiveProvinces(state, nationId).length;
+  }
+
+  function intelIsLive(state, nationId, provId) {
+    return !!liveProvinceSet(state, nationId)[provId];
+  }
+
+  function intelSnapshot(state, nationId, provId) {
+    var snap = ensureIntel(state, nationId).snapshots[provId];
+    return snap || null;
+  }
+
+  // live: under live observation today. remembered: not live, but a
+  // snapshot from an earlier live day exists. dark: never seen.
+  function intelState(state, nationId, provId) {
+    if (intelIsLive(state, nationId, provId)) return 'live';
+    if (intelSnapshot(state, nationId, provId)) return 'remembered';
+    return 'dark';
+  }
+
+  // The day the province was last seen live: today while it is live,
+  // its snapshot day while it is remembered, and null while dark.
+  function intelLastSeenDay(state, nationId, provId) {
+    if (intelIsLive(state, nationId, provId)) return state.day;
+    var snap = intelSnapshot(state, nationId, provId);
+    return snap ? snap.day : null;
+  }
+
+  // The snapshot intelPhase records for one province on a live day:
+  // the day, the owner, the fortification level and any fort work in
+  // progress, the factory level, whether any edge touching the
+  // province carries rail, and the units present, grouped by nation
+  // and type with their count and total strength, in sorted order
+  // so the record is deterministic.
+  function snapshotFor(state, provId) {
+    var prov = state.provinces[provId];
+    var byKey = {};
+    unitsIn(state, provId).forEach(function (u) {
+      var key = u.nation + '|' + u.type;
+      if (!byKey[key]) byKey[key] = { nation: u.nation, type: u.type, count: 0, totalStrength: 0 };
+      byKey[key].count += 1;
+      byKey[key].totalStrength += u.strength;
+    });
+    return {
+      day: state.day,
+      owner: prov.owner,
+      fortLevel: prov.fortLevel || 0,
+      fortBuild: prov.fortBuild ? { toLevel: prov.fortBuild.toLevel, daysLeft: prov.fortBuild.daysLeft } : null,
+      factoryLevel: prov.factoryLevel || 0,
+      rail: neighborEdges(state, prov).some(function (ne) { return !!ne.edge.rail; }),
+      units: Object.keys(byKey).sort().map(function (k) { return byKey[k]; })
+    };
+  }
+
+  // The intel phase, run at the end of each tick after the dead are
+  // removed and before the campaign beats are checked: expired agent
+  // records (their province changed owner) are cleared, and each
+  // nation records a fresh snapshot for every province live to it
+  // today. A province that is not live keeps its last snapshot
+  // untouched, however the truth underneath it moves. Recording is
+  // gated by CFG.campaignIntel, in the beats and textures pattern,
+  // and no rule reads what is recorded.
+  function intelPhase(state) {
+    if (!CFG.campaignIntel) return [];
+    var recorded = [];
+    ['player', 'enemy'].forEach(function (nationId) {
+      var rec = ensureIntel(state, nationId);
+      Object.keys(rec.agents).forEach(function (pid) {
+        var prov = state.provinces[pid];
+        if (!prov || prov.owner !== rec.agents[pid].owner) delete rec.agents[pid];
+      });
+      intelLiveProvinces(state, nationId).forEach(function (pid) {
+        rec.snapshots[pid] = snapshotFor(state, pid);
+        recorded.push(nationId + ':' + pid);
+      });
+    });
+    return recorded;
+  }
+
+  // Plant one agent from the stockpile on a province the nation does
+  // not own. The agent watches that province only, never its
+  // neighbors, from now until the province changes owner or the
+  // campaign ends. One agent per province per nation. Every refusal
+  // is legible, carries the real numbers where numbers are the
+  // reason, charges nothing, and plants nothing.
+  function plantAgent(state, nationId, provId) {
+    var prov = state.provinces[provId];
+    if (!prov) return { ok: false, reason: 'no such province' };
+    var rec = ensureIntel(state, nationId);
+    if (prov.owner === nationId) {
+      return {
+        ok: false, agent: true, provinceId: provId,
+        reason: 'You cannot plant an agent in ' + prov.name + '. It is your own province; ' +
+          'agents watch provinces you do not hold.'
+      };
+    }
+    var held = rec.agents[provId];
+    if (held && held.owner === prov.owner) {
+      return {
+        ok: false, agent: true, provinceId: provId, current: agentStock(state, nationId),
+        reason: prov.name + ' already has one of your agents watching it. ' +
+          'One agent per province; you hold ' + agentStock(state, nationId) + ' in stock.'
+      };
+    }
+    if (agentStock(state, nationId) <= 0) {
+      var t = CFG.unitTypes.agent;
+      return {
+        ok: false, agent: true, provinceId: provId, current: 0, missing: 1,
+        reason: 'No agent in stock to plant in ' + prov.name + '. Build one first: an Agent costs ' +
+          t.steelCost + ' steel over ' + t.buildDays + ' days on a production line, plus ' +
+          t.manpowerCost + ' manpower when queued.'
+      };
+    }
+    state.nations[nationId].agents -= 1;
+    rec.agents[provId] = { owner: prov.owner };
+    logEvent(state, state.nations[nationId].short + ' plant an agent in ' + prov.name +
+      '. It watches that province alone.');
+    return { ok: true, provinceId: provId, stock: state.nations[nationId].agents };
+  }
+
   // ---------- Manpower (Cycle 11) ----------
   // The one readout family every manpower number comes from, in the
   // line efficiency pattern: queueProduction charges through these,
@@ -628,6 +862,12 @@
           n.interceptors = interceptorStock(state, nationId) + 1;
           logEvent(state, n.short + ' line ' + line.id + ' completes an ' + t.label +
             '. It joins the interceptor stockpile (' + n.interceptors + ' on hand).');
+        } else if (line.template === 'agent') {
+          // An Agent never deploys either: it joins the stockpile
+          // plantAgent spends from.
+          n.agents = agentStock(state, nationId) + 1;
+          logEvent(state, n.short + ' line ' + line.id + ' completes an ' + t.label +
+            '. It joins the agent stockpile (' + n.agents + ' on hand), ready to plant.');
         } else {
           var u = addUnit(state, nationId, line.template, n.capitalId);
           completed.push(u);
@@ -663,18 +903,22 @@
         player: { destroyed: 0, lost: 0, forced: 0, suffered: 0 },
         enemy: { destroyed: 0, lost: 0, forced: 0, suffered: 0 }
       },
+      intel: {             // intel snapshots and planted agents per nation (Cycle 13); no rule reads them
+        player: { snapshots: {}, agents: {} },
+        enemy: { snapshots: {}, agents: {} }
+      },
       nations: {
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
           equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
-          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart,
+          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart, agents: 0,
           capitalId: provinceId(0, 3),
           productionLines: makeProductionLines()
         },
         enemy: {
           id: 'enemy', name: 'The Khessite Dominion', short: 'Khessite',
           equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
-          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart,
+          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart, agents: 0,
           capitalId: provinceId(CFG.mapW - 1, 3),
           productionLines: makeProductionLines()
         }
@@ -1669,12 +1913,61 @@
         assignLineTemplate(state, ai, 2, 'drone');
       }
     }
+    // Agents, under two stated spending rules at the identical
+    // priced paths, never a discount or a free placement. Placement:
+    // when the Dominion holds an agent in stock, it plants it on the
+    // player's capital, the deep target, whenever that province is
+    // not its own and carries no agent of its own yet (an agent
+    // there watches durably, long after any passing sight is gone,
+    // so the rule does not need to consult fog to be worth firing).
+    // No AI decision reads intel state or a snapshot in this cycle,
+    // placement included: the scripted AI is not fog bound, the
+    // stated scope limit. Reading its own stock and its own planted
+    // agents is managing its own pieces, not reading fog.
+    if (agentStock(state, ai) > 0) {
+      var capTarget = state.provinces[state.nations.player.capitalId];
+      var alreadyWatched = liveAgents(state, ai).some(function (a) { return a.provinceId === capTarget.id; });
+      if (capTarget.owner !== ai && !alreadyWatched) {
+        plantAgent(state, ai, capTarget.id);
+      }
+    }
+    // A line left on the Agent template with an agent already planted
+    // or in stock goes back to Drone Wings while it stands idle, so
+    // the general queueing below never orders agents by accident and
+    // the Dominion's army rhythm is not quietly converted into an
+    // agent pipeline.
+    if (agentStock(state, ai) > 0 || liveAgents(state, ai).length > 0) {
+      (n.productionLines || []).forEach(function (line) {
+        if (line.queue === 0 && line.template === 'agent') assignLineTemplate(state, ai, line.id, 'drone');
+      });
+    }
     if (unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
       (n.productionLines || []).forEach(function (line) {
         if (line.queue === 0 && unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
           queueProduction(state, ai, line.id);
         }
       });
+    }
+    // Agent building: only when the field army and its queue already
+    // reach the same 14 unit cap the queueing above works to, so the
+    // order sits on a line that would otherwise stand idle at the cap
+    // and displaces no combat order; only while it holds no agent in
+    // stock, has none planted, and has no line on the Agent template
+    // already (an agent order in production is an agent on the way,
+    // and without this guard the block queued a second and a third
+    // agent on the other idle lines in the first balance trace of
+    // this step, seed 7 days 22 to 24); and only when the manpower
+    // pool pays the shared queue price in full. It builds at most one.
+    var agentLineOpen = (n.productionLines || []).some(function (line) { return line.template === 'agent'; });
+    if (!agentLineOpen && agentStock(state, ai) === 0 && liveAgents(state, ai).length === 0 &&
+        unitsOf(state, ai).length + queuedUnits(state, ai) >= 14 &&
+        manpowerPool(state, ai) >= manpowerCost('agent')) {
+      var idleLine = (n.productionLines || []).filter(function (line) { return line.queue === 0; })[0];
+      if (idleLine) {
+        if (idleLine.template === 'agent' || assignLineTemplate(state, ai, idleLine.id, 'agent').ok) {
+          queueProduction(state, ai, idleLine.id);
+        }
+      }
     }
     // Orders, decided per origin province so the AI thinks in the same
     // battle groups the combat code fights with. (Cycle 3 lesson: judging
@@ -1849,6 +2142,7 @@
     movementPhase(state);
     // Remove the dead.
     state.units = state.units.filter(function (u) { return u.strength > 0; });
+    intelPhase(state); // record today's intel snapshots for both nations, if any
     beatPhase(state); // record today's turning points, if any
     state.day += 1;
     state.tickCount += 1;
@@ -1912,6 +2206,17 @@
     exchangeForced: exchangeForced,
     exchangeSuffered: exchangeSuffered,
     exchangeNet: exchangeNet,
+    intelState: intelState,
+    intelIsLive: intelIsLive,
+    intelLastSeenDay: intelLastSeenDay,
+    intelSnapshot: intelSnapshot,
+    intelLiveProvinces: intelLiveProvinces,
+    intelLiveCount: intelLiveCount,
+    intelPhase: intelPhase,
+    agentStock: agentStock,
+    agentCost: agentCost,
+    liveAgents: liveAgents,
+    plantAgent: plantAgent,
     unitStats: unitStats,
     stackPower: stackPower,
     unitsIn: unitsIn,
