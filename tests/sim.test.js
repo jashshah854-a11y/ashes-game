@@ -954,3 +954,27 @@ test('research clock: with equal points, a player who clicks as soon as the pane
   assert.ok(fielded.player != null && fielded.enemy != null, 'both nations reach Drone Gen 2');
   assert.strictEqual(fielded.enemy, fielded.player, 'no side gets a head start from tick order');
 });
+
+test('economy order: production lines are paid before factories, and idle factory levels are counted', () => {
+  const s = Sim.createGame(42);
+  const n = s.nations.player;
+  // Checker edit: no steel income, so the stockpile is the only steel today.
+  Object.values(s.provinces).forEach(p => { if (p.owner === 'player') p.steel = 0; });
+  const levels = Sim.factoryLevels(s, 'player');
+  assert.ok(levels > 0);
+  assert.strictEqual(Sim.queueProduction(s, 'player', 1).ok, true);
+  const drain = Sim.lineSteelPerDay('infantry');
+  n.steel = drain; // exactly one line day, nothing left for any factory
+  const eq = n.equipment;
+  Sim.tick(s);
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).progressDays, 1, 'the line was paid');
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).stalled, false);
+  assert.strictEqual(n.steel, 0);
+  assert.strictEqual(n.equipment, eq, 'no factory ran');
+  assert.strictEqual(n.factoryLevelsIdle, levels, 'every level sat idle and the count says so');
+  // With steel to spare, every level runs and none is idle.
+  n.steel = 1000;
+  Sim.tick(s);
+  assert.strictEqual(n.factoryLevelsIdle, 0);
+  assert.strictEqual(n.equipment, eq + levels * Sim.CFG.equipPerFactoryLevel);
+});

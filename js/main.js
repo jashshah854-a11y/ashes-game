@@ -138,7 +138,9 @@
     el.statEquipment.textContent = n.equipment;
     el.statSteel.textContent = n.steel;
     el.statSteelIncome.textContent = Sim.steelIncome(state, 'player');
-    el.statFactories.textContent = Sim.factoryLevels(state, 'player');
+    var idle = n.factoryLevelsIdle || 0;
+    el.statFactories.textContent = Sim.factoryLevels(state, 'player') +
+      (idle > 0 ? ' (' + idle + ' idle today: production lines are paid first and the steel ran out)' : '');
     el.statResearch.textContent = n.researchPoints;
     el.statDroneGen.textContent = n.droneGen2 ? 'Gen 2' : 'Gen 1';
     el.btnResearch.disabled = n.droneGen2 || n.researchPoints < Sim.CFG.droneGen2Cost;
@@ -307,6 +309,7 @@
       : 'Build / Upgrade Factory (' + cost + ' eq)';
     el.provExplain.textContent = mine
       ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
+        'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
         lineUnlockText()
       : 'Enemy province. March a unit in to take it.';
   }
