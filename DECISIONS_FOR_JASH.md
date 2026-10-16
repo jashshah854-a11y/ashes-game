@@ -3,6 +3,29 @@
 Taste calls the loop will not make for you. Each one is blocking something
 specific; everything else keeps moving.
 
+LORE WRITTEN BY THE LOOP, OPEN FOR YOUR REWRITE OR VETO (Cycle 7). Under
+the lore rule the loop wrote the world's first lore itself rather than
+stall. All of it is in js/lore.js and none of it changes a number in the
+game. Read it, then keep, rewrite, or strike any of it. Everything below
+was invented by the loop, not by you:
+- The Ashen Empire, the old empire both nations came out of, broken
+  forty-one years ago in the Partition.
+- The Ashwater, the river frontier, and the Spine, the old imperial
+  railway along the capital row, cut at the river.
+- The Treaty of the Ashwater, signed on a barge in midstream.
+- The rival rail gauges (the in game reason captured rail must be
+  converted), and the engineers' name for it, the gauge war.
+- The Vessari: a charter of guild cities, the Compact Assembly, the First
+  Delegate, a nation of ledgers and workshops that invented the drone
+  wing, and remembers the Partition as "the line where the debt ended."
+- The Khessites: the old imperial arsenal turned capital, the great
+  Houses of the general staff, the Dominar chosen for life, and the
+  Reckoning ("never attack without three against two", the in game
+  reason the Dominion attacks only at 1.5x and keeps three units home).
+- The tone: grounded, dry, a little wry, no magic, no chosen ones.
+- Three event cards: "Blood on the Spine", "The Second Generation", and
+  "A Third Line", each with a Vessari, a Khessite, and a same day text.
+
 1. Calibration feel. Current numbers on master, measured with the
    committed harness (tools/balance.js) and re-verified at reconciliation
    step 5: a commander who never acts falls on day 36 on all 8 standard
@@ -24,15 +47,15 @@ specific; everything else keeps moving.
    start of tick snapshot. The takeover reconciliation of the GitHub
    branch's first 6 slices is also decided (slices 2 to 5 ported, slice
    1's harness and slice 6's branch text dropped for the reasons logged
-   in CYCLE_LOG). Next, the branch's later work is assessed in its
-   original order, starting with Cycle 7. Cycle 7 is the lore seed,
-   reserved by the Cycle 5 judge and confirmed by the Cycle 6 judge, not
-   to be bumped again: written backstories for both nations, a codex
-   panel, and 3 event cards. Per the lore rule, the loop writes the lore
-   itself and flags it here prominently as loop written and open for
-   your rewrite or veto; the loop does not stall waiting for approval.
-   Your call only if you feel strongly about the direction before it
-   starts.
+   in CYCLE_LOG). Cycle 7, the lore seed, is now in progress on master:
+   step 1 (lore content in js/lore.js plus the sim's campaign beat hooks)
+   is ported and verified, with the loop written lore flagged at the top
+   of this file for your rewrite or veto, per the lore rule; the loop
+   does not stall waiting for approval. Steps 2 (codex panel and event
+   card UI), 3 (tests and balance), and 4 (judge) remain. One assessed
+   branch item is also pending its own step before step 2: the branch's
+   Cycle 6 judge flag 1 fix, which draws defenders for every targeted
+   province before any battle forms (see CYCLE_LOG).
 
 3. Rail conversion. It emerged from balance work and the judge voted
    keeper. It is in the game now: captured rail takes 4 days to convert
@@ -66,6 +89,7 @@ specific; everything else keeps moving.
    tuning, but whether a locked slot feels good or frustrating is taste.
    Flag it when you play Cycle 6 if it feels wrong.
 
-Nothing here blocks the loop. Cycle 6 is complete and the first 6
-reconciliation slices are decided; Cycle 7 (the lore seed) is next and
-runs without waiting on any item above.
+Nothing here blocks the loop. Cycle 6 is complete, the first 6
+reconciliation slices are decided, and Cycle 7 (the lore seed) step 1
+is built; the lore above is loop written and open for your rewrite or
+veto, and the cycle runs without waiting on any item above.

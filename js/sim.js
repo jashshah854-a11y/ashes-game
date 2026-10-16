@@ -53,6 +53,7 @@
     maxProductionLines: 4,        // most lines any nation can ever run
     lineUnlockFactoryLevels: [0, 0, 16, 24], // total factory levels needed for line slots 1..4; an unlock is permanent
     maxQueuePerLine: 9,           // orders one line can hold, current unit included
+    campaignBeats: true,          // record the turning points the lore marks (state.beats); no rule reads them
     unitTypes: {
       // cost is the steel cost per unit, paid as a daily drain over
       // buildDays while the line works (steelPerDay = cost / buildDays,
@@ -329,6 +330,7 @@
       winner: null,
       endReason: null,
       log: [],
+      beats: {},           // campaign turning points, recorded once each (beatPhase)
       nations: {
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
@@ -1195,6 +1197,44 @@
     });
   }
 
+  // ---------- Campaign beats ----------
+  // Three turning points the lore marks with an event card (js/lore.js):
+  // the first capture on the capital row, the first Drone Gen 2, and the
+  // first production line 3. Each is recorded once, on the first tick it
+  // holds, with the side that reached it: 'player', 'enemy', or 'both'
+  // when both reached it on the same tick. beatPhase only reads the game
+  // and writes state.beats; no rule anywhere reads state.beats, so the
+  // lore can never change a number.
+  function startingOwner(state, prov) { return prov.x < state.mapW / 2 ? 'player' : 'enemy'; }
+
+  var BEAT_TESTS = {
+    capitalRow: function (state, nationId) {
+      var row = state.provinces[state.nations.player.capitalId].y;
+      return Object.keys(state.provinces).some(function (pid) {
+        var p = state.provinces[pid];
+        return p.y === row && p.owner === nationId && startingOwner(state, p) !== nationId;
+      });
+    },
+    droneGen2: function (state, nationId) { return !!state.nations[nationId].droneGen2; },
+    line3: function (state, nationId) { return (state.nations[nationId].productionLines || []).length >= 3; }
+  };
+  var BEAT_IDS = Object.keys(BEAT_TESTS);
+
+  function beatPhase(state) {
+    if (!CFG.campaignBeats) return [];
+    if (!state.beats) state.beats = {};
+    var fired = [];
+    BEAT_IDS.forEach(function (id) {
+      if (state.beats[id]) return;
+      var p = BEAT_TESTS[id](state, 'player');
+      var e = BEAT_TESTS[id](state, 'enemy');
+      if (!p && !e) return;
+      state.beats[id] = { day: state.day, by: p && e ? 'both' : (p ? 'player' : 'enemy') };
+      fired.push(id);
+    });
+    return fired;
+  }
+
   // The AI researches as soon as it can afford it, deciding on the same
   // start of day numbers the player sees. Run inside aiTakeTurn, after
   // the economy phase, it fielded Drone Gen 2 one day before a player
@@ -1224,6 +1264,7 @@
     movementPhase(state);
     // Remove the dead.
     state.units = state.units.filter(function (u) { return u.strength > 0; });
+    beatPhase(state); // record today's turning points, if any
     state.day += 1;
     state.tickCount += 1;
     if (!state.gameOver && state.day > CFG.campaignEndDay) {
@@ -1246,6 +1287,8 @@
     issueOrder: issueOrder,
     resolveBattle: resolveBattle,
     movementPhase: movementPhase,
+    beatPhase: beatPhase,
+    BEAT_IDS: BEAT_IDS,
     buildFactory: buildFactory,
     trainUnit: trainUnit,
     productionLine: productionLine,
