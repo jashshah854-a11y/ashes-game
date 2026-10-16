@@ -27,18 +27,21 @@ was invented by the loop, not by you:
   "A Third Line", each with a Vessari, a Khessite, and a same day text.
 
 1. Calibration feel. Current numbers on master, measured with the
-   committed harness (tools/balance.js) and re-verified at reconciliation
-   step 5: a commander who never acts falls on day 36 on all 8 standard
+   committed harness (tools/balance.js) and re-verified at Cycle 8
+   step 3: a commander who never acts falls on day 36 on all 8 standard
    seeds, inside the judge's 30 to 45 band; the scripted sensible player
    (which builds factories toward line 3) captures the enemy capital 8 of
-   8 on day 25, with end strength 140.3 to 225.0 percent of the starting
-   72; a reckless player who abandons the capital lane loses 8 of 8, on
-   day 37. The day 25 capture is much faster than Cycle 5's days 43 to 52;
-   simultaneous battles and the rebuilt script both feed that, and the
-   bands, not the exact day, are the ruling. Questions: does day 36 feel
-   right to you for a do-nothing commander, and does a day 25 win for
-   sensible play feel right, or do you want the skeleton gentler while
-   you learn it?
+   8, on day 46 on 7 seeds and day 25 on seed 2024, with end strength
+   163.9 to 211.1 percent of the starting 72; a reckless player who
+   abandons the capital lane loses 8 of 8, on day 37. The capture moved
+   later than the pre walls day 25 when fortifications landed in
+   Cycle 8 step 1 (the Dominion now walls its capital and its river
+   province), and a new fortress profile that also walls its own
+   capital and staging province wins the same 8 of 8 on the same days.
+   The bands, not the exact day, are the ruling. Questions: does day 36
+   feel right to you for a do-nothing commander, and does a day 46 win
+   for sensible play feel right, or do you want the skeleton gentler
+   while you learn it?
 
 2. Next build. Cycle 6, "Close the loop, fix the clock", is complete
    (judge verdict PASS WITH FIX-NOW FLAGS, all flags closed in the step 5
@@ -77,8 +80,11 @@ was invented by the loop, not by you:
    button, the map badge sits on top of the tile, the attack
    preview and unit card name the walls, and the enemy card lists
    Dominion fortifications and its wall rule. Step 3 (tests and
-   balance) is next, then a
-   fresh judge, in that order. The assessed branch items that were pending before
+   balance) is now also done: 8 formal fortification tests bring
+   the suite to 58, the harness gained a fortress profile that
+   wins 8 of 8, the Cycle 8 baseline is committed, and the
+   fortification browser check is committed and passes 13 of 13.
+   Step 4, a fresh judge, is next. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -197,5 +203,6 @@ fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is in progress: step 0
 closed the Drone Gen 2 variant resolution in item 9, step 1 (sim) is
-done, step 2 (UI) is done, step 3 (tests and balance) is next,
+done, step 2 (UI) is done, step 3 (tests and balance) is done,
+step 4 (a fresh judge) is next,
 and the cycle runs without waiting on any item above.
