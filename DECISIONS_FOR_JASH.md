@@ -407,7 +407,26 @@ each printing the same no effect sentence as the turning point cards:
    also done: that flag is closed (a constant, level free
    factory button label for non live provinces, the intel
    check extended to 31 of 31, suite 98, balance byte
-   identical to tools/baseline-cycle13.txt). Cycle 14, Navy, is
+   identical to tools/baseline-cycle13.txt). Cycle 14 step 1
+   is now also done: flotillas built only through the
+   Flotilla production template (40 steel over 4 days, 30
+   manpower at queue time) and stationed only through
+   deployFlotilla on owned coastal or river ground, the
+   coastal control readout (a stationed flotilla first,
+   then holding units; owned but empty is not controlled),
+   blockade at 3 enemy home coastal provinces controlled
+   costing 25 percent of daily steel income through
+   incomePhase only, and a 25 percent river crossing
+   attack penalty inside stackPower that a flotilla at
+   either bank removes, with the Dominion building and
+   stationing under stated rules at identical prices.
+   One balance band is known broken going into step 3
+   (a passive player survives on seed 2024, traced in
+   CYCLE_LOG to the crossing delay and the AI's out of
+   supply freeze; step 3 owns the tuning), no new taste
+   item was created by this step, and the six navy taste
+   questions below stay parked as the Cycle 13 judge
+   left them. Cycle 14, Navy, is
    prescribed in full in CYCLE_LOG at this step, starting
    at step 0 with that carried flag, then step 1
    (flotillas built through a priced production template
@@ -642,7 +661,8 @@ FLAGS, its one flag (the factory button fog leak, a
 defect, not taste) carried to Cycle 14 step 0, so
 Cycle 13 is complete. Cycle 14 step 0 is now also
 done: that flag is closed, as recorded in item 2
-above. Cycle 14 (Navy) is prescribed
+above. Cycle 14 step 1 is now also done: navy in the
+sim, as recorded in item 2 above. Cycle 14 (Navy) is prescribed
 in full in CYCLE_LOG, with six more taste questions
 parked in item 2 above, all undecided and blocking
 nothing. The work runs without waiting on any
