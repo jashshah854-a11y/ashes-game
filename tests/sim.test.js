@@ -1575,3 +1575,249 @@ test('efficiency: AI parity through the real tick path, same rise, same work, sa
   assert.strictEqual(pr.completed[0].provinceId, t.nations.player.capitalId);
   assert.strictEqual(er.completed[0].provinceId, t.nations.enemy.capitalId);
 });
+
+// ---------- Cycle 10: recurring event texture ----------
+// The drivers below are adapted from tools/balance.js (the harness's
+// sensible script, plus its fortress wall spending), public sim
+// commands only, so the campaign level pins in this section run the
+// same profiles the Cycle 10 step 1 reachability tally ran. Staging a
+// line's efficiency or a conversion's final day is a checker edit in
+// the Cycle 9 pattern; every charge, completion, and recording then
+// goes through the real productionPhase or a real tick.
+
+function texProv(id) { const m = /^p(\d+)_(\d+)$/.exec(id); return { x: +m[1], y: +m[2] }; }
+function texNeighborToward(s, unit, targetId) {
+  const t = texProv(targetId);
+  const here = s.provinces[unit.provinceId];
+  let best = null, bestScore = null;
+  Sim.neighborsOf(s, here).forEach(p => {
+    const d = Math.abs(p.x - t.x) + Math.abs(p.y - t.y);
+    const score = d * 100 + Math.abs(p.y - 3) * 10 - p.x;
+    if (bestScore === null || score < bestScore) { bestScore = score; best = p; }
+  });
+  return best;
+}
+function texFortifyHome(s) {
+  const targets = [s.nations.player.capitalId];
+  const row3 = Object.values(s.provinces).filter(p => p.owner === 'player' && p.y === 3);
+  row3.sort((a, b) => b.x - a.x);
+  if (row3[0]) targets.push(row3[0].id);
+  for (const id of targets) {
+    const p = s.provinces[id];
+    if (!p || p.owner !== 'player' || p.fortBuild || (p.fortLevel || 0) >= Sim.CFG.fortMaxLevel) continue;
+    if (Sim.buildFortification(s, 'player', id).ok) return;
+  }
+}
+function texSensibleDay(s, withForts) {
+  const n = s.nations.player;
+  if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
+  if (Sim.factoryLevels(s, 'player') < 16) {
+    const income = Sim.steelIncome(s, 'player');
+    const upkeepAfter = (Sim.factoryLevels(s, 'player') + 1) * Sim.CFG.steelPerFactoryLevel;
+    if (income - upkeepAfter - 15 >= 5) {
+      const owned = Object.values(s.provinces).filter(p => p.owner === 'player' && p.x <= 4 && p.factoryLevel < Sim.CFG.maxFactoryLevel);
+      owned.sort((a, b) => (a.factoryLevel - b.factoryLevel) || (a.x - b.x));
+      for (const p of owned) {
+        const cost = Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1);
+        if (n.equipment >= cost) { Sim.buildFactory(s, 'player', p.id); break; }
+      }
+    }
+  }
+  if (withForts) texFortifyHome(s);
+  Sim.syncProductionLines(s, 'player');
+  n.productionLines.forEach(line => { if (line.queue === 0) Sim.queueProduction(s, 'player', line.id); });
+  if (n.steel >= 55) {
+    const sup = Sim.computeSupply(s, 'player');
+    const cands = [];
+    s.edgeList.forEach(e => {
+      if (e.rail) return;
+      const pa = s.provinces[e.a], pb = s.provinces[e.b];
+      if (pa.owner !== 'player' || pb.owner !== 'player') return;
+      const aSup = sup[pa.id] && sup[pa.id].supplied, bSup = sup[pb.id] && sup[pb.id].supplied;
+      if (aSup === bSup) return;
+      cands.push(e);
+    });
+    cands.sort((e1, e2) => Math.max(s.provinces[e2.a].x, s.provinces[e2.b].x) - Math.max(s.provinces[e1.a].x, s.provinces[e1.b].x));
+    if (cands.length) Sim.buildRail(s, 'player', cands[0].a, cands[0].b);
+  }
+  if (!s._texGarrison) {
+    s._texGarrison = Sim.unitsIn(s, n.capitalId).filter(u => u.nation === 'player' && u.type === 'infantry').slice(0, 2).map(u => u.id);
+  }
+  const row3 = Object.values(s.provinces).filter(p => p.owner === 'player' && p.y === 3);
+  row3.sort((a, b) => b.x - a.x);
+  const staging = row3[0];
+  if (!staging) return;
+  const atStaging = Sim.unitsIn(s, staging.id).filter(u => u.nation === 'player' && !s._texGarrison.includes(u.id));
+  let attackTarget = null;
+  if (atStaging.length >= 5 && atStaging.every(u => (u.supplyPenalty || 0) === 0)) {
+    const east = s.provinces[Sim.provinceId(staging.x + 1, 3)];
+    if (east && east.owner === 'enemy') {
+      const defs = Sim.unitsIn(s, east.id).filter(u => u.nation === 'enemy');
+      const myPow = Sim.stackPower(s, atStaging, 'attack');
+      const theirPow = Sim.stackPower(s, defs, 'defense');
+      if (!defs.length || myPow >= theirPow * 1.5) attackTarget = east.id;
+    }
+  }
+  Sim.unitsOf(s, 'player').forEach(u => {
+    if (s._texGarrison.includes(u.id)) return;
+    if (u.provinceId === staging.id) {
+      if (attackTarget) Sim.issueOrder(s, u.id, attackTarget);
+      return;
+    }
+    const next = texNeighborToward(s, u, staging.id);
+    if (next && next.id !== u.provinceId && next.owner === 'player') Sim.issueOrder(s, u.id, next.id);
+  });
+}
+function texRunCampaign(seed, profile) {
+  const s = Sim.createGame(seed);
+  let days = 0;
+  while (!s.gameOver && days < 200) {
+    if (profile === 'sensible') texSensibleDay(s, false);
+    else if (profile === 'fortress') texSensibleDay(s, true);
+    Sim.tick(s);
+    days++;
+  }
+  return s;
+}
+
+test('lore textures: every sim texture id has a card shipping exactly the player and enemy variants, and no texture copy has an em or en dash', () => {
+  assert.deepStrictEqual(Object.keys(Lore.textures).sort(), Sim.TEXTURE_IDS.slice().sort());
+  Sim.TEXTURE_IDS.forEach(id => {
+    const c = Lore.textures[id];
+    assert.ok(c.title && c.trigger, id);
+    // No both variant: occurrences are recorded per side as they
+    // happen, not per day, so a both variant is a shape the recording
+    // never produces (Cycle 10 step 1).
+    assert.deepStrictEqual(Object.keys(c.variants).sort(), ['enemy', 'player'], id + ' shipped variants');
+    ['player', 'enemy'].forEach(v => assert.ok(c.variants[v] && c.variants[v].length > 40, id + ' ' + v));
+  });
+  assert.ok(/changes nothing in the game/.test(Lore.noEffect), 'textures print under the same no effect sentence as the beats');
+  const all = JSON.stringify(Lore.textures);
+  assert.ok(!/[\u2013\u2014]/.test(all), 'no em or en dash anywhere in the texture copy');
+});
+
+test('lore capitals: both capital entries describe both endings, in the sim own end wording', () => {
+  // Sim end texts (js/sim.js): a fallen player capital reads "Your
+  // capital has fallen. The Compact is finished.", a captured enemy
+  // capital "Enemy capital captured. The Dominion collapses.", and
+  // the campaign end "Campaign ends. Your capital still stands. A
+  // hard, grinding survival."
+  const vesskar = Lore.entries.vesskar.text.join(' ');
+  const khessograd = Lore.entries.khessograd.text.join(' ');
+  assert.ok(/If Vesskar City falls/.test(vesskar) && /Compact is finished/.test(vesskar), 'Vesskar entry describes its fall');
+  assert.ok(/still stands when the campaign ends on day 150/.test(vesskar) && /hard, grinding survival/.test(vesskar), 'Vesskar entry describes the day 150 survival');
+  assert.ok(/If Khessograd falls/.test(khessograd) && /Dominion collapses/.test(khessograd), 'Khessograd entry describes its fall');
+  assert.ok(/still stands when the campaign ends on day 150/.test(khessograd) && /claim intact/.test(khessograd), 'Khessograd entry describes the day 150 survival');
+});
+
+test('textures: a finished fortification records once per completion, on its day, for the side that built it, and a second completion is a second entry', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.equipment = 1000;
+  const cap = s.nations.player.capitalId;
+  assert.strictEqual(Sim.buildFortification(s, 'player', cap).ok, true);
+  for (let i = 0; i < 5; i++) Sim.tick(s);
+  assert.deepStrictEqual(s.textures.filter(t => t.id === 'fortCompleted' && t.by === 'player'),
+    [{ id: 'fortCompleted', day: 5, by: 'player' }], 'level 1 completes and records on day 5');
+  assert.strictEqual(Sim.buildFortification(s, 'player', cap).ok, true);
+  for (let i = 0; i < 5; i++) Sim.tick(s);
+  assert.deepStrictEqual(s.textures.filter(t => t.id === 'fortCompleted' && t.by === 'player'),
+    [{ id: 'fortCompleted', day: 5, by: 'player' }, { id: 'fortCompleted', day: 10, by: 'player' }],
+    'the raise to level 2 is a second entry on its own day, not swallowed by a once only rule');
+});
+
+test('textures: a finished rail conversion records on its day for the converting side, and a second conversion is a second entry', () => {
+  // Checker edit: two captured stretches of rail are staged on their
+  // final conversion day (the conversion state a real capture sets
+  // up, four days earlier). Each completion then goes through a real
+  // tick and its constructionPhase.
+  const s = Sim.createGame(42);
+  const railEdges = s.edgeList.filter(e => e.rail && e.rail.daysLeft === 0);
+  const e1 = railEdges[0], e2 = railEdges[1];
+  e1.rail = { owner: 'enemy', daysLeft: 0, converting: { to: 'player', daysLeft: 1 } };
+  Sim.tick(s);
+  assert.strictEqual(e1.rail.owner, 'player');
+  e2.rail = { owner: 'player', daysLeft: 0, converting: { to: 'enemy', daysLeft: 1 } };
+  Sim.tick(s);
+  assert.strictEqual(e2.rail.owner, 'enemy');
+  assert.deepStrictEqual(s.textures, [
+    { id: 'railConverted', day: 1, by: 'player' },
+    { id: 'railConverted', day: 2, by: 'enemy' }
+  ], 'each conversion records once, on its day, for its own side, in firing order');
+});
+
+test('textures: a line reaching full efficiency records once at the crossing, for both nations, and resting at the cap records nothing more', () => {
+  const s = Sim.createGame(42);
+  const line = Sim.productionLine(s, 'player', 1);
+  line.efficiency = 148; // checker edit: work the line has already done
+  s.nations.player.steel = 100;
+  assert.strictEqual(Sim.queueProduction(s, 'player', 1).ok, true);
+  Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.efficiency, Sim.CFG.lineEfficiencyCap);
+  assert.deepStrictEqual(s.textures, [{ id: 'lineCapped', day: 1, by: 'player' }]);
+  // A funded day at the cap is not a new crossing.
+  s.nations.player.steel = 100;
+  assert.strictEqual(Sim.queueProduction(s, 'player', 1).ok, true);
+  Sim.productionPhase(s, 'player');
+  assert.deepStrictEqual(s.textures, [{ id: 'lineCapped', day: 1, by: 'player' }], 'resting at the cap does not refire');
+  // The enemy crosses through the same productionPhase path.
+  const eline = Sim.productionLine(s, 'enemy', 2);
+  eline.efficiency = 148;
+  s.nations.enemy.steel = 100;
+  assert.strictEqual(Sim.queueProduction(s, 'enemy', 2).ok, true);
+  Sim.productionPhase(s, 'enemy');
+  assert.deepStrictEqual(s.textures, [
+    { id: 'lineCapped', day: 1, by: 'player' },
+    { id: 'lineCapped', day: 1, by: 'enemy' }
+  ]);
+});
+
+test('textures: every shipped variant fires through real campaigns, and no campaign fires an unshipped one', () => {
+  // Campaign level set equality pin, in the Cycle 8 step 0 pattern:
+  // three full campaigns on seed 42 through public commands only
+  // (passive, and the harness sensible and fortress profiles adapted
+  // above). Step 1 tally scope: passive proves the enemy fort and
+  // rail variants, sensible the player rail and both line variants,
+  // fortress the player fort variant.
+  const fired = {};
+  ['passive', 'sensible', 'fortress'].forEach(profile => {
+    const s = texRunCampaign(42, profile);
+    assert.ok(s.gameOver, profile + ' campaign completes');
+    assert.ok(s.textures.length > 0, profile + ' campaign records texture');
+    s.textures.forEach(t => {
+      assert.ok(Sim.TEXTURE_IDS.includes(t.id), profile + ' records a known texture id');
+      if (!fired[t.id]) fired[t.id] = {};
+      fired[t.id][t.by] = true;
+    });
+  });
+  Sim.TEXTURE_IDS.forEach(id => {
+    assert.deepStrictEqual(Object.keys(fired[id] || {}).sort(), Object.keys(Lore.textures[id].variants).sort(),
+      id + ': real campaigns fire exactly the shipped variants, no more and no fewer');
+  });
+});
+
+test('textures: the same seed and the same commands record the same occurrences', () => {
+  const passiveA = texRunCampaign(42, 'passive');
+  const passiveB = texRunCampaign(42, 'passive');
+  assert.strictEqual(passiveA.textures.length, 10, 'a passive seed 42 campaign records its 10 occurrences');
+  assert.deepStrictEqual(passiveB.textures, passiveA.textures);
+  const sensibleA = texRunCampaign(42, 'sensible');
+  const sensibleB = texRunCampaign(42, 'sensible');
+  assert.ok(sensibleA.textures.length > 0);
+  assert.deepStrictEqual(sensibleB.textures, sensibleA.textures);
+});
+
+test('textures: recording them changes nothing else in a full campaign', () => {
+  const play = (texturesOn) => {
+    Sim.CFG.campaignTextures = texturesOn;
+    try {
+      return texRunCampaign(42, 'passive');
+    } finally {
+      Sim.CFG.campaignTextures = true;
+    }
+  };
+  const on = play(true), off = play(false);
+  assert.strictEqual(on.textures.length, 10);
+  assert.deepStrictEqual(off.textures, []);
+  const strip = s => { const c = Object.assign({}, s); delete c.textures; return JSON.stringify(c); };
+  assert.strictEqual(strip(on), strip(off), 'every unit, province, nation, edge, beat, and log line is identical');
+});
