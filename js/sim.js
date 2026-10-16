@@ -149,7 +149,7 @@
     railBuildDays: 3,             // days of construction per rail edge
     railConvertDays: 4,           // days to convert captured enemy rail to your own supply net
     aiMobilizationDays: 10,       // the scripted AI masses and builds for this long before its first attack
-    supplyMaxHops: 8,             // rail edges from the capital a province can be supplied over
+    supplyMaxHops: 10,            // rail edges from the capital a province can be supplied over
     supplyPenaltyPerDay: 10,      // percent attack/defense lost per day out of supply
     supplyPenaltyMax: 50,         // effectiveness floor: never worse than -50 percent
     supplyGraceDays: 3,           // days out of supply before attrition starts
