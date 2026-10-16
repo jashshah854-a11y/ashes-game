@@ -654,11 +654,22 @@
         'be moving blind until something sees it.';
     }
     renderRailActions(p);
-    var cost = Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1);
-    btnF.disabled = !(mine && p.factoryLevel < Sim.CFG.maxFactoryLevel && state.nations.player.equipment >= cost);
-    btnF.textContent = p.factoryLevel >= Sim.CFG.maxFactoryLevel
-      ? 'Factory at max level'
-      : 'Build / Upgrade Factory (' + cost + ' eq)';
+    if (intel !== 'live') {
+      // Fog gate (Cycle 14 step 0): the factory button must not leak
+      // the true factory level of a remembered or dark province
+      // through its cost label or its max level text. A constant
+      // label, in the fort button pattern for non owned provinces.
+      // Owned provinces are always live, so this changes nothing
+      // the player can act on.
+      btnF.disabled = true;
+      btnF.textContent = 'Build / Upgrade Factory';
+    } else {
+      var cost = Sim.CFG.factoryCostPerLevel * (p.factoryLevel + 1);
+      btnF.disabled = !(mine && p.factoryLevel < Sim.CFG.maxFactoryLevel && state.nations.player.equipment >= cost);
+      btnF.textContent = p.factoryLevel >= Sim.CFG.maxFactoryLevel
+        ? 'Factory at max level'
+        : 'Build / Upgrade Factory (' + cost + ' eq)';
+    }
     renderFortButton(p, mine);
     renderAgentButton(p);
   }

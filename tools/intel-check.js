@@ -6,6 +6,12 @@
 // this file from the sim's own readouts (Sim.intelState,
 // Sim.intelLiveCount, Sim.intelSnapshot, Sim.agentStock,
 // Sim.stackPower, Sim.plantAgent) and CFG, never copied from a panel.
+// Cycle 14 step 0 extension: the factory button on the province
+// card is gated by the same readout. Two dark provinces whose true
+// factory levels differ (computed from the node mirror) must
+// render the identical constant factory button text, carrying no
+// level derived cost, and a remembered province must render that
+// same constant rather than its current or snapshot level cost.
 // Run 1, the unmodified game, paused before the first tick: every
 // tile's fog state matches the shared readout for all 70 provinces;
 // a dark tile (the Dominion capital) shows no owner color, badges,
@@ -120,6 +126,20 @@ async function tiles(page) {
     const theirDefs = frontUnits.filter((u) => u.nation === 'enemy');
     const livePreview = 'Attack ' + frontName + ': your stack power ' + Sim.stackPower(fresh, myStack, 'attack') +
       ' vs their defense ' + Sim.stackPower(fresh, theirDefs, 'defense');
+    // Cycle 14 step 0 staging: a second dark province whose true
+    // factory level differs from the dark capital's, so the two
+    // live cost labels computed from CFG would differ.
+    const otherDarkId = Object.keys(fresh.provinces).find((id) =>
+      id !== capId && Sim.intelState(fresh, 'player', id) === 'dark' &&
+      fresh.provinces[id].factoryLevel !== fresh.provinces[capId].factoryLevel);
+    if (!otherDarkId) throw new Error('staging assumption broken: no dark province with a factory level differing from the capital');
+    const factoryCostLabel = (id) => fresh.provinces[id].factoryLevel >= CFG.maxFactoryLevel
+      ? 'Factory at max level'
+      : 'Build / Upgrade Factory (' + (CFG.factoryCostPerLevel * (fresh.provinces[id].factoryLevel + 1)) + ' eq)';
+    const FACTORY_CONSTANT = 'Build / Upgrade Factory';
+    if (factoryCostLabel(capId) === factoryCostLabel(otherDarkId)) {
+      throw new Error('staging assumption broken: dark pair cost labels do not differ');
+    }
 
     // Run 1: the unmodified game at the start.
     let page = await newPage();
@@ -196,6 +216,15 @@ async function tiles(page) {
       details.indexOf('Factory level:') === -1 && details.indexOf('Units here:') === -1 &&
         details.indexOf('Owner:') === -1 && details.indexOf('Fortification:') === -1,
       details.slice(0, 240));
+    const darkFactoryBtnCap = (await page.textContent('#btn-factory')).replace(/\s+/g, ' ').trim();
+    await page.click('[data-prov="' + otherDarkId + '"]');
+    const darkFactoryBtnOther = (await page.textContent('#btn-factory')).replace(/\s+/g, ' ').trim();
+    check('factory button text is identical for two dark provinces whose true factory levels differ, and is the constant with no level cost',
+      darkFactoryBtnCap === FACTORY_CONSTANT && darkFactoryBtnOther === FACTORY_CONSTANT &&
+        darkFactoryBtnCap !== factoryCostLabel(capId) && darkFactoryBtnOther !== factoryCostLabel(otherDarkId),
+      'capital (' + fresh.provinces[capId].factoryLevel + '): "' + darkFactoryBtnCap + '" vs ' + otherDarkId +
+        ' (' + fresh.provinces[otherDarkId].factoryLevel + '): "' + darkFactoryBtnOther + '"; live labels would be "' +
+        factoryCostLabel(capId) + '" and "' + factoryCostLabel(otherDarkId) + '"');
     await page.close();
 
     // Run 2: remembered front province, staged as described above.
@@ -237,6 +266,15 @@ async function tiles(page) {
     check('preview against a remembered target shows no exact stack powers',
       unitText.indexOf('your stack power') === -1 && unitText.indexOf('vs their defense') === -1,
       unitText.slice(0, 300));
+    await page.click('[data-prov="' + front + '"]');
+    const rememberedFactoryBtn = (await page.textContent('#btn-factory')).replace(/\s+/g, ' ').trim();
+    const rememberedCostLabel = snapR.factoryLevel >= CFG.maxFactoryLevel
+      ? 'Factory at max level'
+      : 'Build / Upgrade Factory (' + (CFG.factoryCostPerLevel * (snapR.factoryLevel + 1)) + ' eq)';
+    check('factory button for a remembered province shows the same constant, not its current or snapshot level cost',
+      rememberedFactoryBtn === FACTORY_CONSTANT && rememberedFactoryBtn !== rememberedCostLabel &&
+        (await page.evaluate(() => document.getElementById('btn-factory').disabled)) === true,
+      '"' + rememberedFactoryBtn + '" vs snapshot cost label "' + rememberedCostLabel + '"');
     await page.close();
 
     // Run 3: dark front province, staged as described above.
