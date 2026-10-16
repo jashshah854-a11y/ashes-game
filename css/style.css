@@ -123,6 +123,12 @@ main {
   color: #ff9d9d; font-weight: bold; margin: 4px 0;
   padding: 2px 6px; border-left: 3px solid #ff9d9d; background: rgba(120, 30, 30, 0.35);
 }
+/* Cycle 11: a refused queue or retool attempt, shown in the open. */
+.prod-rejected {
+  color: #ff9d9d; font-weight: bold; font-size: 13px; line-height: 1.5;
+  margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid #ff9d9d;
+  background: rgba(120, 30, 30, 0.35);
+}
 .prod-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .prod-btns button { flex: 1 1 auto; font-size: 13px; padding: 5px 8px; }
 

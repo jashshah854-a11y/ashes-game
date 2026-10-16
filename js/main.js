@@ -18,14 +18,17 @@
   var shownTextureCount = 0; // texture records already queued this game (an index into state.textures)
   var pauseBeforeOverlay = null;
   var codexEntryId = 'ashwater';
+  var prodNotice = ''; // the last refused queue or retool reason, shown in the production panel until the next attempt
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
    'stat-equipment', 'stat-steel', 'stat-steel-income', 'stat-factories', 'stat-research',
+   'stat-manpower', 'stat-manpower-intake', 'manpower-explain',
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
    'btn-factory', 'btn-fort', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
-   'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
+   'prod-summary', 'prod-notice', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
+   'stat-enemy-manpower', 'stat-enemy-manpower-intake',
    'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close'
@@ -79,6 +82,7 @@
     shownBeats = {};
     cardQueue = [];
     shownTextureCount = 0;
+    prodNotice = '';
     codexEntryId = 'ashwater';
     pauseBeforeOverlay = null;
     el.eventOverlay.classList.add('hidden');
@@ -171,6 +175,19 @@
     el.statFactories.textContent = Sim.factoryLevels(state, 'player') +
       (idle > 0 ? ' (' + idle + ' idle today: production lines are paid first and the steel ran out)' : '');
     el.statResearch.textContent = n.researchPoints;
+    // Manpower, from the sim's readouts only: the pool new units are
+    // queued from, and the intake, which is provinces held times the
+    // per province rate, stated in plain words under the rows.
+    var playerProvs = Object.keys(state.provinces).filter(function (k) {
+      return state.provinces[k].owner === 'player';
+    }).length;
+    el.statManpower.textContent = Sim.manpowerPool(state, 'player');
+    el.statManpowerIntake.textContent = Sim.manpowerIntake(state, 'player');
+    el.manpowerExplain.textContent =
+      'Manpower is the pool new units are queued from, paid in full when you queue an order. ' +
+      'It grows by ' + Sim.CFG.manpowerPerProvincePerDay + ' per day for each province you hold ' +
+      '(you hold ' + playerProvs + ', so ' + Sim.manpowerIntake(state, 'player') + ' per day). ' +
+      'Taking ground raises the intake, losing ground lowers it.';
     el.statDroneGen.textContent = n.droneGen2 ? 'Gen 2' : 'Gen 1';
     el.btnResearch.disabled = n.droneGen2 || n.researchPoints < Sim.CFG.droneGen2Cost;
     el.btnResearch.textContent = n.droneGen2
@@ -196,6 +213,10 @@
     el.statEnemyForts.textContent = forts.length ? forts.join(', ') : 'none';
     el.statEnemyLines.textContent = enemyLines + ' of ' + Sim.CFG.maxProductionLines +
       (enemyNext ? ' (next at ' + enemyNext.required + ' factory levels)' : '');
+    // The Dominion queues from the same kind of pool, fed by the same
+    // per province intake, so its numbers sit beside yours.
+    el.statEnemyManpower.textContent = Sim.manpowerPool(state, 'enemy');
+    el.statEnemyManpowerIntake.textContent = Sim.manpowerIntake(state, 'enemy');
 
     renderProduction();
     renderProvinceCard();
@@ -256,7 +277,12 @@
     el.prodSummary.textContent =
       'Production drain: ' + Sim.productionDrain(state, 'player') + ' steel per day. ' +
       Sim.queuedUnits(state, 'player') + ' units in queues. ' +
+      'Manpower pool: ' + Sim.manpowerPool(state, 'player') + ' (queueing draws from this pool). ' +
       'Finished units deploy at ' + capName + '.';
+    // A refused queue or retool attempt shows its reason here, in the
+    // open, until the next attempt replaces or clears it.
+    el.prodNotice.textContent = prodNotice;
+    el.prodNotice.className = prodNotice ? 'prod-rejected' : 'hidden';
 
     el.productionLines.innerHTML = '';
     (n.productionLines || []).forEach(function (line) {
@@ -269,7 +295,8 @@
 
       row.appendChild(textDiv('prod-title', 'Line ' + line.id + ': ' + t.label));
       row.appendChild(textDiv('prod-row', t.steelCost + ' steel over ' + Sim.lineBuildDays(line) +
-        ' ' + dayWord(Sim.lineBuildDays(line)) + ' at current efficiency (base ' + t.buildDays + ' ' + dayWord(t.buildDays) + ')'));
+        ' ' + dayWord(Sim.lineBuildDays(line)) + ' at current efficiency (base ' + t.buildDays + ' ' + dayWord(t.buildDays) + '), plus ' +
+        Sim.manpowerCost(line.template) + ' manpower paid in full when queued'));
       row.appendChild(textDiv('prod-row prod-eff', efficiencyLine(line, t)));
       row.appendChild(textDiv('prod-row', line.queue + ' in queue (max ' + Sim.CFG.maxQueuePerLine + ')'));
 
@@ -315,7 +342,8 @@
       qBtn.textContent = 'Queue ' + t.label + ' (+1)';
       qBtn.disabled = line.queue >= Sim.CFG.maxQueuePerLine;
       qBtn.addEventListener('click', function () {
-        Sim.queueProduction(state, 'player', line.id);
+        var res = Sim.queueProduction(state, 'player', line.id);
+        prodNotice = res && !res.ok ? res.reason : '';
         render();
       });
       btns.appendChild(qBtn);
@@ -324,7 +352,8 @@
       rBtn.type = 'button';
       rBtn.textContent = 'Retool to ' + other.label;
       rBtn.addEventListener('click', function () {
-        Sim.assignLineTemplate(state, 'player', line.id, otherTemplate);
+        var res = Sim.assignLineTemplate(state, 'player', line.id, otherTemplate);
+        prodNotice = res && !res.ok ? res.reason : '';
         render();
       });
       btns.appendChild(rBtn);
@@ -505,7 +534,7 @@
       'Attack ' + st.attack + ', Defense ' + st.defense +
       (st.fortBonus > 0 ? ' (includes +' + st.fortBonus + '% from fortifications here)' : '') +
       (u.type === 'drone' ? ' (Drone ' + (state.nations.player.droneGen2 ? 'Gen 2' : 'Gen 1') + ')' : '') + '<br>' +
-      'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days at base speed on a production line (a practiced line builds faster; the Production panel shows each line\'s live days).<br>' +
+      'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days at base speed on a production line (a practiced line builds faster; the Production panel shows each line\'s live days), plus ' + Sim.manpowerCost(u.type) + ' manpower paid in full from the pool when queued.<br>' +
       supplyText + '<br>' +
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
   }

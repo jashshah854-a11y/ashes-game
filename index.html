@@ -42,22 +42,27 @@
       <div class="stat-row"><span>Steel stockpile</span><strong id="stat-steel">0</strong></div>
       <div class="stat-row"><span>Steel income / day</span><strong id="stat-steel-income">0</strong></div>
       <div class="stat-row"><span>Factory levels</span><strong id="stat-factories">0</strong></div>
+      <div class="stat-row"><span>Manpower pool</span><strong id="stat-manpower">0</strong></div>
+      <div class="stat-row"><span>Manpower intake / day</span><strong id="stat-manpower-intake">0</strong></div>
       <div class="stat-row"><span>Research points</span><strong id="stat-research">0</strong></div>
       <div class="stat-row"><span>Drone generation</span><strong id="stat-drone-gen">Gen 1</strong></div>
       <button id="btn-research" type="button">Research Drone Gen 2 (60 pts)</button>
       <p class="explain" id="research-explain">Gen 2 raises every drone wing to attack 5, defense 3.</p>
+      <p class="explain" id="manpower-explain"></p>
     </div>
 
     <div class="card" id="production-card">
       <h2>Production</h2>
       <div id="prod-summary" class="prod-summary"></div>
+      <div id="prod-notice" class="hidden"></div>
       <div id="production-lines" class="production-lines"></div>
       <p class="explain" id="prod-explain">Lines build one unit at a time and drain steel every day
       while they work. Lines are paid before factories. If the steel stockpile cannot pay a line
       for a day, that line stalls and makes no progress. A finished unit deploys at your capital. A line that keeps building
       the same template gains efficiency on every funded working day and finishes units sooner, up to full efficiency at 150%.
       Retooling a line to the other template scraps the unit in progress, loses the steel already spent on it, and drops
-      the line's efficiency back to its starting 100%.</p>
+      the line's efficiency back to its starting 100%. Queuing a unit also pays its manpower cost in full from your
+      manpower pool, beside its steel cost; a queue attempt the pool cannot pay is refused, and the panel shows the reason.</p>
     </div>
 
     <div class="card" id="province-card">
@@ -83,6 +88,8 @@
       <div class="stat-row"><span>Drone generation</span><strong id="stat-enemy-gen">Gen 1</strong></div>
       <div class="stat-row"><span>Factory levels</span><strong id="stat-enemy-factories">0</strong></div>
       <div class="stat-row"><span>Production lines open</span><strong id="stat-enemy-lines">2</strong></div>
+      <div class="stat-row"><span>Manpower pool</span><strong id="stat-enemy-manpower">0</strong></div>
+      <div class="stat-row"><span>Manpower intake / day</span><strong id="stat-enemy-manpower-intake">0</strong></div>
       <div class="stat-row"><span>Fortified provinces</span><strong id="stat-enemy-forts">none</strong></div>
       <p class="explain">Dominion doctrine: it masses for 10 days, attacks only at clear
       superiority (about 1.5x your defense), and never attacks while its own units are
