@@ -442,7 +442,28 @@ each printing the same no effect sentence as the turning point cards:
    unchanged at 31). No new taste item was created by
    this step, and the six navy taste questions below
    stay parked exactly as the Cycle 13 judge left
-   them. Cycle 14, Navy, is
+   them. Cycle 14 step 3 is now also done: the formal
+   navy tests (suite 106), the binding traces, and the
+   committed Cycle 14 baseline, with the passive seed
+   2024 break restored by one tuning slice in its own
+   commit (CFG.supplyMaxHops 8 to 10: the frozen
+   Dominion stack at p2_3 sat at 9 rail hops from its
+   capital, one past the old cap; exactly one of the 32
+   balance rows changed). The hop cap is a loop tuned
+   number, recorded here so you can veto it with the
+   rest, not a taste call made for you. One honest
+   limit from that step: blockade never fires in any
+   of the 32 standard harness campaigns (both scripted
+   armies fight the capital row, never the coastal
+   rows); its binding evidence is a staged trace
+   through the real income path (9 steel per day on
+   three consecutive days), and the river crossing
+   binds in a real campaign (an unsupported flank
+   crossing quoted 3 against an open 4, a flotilla
+   supported capital row crossing quoted the full 4).
+   No new taste item was created by this step, and the
+   six navy taste questions below stay parked exactly
+   as the Cycle 13 judge left them. Cycle 14, Navy, is
    prescribed in full in CYCLE_LOG at this step, starting
    at step 0 with that carried flag, then step 1
    (flotillas built through a priced production template
@@ -680,7 +701,9 @@ done: that flag is closed, as recorded in item 2
 above. Cycle 14 step 1 is now also done: navy in the
 sim, as recorded in item 2 above. Cycle 14 step 2 is
 now also done: navy on screen, as recorded in item 2
-above. Cycle 14 (Navy) is prescribed
+above. Cycle 14 step 3 is now also done: formal navy
+tests, the binding traces, and the Cycle 14 baseline,
+as recorded in item 2 above. Cycle 14 (Navy) is prescribed
 in full in CYCLE_LOG, with six more taste questions
 parked in item 2 above, all undecided and blocking
 nothing. The work runs without waiting on any
