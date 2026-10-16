@@ -269,9 +269,10 @@
   // from them, and the panel (step 2) reads them, so the sim, the AI
   // (which orders and builds through the same paths), and any estimate
   // can never disagree. All integer arithmetic: work points are whole,
-  // and the only division is the stated ceiling for a fresh unit's
-  // effective build days. A line object staged without the new fields
-  // (an older state) reads as a fresh line at the floor.
+  // and the day counts are exact, computed by iterating the documented
+  // rise the same way productionPhase charges it. A line object staged
+  // without the new fields (an older state) reads as a fresh line at
+  // the floor.
   function lineEfficiency(line) {
     if (!line || typeof line.efficiency !== 'number') return CFG.lineEfficiencyFloor;
     return line.efficiency;
@@ -288,22 +289,41 @@
     return lineEfficiency(line);
   }
 
-  // Funded days a fresh unit would take on this line at its current
-  // efficiency, if the efficiency never moved during the build. The
-  // real build can only be this or faster, because efficiency rises
-  // while the line works and never falls except on a retool.
+  // Exact funded days a fresh unit takes on this line, counting the
+  // rise productionPhase applies after each funded day: each day adds
+  // the current efficiency as work, then efficiency rises by the CFG
+  // rise toward the cap, until the work reaches the need. This is the
+  // number productionPhase charges, not a ceiling at the starting
+  // efficiency.
   function lineBuildDays(line) {
     if (!line) return null;
-    return Math.ceil(productionWorkNeeded(line.template) / lineWorkPerDay(line));
+    var need = productionWorkNeeded(line.template);
+    var eff = lineEfficiency(line);
+    var work = 0;
+    var days = 0;
+    while (work < need) {
+      work += eff;
+      days += 1;
+      eff = Math.min(CFG.lineEfficiencyCap, eff + CFG.lineEfficiencyRisePerDay);
+    }
+    return days;
   }
 
-  // Funded days left on the unit in progress at the line's current
-  // efficiency, on the same ceiling rule. Zero when nothing is queued.
+  // Exact funded days left on the unit in progress, by the same
+  // iteration against the work remaining, starting from the line's
+  // current efficiency. Zero when nothing is queued.
   function lineDaysLeft(line) {
     if (!line || line.queue <= 0) return 0;
     var left = productionWorkNeeded(line.template) - (line.work || 0);
     if (left <= 0) return 0;
-    return Math.ceil(left / lineWorkPerDay(line));
+    var eff = lineEfficiency(line);
+    var days = 0;
+    while (left > 0) {
+      left -= eff;
+      days += 1;
+      eff = Math.min(CFG.lineEfficiencyCap, eff + CFG.lineEfficiencyRisePerDay);
+    }
+    return days;
   }
 
   // Steel per day all of a nation's working lines want right now.

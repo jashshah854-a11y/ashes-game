@@ -1441,11 +1441,12 @@ test('efficiency: the charged number through productionPhase equals the shared r
   });
 });
 
-test('efficiency: a fresh readout is the longest a unit can take, and a mid build boundary crossing finishes a day sooner', () => {
-  // lineBuildDays is documented in the sim as the days at the current
-  // efficiency if it never moved during the build; because it rises
-  // while the line works, the real build is that or faster, never
-  // slower. Pinned across every efficiency for both templates.
+test('efficiency: the readout is exact, charged days equal it at every efficiency, and the band case is pinned', () => {
+  // lineBuildDays is exact in funded days (Cycle 10 step 0): it
+  // iterates the documented rise the same way productionPhase
+  // charges it, so the days charged through productionPhase equal
+  // the readout at every efficiency for both templates, not merely
+  // never longer than it.
   for (let eff = Sim.CFG.lineEfficiencyFloor; eff <= Sim.CFG.lineEfficiencyCap; eff++) {
     [['infantry', 1], ['drone', 2]].forEach(([template, lineId]) => {
       const s = Sim.createGame(173);
@@ -1454,25 +1455,47 @@ test('efficiency: a fresh readout is the longest a unit can take, and a mid buil
       line.efficiency = eff;
       line.work = 0;
       const readout = Sim.lineBuildDays(line);
-      Sim.queueProduction(s, 'player', lineId);
+      const q = Sim.queueProduction(s, 'player', lineId);
+      assert.strictEqual(q.buildDays, readout, template + ' at ' + eff + ': queue quotes the readout');
       const done = runUntilComplete(s, 'player', 20);
-      assert.ok(done.day >= 1 && done.day <= readout, template + ' at ' + eff + ': ' + done.day + ' funded days, readout ' + readout);
+      assert.strictEqual(done.day, readout, template + ' at ' + eff + ': ' + done.day + ' funded days, readout ' + readout);
       assert.strictEqual(done.spent, done.day * Sim.lineSteelPerDay(template));
     });
   }
-  // The stated boundary case: infantry staged at 116 to 119 percent
-  // quotes 6 days at its starting efficiency and finishes in 5,
-  // because the rising work crosses the 600 point need a day early.
+  // The band case from the Cycle 9 judge Flag 1: infantry staged at
+  // 118 percent quotes 5 and is charged 5 funded days for 25 steel,
+  // because the rising work crosses the 600 point need on day 5.
   const s = Sim.createGame(179);
   s.nations.player.steel = 1000;
   const line = Sim.productionLine(s, 'player', 1);
   line.efficiency = 118;
   line.work = 0;
-  assert.strictEqual(Sim.lineBuildDays(line), 6);
-  Sim.queueProduction(s, 'player', 1);
+  assert.strictEqual(Sim.lineBuildDays(line), 5);
+  const q = Sim.queueProduction(s, 'player', 1);
+  assert.strictEqual(q.buildDays, 5);
   const done = runUntilComplete(s, 'player', 20);
   assert.strictEqual(done.day, 5);
   assert.strictEqual(done.spent, 25);
+  // An in progress lineDaysLeft case in the same band, pinned equal
+  // to the funded days actually remaining: at 118 percent with 118
+  // work already paid, 482 points remain; the rising days add 118,
+  // 120, 122, and 124, so exactly 4 funded days remain.
+  const s2 = Sim.createGame(181);
+  s2.nations.player.steel = 1000;
+  const line2 = Sim.productionLine(s2, 'player', 1);
+  line2.efficiency = 118;
+  line2.work = 0;
+  Sim.queueProduction(s2, 'player', 1);
+  Sim.productionPhase(s2, 'player');
+  assert.strictEqual(line2.work, 118);
+  assert.strictEqual(line2.efficiency, 120);
+  // Restart the band measurement from a clean in progress state at
+  // 118 percent with one day of work in, as a player would see it.
+  line2.efficiency = 118;
+  assert.strictEqual(Sim.lineDaysLeft(line2), 4);
+  const done2 = runUntilComplete(s2, 'player', 20);
+  assert.strictEqual(done2.day, 4);
+  assert.strictEqual(done2.spent, 20);
 });
 
 test('efficiency: retooling drops efficiency to the floor and scraps the work together, and a same template assign loses nothing', () => {
