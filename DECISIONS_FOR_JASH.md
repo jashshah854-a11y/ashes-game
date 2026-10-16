@@ -134,11 +134,18 @@ was invented by the loop, not by you:
    the rising efficiency; the judge prescribed making the two
    readout day functions exact in js/sim.js, with the charge
    path untouched, and assigned it to Cycle 10 step 0. Cycle 9
-   is complete. Cycle 10, the second lore pass, is next as
-   prescribed in CYCLE_LOG, starting at step 0 with that flag.
-   No new taste item was created by step 0,
-   step 1, step 2, step 3, or step 4; step 0 was a prescribed defect fix and
-   steps 1 to 3 are loop tuning, display, and tests under the judge's
+   is complete. Cycle 10, the second lore pass, is now in
+   progress as prescribed in CYCLE_LOG: step 0 is done (that flag
+   closed: both readout day functions are now exact in js/sim.js
+   by iterating the rise, the charge path untouched, infantry at
+   118 percent now quotes 5 and charges 5 for 25 steel, the test
+   repinned to equality across every efficiency, suite 65, balance
+   byte identical to tools/baseline-cycle9.txt, all four browser
+   checks passing). Steps 1 to 4 of Cycle 10 remain.
+   No new taste item was created by Cycle 9 step 0,
+   step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
+   step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
+   are loop tuning, display, and tests under the judge's
    prescription. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
@@ -261,5 +268,6 @@ its step 4 judge (PASS WITH FIX-NOW FLAGS). Cycle 9 (Production
 Line Efficiency Ramps) is complete through its step 4 judge
 (PASS WITH FIX-NOW FLAGS, the one flag carried to Cycle 10
 step 0 by the judge's own prescription). Cycle 10 (the second
-lore pass) is next,
+lore pass) is in progress: step 0 is done (that flag closed, the
+readout exact), steps 1 to 4 remain,
 and the work runs without waiting on any item above.
