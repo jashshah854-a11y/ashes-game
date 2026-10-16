@@ -403,7 +403,11 @@ each printing the same no effect sentence as the turning point cards:
    provinces; it is carried to Cycle 14 step 0 with its
    fix prescribed (a constant, level free label for non
    live provinces, and the intel check extended to pin
-   it). Cycle 13 is complete. Cycle 14, Navy, is
+   it). Cycle 13 is complete. Cycle 14 step 0 is now
+   also done: that flag is closed (a constant, level free
+   factory button label for non live provinces, the intel
+   check extended to 31 of 31, suite 98, balance byte
+   identical to tools/baseline-cycle13.txt). Cycle 14, Navy, is
    prescribed in full in CYCLE_LOG at this step, starting
    at step 0 with that carried flag, then step 1
    (flotillas built through a priced production template
@@ -636,7 +640,9 @@ also done, as recorded in item 2 above. Cycle 13 step 4
 (a fresh judge) is now also done: PASS WITH FIX-NOW
 FLAGS, its one flag (the factory button fog leak, a
 defect, not taste) carried to Cycle 14 step 0, so
-Cycle 13 is complete, and Cycle 14 (Navy) is prescribed
+Cycle 13 is complete. Cycle 14 step 0 is now also
+done: that flag is closed, as recorded in item 2
+above. Cycle 14 (Navy) is prescribed
 in full in CYCLE_LOG, with six more taste questions
 parked in item 2 above, all undecided and blocking
 nothing. The work runs without waiting on any
