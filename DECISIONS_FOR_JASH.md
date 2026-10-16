@@ -305,7 +305,22 @@ each printing the same no effect sentence as the turning point cards:
    wing unit card states its generation, production lines
    can be retooled to Interceptors from the panel, and the
    new tools/drone-ew-check.js passes 28 of 28 in a real
-   browser. Steps 3 and 4 remain.
+   browser. Step 3 is now also done: 10 formal drones and
+   EW tests bring the suite to 90, the launches free for
+   the enemy mutant fails exactly the mirrored parity
+   test and is clean against the pre step suite, the
+   mechanic moves in real campaigns on every harness
+   profile (sensible seed 42, public commands only:
+   the player forces 8 Dominion launches for 400 steel
+   and ends at net plus 445), the balance rerun is
+   committed as tools/baseline-cycle12.txt with every
+   ruling band passing and no tuning slice, and the
+   scoreboard's honest limit is stated in BACKLOG.md:
+   it records steel only, decides nothing, pays for
+   nothing, and changes no win condition. Step 4 (a
+   fresh judge) remains. The five taste questions above
+   stay parked exactly as the Cycle 11 judge left them,
+   undecided by this step.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -455,6 +470,8 @@ full in CYCLE_LOG, starting at step 1 with no step 0 and
 no carried flag; step 1 (the sim: interceptor launches,
 the exchange ledger, and the EW generation counter) is
 done, step 2 (the scoreboard, preview lines, and research
-surfaces on screen, drone-ew check 28 of 28) is done, and
-steps 3 and 4 remain; the work runs without
+surfaces on screen, drone-ew check 28 of 28) is done,
+step 3 (tests and balance: suite 90, the movement trace
+recorded, tools/baseline-cycle12.txt committed) is done,
+and step 4 (a fresh judge) remains; the work runs without
 waiting on any item above.
