@@ -28,6 +28,21 @@
 // can only move in 20 percent steps, too coarse for a ramp, and a
 // changing drain would conflate experience with a price discount.
 //
+// Cycle 11 step 1 note: manpower. Each nation holds one manpower pool.
+// It starts at CFG.manpowerStart, grows every day by
+// CFG.manpowerPerProvincePerDay for each province the nation owns
+// (captured ground raises intake, lost ground lowers it), and is paid
+// in full at queue time through queueProduction, the one ordering
+// path both nations share: an infantry division costs
+// CFG.unitTypes.infantry.manpowerCost, a drone wing a small crew
+// cost, never zero. A queue attempt the pool cannot pay is rejected
+// with the real numbers and charges nothing. Retooling a line with
+// queued orders settles the difference between the old and new
+// template costs for every queued order, so a cheap queue cannot be
+// retooled into an expensive unit for free. No other rule reads the
+// pool: combat, supply, odds, and the steel and equipment prices are
+// untouched by it.
+//
 // Cycle 10 step 1 note: recurring event texture. Three repeatable
 // campaign facts (a fortification completed, a captured rail conversion
 // finished, a production line reaching full efficiency) are recorded in
@@ -75,6 +90,8 @@
     lineEfficiencyFloor: 100,     // percent: a fresh or retooled line builds at the base speed
     lineEfficiencyCap: 150,       // percent: the most a practiced line can reach
     lineEfficiencyRisePerDay: 2,  // percent gained per funded working day on the current template
+    manpowerStart: 1200,          // manpower pool each nation starts with, identical for player and AI
+    manpowerPerProvincePerDay: 1, // daily manpower intake for each province the nation owns
     campaignBeats: true,          // record the turning points the lore marks (state.beats); no rule reads them
     campaignTextures: true,       // record recurring event texture (state.textures); no rule reads them
     fortMaxLevel: 2,              // fortification levels a province can hold
@@ -86,8 +103,8 @@
       // cost is the steel cost per unit, paid as a daily drain over
       // buildDays while the line works (steelPerDay = cost / buildDays,
       // kept a whole number for both templates so every number is visible).
-      infantry: { label: 'Infantry Division', attack: 4, defense: 4, strength: 12, cost: 30, steelCost: 30, buildDays: 6 },
-      drone:    { label: 'Drone Wing',        attack: 3, defense: 2, strength: 6,  cost: 15, steelCost: 15, buildDays: 3 }
+      infantry: { label: 'Infantry Division', attack: 4, defense: 4, strength: 12, cost: 30, steelCost: 30, buildDays: 6, manpowerCost: 120 },
+      drone:    { label: 'Drone Wing',        attack: 3, defense: 2, strength: 6,  cost: 15, steelCost: 15, buildDays: 3, manpowerCost: 25 }
     },
     droneGen2: { attack: 5, defense: 3 }  // drone stats once Drone Gen 2 is researched
   };
@@ -346,19 +363,75 @@
     }, 0);
   }
 
-  // Order one more unit from a line. Nothing is paid up front and no
-  // unit appears today: the cost lands as the daily drain while the
-  // line builds it. This replaces the old instant whole-unit purchase.
+  // ---------- Manpower (Cycle 11) ----------
+  // The one readout family every manpower number comes from, in the
+  // line efficiency pattern: queueProduction charges through these,
+  // incomePhase accrues through these, and the panel (step 2) will
+  // read them, so the sim, the AI (which orders through the same
+  // queueProduction path and is bound by the same pool), and any
+  // quote can never disagree. A nation object staged without the
+  // field (an older state) reads as a fresh pool at the start value.
+  function manpowerCost(template) {
+    var t = CFG.unitTypes[template];
+    return t ? t.manpowerCost : null;
+  }
+
+  function manpowerPool(state, nationId) {
+    var n = state.nations[nationId];
+    return typeof n.manpower === 'number' ? n.manpower : CFG.manpowerStart;
+  }
+
+  // Daily intake: one CFG rate times the provinces the nation owns
+  // right now, so captured ground raises it and lost ground lowers
+  // it on the next income phase, for both nations by the same count.
+  function manpowerIntake(state, nationId) {
+    return nationProvinces(state, nationId).length * CFG.manpowerPerProvincePerDay;
+  }
+
+  function ensureManpower(state, nationId) {
+    var n = state.nations[nationId];
+    if (typeof n.manpower !== 'number') n.manpower = CFG.manpowerStart;
+    return n;
+  }
+
+  // The refusal for a queue attempt the manpower pool cannot pay,
+  // with real numbers, in the locked line pattern. Nothing is queued,
+  // nothing is charged, and nothing is logged.
+  function manpowerResult(state, nationId, template) {
+    var cost = manpowerCost(template);
+    var pool = manpowerPool(state, nationId);
+    if (pool >= cost) return null;
+    var t = CFG.unitTypes[template];
+    return {
+      ok: false, manpower: true, template: template,
+      manpowerCost: cost, current: pool, missing: cost - pool,
+      reason: 'Not enough manpower to queue a ' + t.label + '. It costs ' +
+        cost + ' manpower, you have ' + pool + ', you are ' + (cost - pool) + ' short.'
+    };
+  }
+
+  // Order one more unit from a line. The steel cost is not paid up
+  // front (it lands as the daily drain while the line builds), and
+  // no unit appears today, but the manpower cost is paid in full at
+  // queue time: there is no queue cancel to refund through, so the
+  // pool is the gate at the moment of ordering. This replaces the
+  // old instant whole-unit purchase.
   function queueProduction(state, nationId, lineId) {
     syncProductionLines(state, nationId);
     var line = productionLine(state, nationId, lineId);
     if (!line) return lockedLineResult(state, nationId, lineId) || { ok: false, reason: 'no such production line' };
     if (line.queue >= CFG.maxQueuePerLine) return { ok: false, reason: 'queue is full' };
+    var short = manpowerResult(state, nationId, line.template);
+    if (short) return short;
+    var n = ensureManpower(state, nationId);
+    var mpCost = manpowerCost(line.template);
+    n.manpower -= mpCost;
     line.queue += 1;
     var t = CFG.unitTypes[line.template];
     logEvent(state, state.nations[nationId].short + ' queue a ' + t.label +
-      ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + lineBuildDays(line) + ' days).');
-    return { ok: true, line: line, template: line.template, cost: t.steelCost, buildDays: lineBuildDays(line) };
+      ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + lineBuildDays(line) +
+      ' days, ' + mpCost + ' manpower).');
+    return { ok: true, line: line, template: line.template, cost: t.steelCost, manpowerCost: mpCost, buildDays: lineBuildDays(line) };
   }
 
   // Retool a line to a different template. Work already done on the
@@ -370,6 +443,32 @@
     if (!line) return lockedLineResult(state, nationId, lineId) || { ok: false, reason: 'no such production line' };
     if (!CFG.unitTypes[template]) return { ok: false, reason: 'no such unit template' };
     if (line.template === template) return { ok: true, line: line, template: template, retooled: false };
+    // Queued orders were paid in manpower for the old template at
+    // queue time and the queue count carries over, so settle the
+    // difference for every queued order before the switch: a cheaper
+    // new template refunds the difference, a dearer one charges it,
+    // and a switch the pool cannot pay for is rejected with the real
+    // numbers and changes nothing. Without this, queueing drone
+    // wings and retooling the line would field infantry at the crew
+    // price. Steel is untouched here, as before: the work in
+    // progress and the steel drained into it stay scrapped.
+    var mpDelta = (manpowerCost(template) - manpowerCost(line.template)) * line.queue;
+    if (mpDelta > 0) {
+      var poolNow = manpowerPool(state, nationId);
+      if (poolNow < mpDelta) {
+        return {
+          ok: false, manpower: true, template: template,
+          manpowerCost: manpowerCost(template), current: poolNow, missing: mpDelta - poolNow,
+          reason: 'Not enough manpower to retool line ' + line.id + '. Its ' + line.queue +
+            ' queued ' + (line.queue === 1 ? 'order was' : 'orders were') + ' paid as ' +
+            CFG.unitTypes[line.template].label + ' at ' + manpowerCost(line.template) +
+            ' manpower each; as ' + CFG.unitTypes[template].label + ' at ' +
+            manpowerCost(template) + ' each, retooling needs ' + mpDelta +
+            ' more manpower, you have ' + poolNow + ', you are ' + (mpDelta - poolNow) + ' short.'
+        };
+      }
+    }
+    if (mpDelta !== 0) ensureManpower(state, nationId).manpower -= mpDelta;
     line.template = template;
     line.progressDays = 0;
     line.work = 0;
@@ -377,7 +476,7 @@
     line.stalled = false;
     logEvent(state, state.nations[nationId].short + ' retool line ' + line.id +
       ' to ' + CFG.unitTypes[template].label + '. Work in progress is scrapped.');
-    return { ok: true, line: line, template: template, retooled: true };
+    return { ok: true, line: line, template: template, retooled: true, manpowerDelta: mpDelta };
   }
 
   // One day of production for one nation. Lines are paid in id order
@@ -445,13 +544,13 @@
       nations: {
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
-          equipment: 60, steel: 20, researchPoints: 0,
+          equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
           droneGen2: false, capitalId: provinceId(0, 3),
           productionLines: makeProductionLines()
         },
         enemy: {
           id: 'enemy', name: 'The Khessite Dominion', short: 'Khessite',
-          equipment: 60, steel: 20, researchPoints: 0,
+          equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
           droneGen2: false, capitalId: provinceId(CFG.mapW - 1, 3),
           productionLines: makeProductionLines()
         }
@@ -1199,9 +1298,10 @@
   }
 
   function incomePhase(state, nationId) {
-    var n = state.nations[nationId];
+    var n = ensureManpower(state, nationId);
     n.steel += steelIncome(state, nationId);
     n.researchPoints += CFG.researchPerDay;
+    n.manpower += manpowerIntake(state, nationId);
   }
 
   // Factory levels each eat steel and make equipment. A level the
@@ -1265,7 +1365,7 @@
       if (lines[i].template === type) {
         var res = queueProduction(state, nationId, lines[i].id);
         if (!res.ok) return res;
-        return { ok: true, queued: true, line: lines[i], cost: res.cost, buildDays: res.buildDays };
+        return { ok: true, queued: true, line: lines[i], cost: res.cost, manpowerCost: res.manpowerCost, buildDays: res.buildDays };
       }
     }
     return { ok: false, reason: 'no production line is assigned to that template' };
@@ -1535,6 +1635,9 @@
     lineWorkPerDay: lineWorkPerDay,
     lineBuildDays: lineBuildDays,
     lineDaysLeft: lineDaysLeft,
+    manpowerCost: manpowerCost,
+    manpowerPool: manpowerPool,
+    manpowerIntake: manpowerIntake,
     syncProductionLines: syncProductionLines,
     unlockedLineCount: unlockedLineCount,
     isLineUnlocked: isLineUnlocked,
