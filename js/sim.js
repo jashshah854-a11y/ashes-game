@@ -28,6 +28,28 @@
 // can only move in 20 percent steps, too coarse for a ramp, and a
 // changing drain would conflate experience with a price discount.
 //
+// Cycle 12 step 1 note: drones and EW. Each nation holds an interceptor
+// stockpile (CFG.interceptorStart at the start), replenished only by
+// building Interceptors on a production line like any other template
+// (CFG.unitTypes.interceptor: 50 steel over 5 days and 10 manpower,
+// against a drone wing's 15 steel and 25 manpower, so one interceptor
+// costs 3.3 times a drone wing's steel). The template never deploys a
+// map unit: productionPhase adds one to the stockpile instead. When a
+// side fighting in defense mode faces attacking drone wings, it
+// launches one interceptor per attacking drone wing, up to its stock,
+// before the first round, inside fightRounds, the shared combat path:
+// the targeted drones (lowest unit id first) die to the interceptors,
+// not to battle damage, and their attack never counts. Road meetings
+// (both sides in attack mode) launch nothing. Every destruction and
+// launch is priced in steel from CFG into state.exchange, a record
+// only ledger no rule reads. Drone effectiveness in battle is one
+// shared readout, droneEffectiveness: 100 plus CFG.ewStepPct times
+// (the drone nation's drone generation minus the opposing nation's
+// jamming generation), clamped to CFG.ewFloorPct to CFG.ewCapPct,
+// applied inside unitStats to a drone wing's attack and defense.
+// Research gains Drone Gen 3 (needs Gen 2, base stats 6 and 4) and
+// Jamming Gen 1 then Gen 2, bought from the same research pool.
+//
 // Cycle 11 step 1 note: manpower. Each nation holds one manpower pool.
 // It starts at CFG.manpowerStart, grows every day by
 // CFG.manpowerPerProvincePerDay for each province the nation owns
@@ -70,6 +92,12 @@
     equipPerFactoryLevel: 5,      // equipment produced per factory level per day
     researchPerDay: 3,
     droneGen2Cost: 60,            // research points
+    droneGen3Cost: 90,            // research points, requires Drone Gen 2
+    jammingCosts: [50, 80],       // research points for Jamming Gen 1, then Gen 2, in order
+    ewStepPct: 25,                // drone effectiveness percent per generation of advantage
+    ewFloorPct: 50,               // drone effectiveness floor, percent
+    ewCapPct: 150,                // drone effectiveness cap, percent
+    interceptorStart: 4,          // interceptors each nation starts with, identical for player and AI
     factoryCostPerLevel: 40,      // equipment, multiplied by target level
     maxFactoryLevel: 3,
     infantryCost: 30,
@@ -104,9 +132,14 @@
       // buildDays while the line works (steelPerDay = cost / buildDays,
       // kept a whole number for both templates so every number is visible).
       infantry: { label: 'Infantry Division', attack: 4, defense: 4, strength: 12, cost: 30, steelCost: 30, buildDays: 6, manpowerCost: 120 },
-      drone:    { label: 'Drone Wing',        attack: 3, defense: 2, strength: 6,  cost: 15, steelCost: 15, buildDays: 3, manpowerCost: 25 }
+      drone:    { label: 'Drone Wing',        attack: 3, defense: 2, strength: 6,  cost: 15, steelCost: 15, buildDays: 3, manpowerCost: 25 },
+      // A production template only: a finished Interceptor joins the
+      // nation's interceptor stockpile and never takes the field, so
+      // its attack, defense, and strength are never used in a battle.
+      interceptor: { label: 'Interceptor',    attack: 0, defense: 0, strength: 1,  cost: 50, steelCost: 50, buildDays: 5, manpowerCost: 10 }
     },
-    droneGen2: { attack: 5, defense: 3 }  // drone stats once Drone Gen 2 is researched
+    droneGen2: { attack: 5, defense: 3 },  // drone stats once Drone Gen 2 is researched
+    droneGen3: { attack: 6, defense: 4 }   // drone stats once Drone Gen 3 is researched
   };
 
   // ---------- Seeded RNG (mulberry32) ----------
@@ -363,6 +396,83 @@
     }, 0);
   }
 
+  // ---------- Drones, EW, interceptors, and the exchange (Cycle 12) ----------
+  // One readout family for the whole cycle, in the manpower pattern:
+  // unitStats applies droneEffectiveness, fightRounds spends
+  // interceptorStock and writes the exchange ledger through
+  // recordExchange, and the panel (step 2) will read the same
+  // functions, so the battle, the preview, the AI estimate, and any
+  // quote can never disagree. The two nations are the only opponents
+  // in this theater, so a nation's opposing nation is the other one.
+  function opposingNation(nationId) { return nationId === 'player' ? 'enemy' : 'player'; }
+
+  function droneGeneration(state, nationId) {
+    var n = state.nations[nationId];
+    if (n.droneGen3) return 3;
+    if (n.droneGen2) return 2;
+    return 1;
+  }
+
+  function jammingGeneration(state, nationId) {
+    var g = state.nations[nationId].jammingGen;
+    return typeof g === 'number' ? g : 0;
+  }
+
+  // The one counter formula: 100 plus the CFG step times (the drone
+  // nation's drone generation minus the opposing nation's jamming
+  // generation), clamped to the CFG floor and cap. At the start that
+  // is 100 plus 25 times (1 minus 0), 125 percent, for both nations.
+  function droneEffectiveness(state, nationId, opposingId) {
+    var diff = droneGeneration(state, nationId) - jammingGeneration(state, opposingId || opposingNation(nationId));
+    var pct = 100 + CFG.ewStepPct * diff;
+    return Math.max(CFG.ewFloorPct, Math.min(CFG.ewCapPct, pct));
+  }
+
+  function interceptorStock(state, nationId) {
+    var n = state.nations[nationId];
+    if (typeof n.interceptors !== 'number') n.interceptors = CFG.interceptorStart;
+    return n.interceptors;
+  }
+
+  function interceptorCost() { return CFG.unitTypes.interceptor.steelCost; }
+
+  // The exchange ledger, record only, in the beats pattern: accrued
+  // at the moment each fact happens, in steel priced from the same
+  // CFG the production panel quotes. destroyed: enemy units your
+  // forces destroyed. lost: your units the enemy destroyed. forced:
+  // interceptor launches your attacks made the enemy spend. suffered:
+  // interceptor launches the enemy's attacks made you spend. The net
+  // is destroyed plus forced minus lost minus suffered, so a drone
+  // that dies forcing a launch still nets its owner the difference.
+  // No rule reads the ledger: no price, odds estimate, AI decision,
+  // research choice, or win check consults it.
+  function ensureExchange(state, nationId) {
+    if (!state.exchange) state.exchange = {};
+    if (!state.exchange[nationId]) {
+      state.exchange[nationId] = { destroyed: 0, lost: 0, forced: 0, suffered: 0 };
+    }
+    return state.exchange[nationId];
+  }
+
+  function recordExchange(state, nationId, kind, amount) {
+    if (!amount) return;
+    ensureExchange(state, nationId)[kind] += amount;
+  }
+
+  function exchangeRecord(state, nationId) {
+    var r = ensureExchange(state, nationId);
+    return {
+      destroyed: r.destroyed, lost: r.lost, forced: r.forced, suffered: r.suffered,
+      net: r.destroyed + r.forced - r.lost - r.suffered
+    };
+  }
+
+  function exchangeDestroyed(state, nationId) { return exchangeRecord(state, nationId).destroyed; }
+  function exchangeLost(state, nationId) { return exchangeRecord(state, nationId).lost; }
+  function exchangeForced(state, nationId) { return exchangeRecord(state, nationId).forced; }
+  function exchangeSuffered(state, nationId) { return exchangeRecord(state, nationId).suffered; }
+  function exchangeNet(state, nationId) { return exchangeRecord(state, nationId).net; }
+
   // ---------- Manpower (Cycle 11) ----------
   // The one readout family every manpower number comes from, in the
   // line efficiency pattern: queueProduction charges through these,
@@ -512,10 +622,18 @@
         line.queue -= 1;
         line.progressDays = 0;
         line.work = 0; // work past the need on the finishing day is lost, as a part day always was
-        var u = addUnit(state, nationId, line.template, n.capitalId);
-        completed.push(u);
-        logEvent(state, n.short + ' line ' + line.id + ' completes a ' + t.label +
-          '. It deploys at ' + state.provinces[n.capitalId].name + '.');
+        if (line.template === 'interceptor') {
+          // An Interceptor never deploys: it joins the stockpile the
+          // launch rule in fightRounds spends from.
+          n.interceptors = interceptorStock(state, nationId) + 1;
+          logEvent(state, n.short + ' line ' + line.id + ' completes an ' + t.label +
+            '. It joins the interceptor stockpile (' + n.interceptors + ' on hand).');
+        } else {
+          var u = addUnit(state, nationId, line.template, n.capitalId);
+          completed.push(u);
+          logEvent(state, n.short + ' line ' + line.id + ' completes a ' + t.label +
+            '. It deploys at ' + state.provinces[n.capitalId].name + '.');
+        }
       }
     });
     return { completed: completed, steelSpent: steelSpent };
@@ -541,17 +659,23 @@
       log: [],
       beats: {},           // campaign turning points, recorded once each (beatPhase)
       textures: [],        // recurring texture occurrences, recorded as they happen (recordTexture)
+      exchange: {          // cost exchange ledger, record only (Cycle 12); no rule reads it
+        player: { destroyed: 0, lost: 0, forced: 0, suffered: 0 },
+        enemy: { destroyed: 0, lost: 0, forced: 0, suffered: 0 }
+      },
       nations: {
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
           equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
-          droneGen2: false, capitalId: provinceId(0, 3),
+          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart,
+          capitalId: provinceId(0, 3),
           productionLines: makeProductionLines()
         },
         enemy: {
           id: 'enemy', name: 'The Khessite Dominion', short: 'Khessite',
           equipment: 60, steel: 20, researchPoints: 0, manpower: CFG.manpowerStart,
-          droneGen2: false, capitalId: provinceId(CFG.mapW - 1, 3),
+          droneGen2: false, droneGen3: false, jammingGen: 0, interceptors: CFG.interceptorStart,
+          capitalId: provinceId(CFG.mapW - 1, 3),
           productionLines: makeProductionLines()
         }
       }
@@ -655,8 +779,19 @@
   function unitStats(state, unit) {
     var base = CFG.unitTypes[unit.type];
     var atk = base.attack, def = base.defense;
-    if (unit.type === 'drone' && state.nations[unit.nation].droneGen2) {
-      atk = CFG.droneGen2.attack; def = CFG.droneGen2.defense;
+    if (unit.type === 'drone') {
+      if (state.nations[unit.nation].droneGen3) {
+        atk = CFG.droneGen3.attack; def = CFG.droneGen3.defense;
+      } else if (state.nations[unit.nation].droneGen2) {
+        atk = CFG.droneGen2.attack; def = CFG.droneGen2.defense;
+      }
+      // EW counter: the shared droneEffectiveness readout multiplies
+      // the drone wing's attack and defense, before supply and walls,
+      // so combat, stackPower, the preview, and the AI estimate all
+      // fight with the same numbers. No other unit type is touched.
+      var eff = droneEffectiveness(state, unit.nation);
+      atk = Math.max(1, Math.round(atk * eff / 100));
+      def = Math.max(1, Math.round(def * eff / 100));
     }
     var penalty = unit.supplyPenalty || 0;
     if (penalty > 0) {
@@ -898,7 +1033,47 @@
   // The shared round math. Side A deals damage from its modeA power,
   // side B from its modeB power. Simultaneous rounds until one side is
   // gone or 12 rounds pass. A's roll is drawn before B's every round.
+  // Interceptor launches and the exchange ledger live here and
+  // nowhere else, so resolveBattle and every movementPhase engagement
+  // share them: when side B fights in defense mode against a side A
+  // of another nation, side B's nation launches one interceptor per
+  // attacking drone wing, up to its stock, before the first round.
+  // A launched interceptor costs its nation the interceptor's CFG
+  // steel cost in the ledger (suffered, and forced for the attacker)
+  // and destroys its target drone wing outright, lowest unit id
+  // first: the drone dies to the interceptor, its attack never
+  // counts in any round, and its loss is recorded here, once, as a
+  // destroyed unit for the defender and a lost unit for its owner,
+  // never again in the battle deaths below. Meeting battles, where
+  // both sides fight in attack mode, launch nothing.
   function fightRounds(state, sideA, sideB, modeA, modeB, rng) {
+    if (modeB === 'defense' && sideA.length > 0 && sideB.length > 0 && sideA[0].nation !== sideB[0].nation) {
+      var defNation = sideB[0].nation;
+      var atkNation = sideA[0].nation;
+      var targets = aliveList(sideA).filter(function (u) { return u.type === 'drone'; })
+        .sort(function (a, b) { return a.id - b.id; });
+      var launches = Math.min(interceptorStock(state, defNation), targets.length);
+      for (var li = 0; li < launches; li++) {
+        var victim = targets[li];
+        victim.strength = 0;
+        state.nations[defNation].interceptors -= 1;
+        recordExchange(state, defNation, 'suffered', interceptorCost());
+        recordExchange(state, atkNation, 'forced', interceptorCost());
+        recordExchange(state, defNation, 'destroyed', CFG.unitTypes.drone.steelCost);
+        recordExchange(state, atkNation, 'lost', CFG.unitTypes.drone.steelCost);
+      }
+      if (launches > 0) {
+        logEvent(state, state.nations[defNation].short + ' launch ' + launches +
+          (launches === 1 ? ' interceptor' : ' interceptors') + ' (' +
+          (launches * interceptorCost()) + ' steel) and knock down ' + launches +
+          (launches === 1 ? ' attacking drone wing' : ' attacking drone wings') +
+          ' before the battle.');
+      }
+    }
+    // Battle deaths are priced from the strengths the rounds start
+    // with, after any launches, so an interceptor kill is not counted
+    // a second time as a battle death.
+    var startStrengths = sideA.concat(sideB).map(function (u) { return { u: u, before: u.strength }; });
     var round = 0;
     while (aliveList(sideA).length > 0 && aliveList(sideB).length > 0 && round < 12) {
       round++;
@@ -909,6 +1084,14 @@
       applyDamage(sideB, dmgToB);
       applyDamage(sideA, dmgToA);
     }
+    startStrengths.forEach(function (rec) {
+      if (rec.before > 0 && rec.u.strength <= 0) {
+        var foe = opposingNation(rec.u.nation);
+        var value = CFG.unitTypes[rec.u.type] ? CFG.unitTypes[rec.u.type].steelCost : 0;
+        recordExchange(state, rec.u.nation, 'lost', value);
+        recordExchange(state, foe, 'destroyed', value);
+      }
+    });
     return { aAlive: aliveList(sideA).length, bAlive: aliveList(sideB).length };
   }
 
@@ -1383,6 +1566,38 @@
     return { ok: true };
   }
 
+  function researchDroneGen3(state, nationId) {
+    var n = state.nations[nationId];
+    if (n.droneGen3) return { ok: false, reason: 'already researched' };
+    if (!n.droneGen2) return { ok: false, reason: 'requires Drone Gen 2 first' };
+    if (n.researchPoints < CFG.droneGen3Cost) {
+      return { ok: false, reason: 'not enough research points', cost: CFG.droneGen3Cost };
+    }
+    n.researchPoints -= CFG.droneGen3Cost;
+    n.droneGen3 = true;
+    logEvent(state, state.nations[nationId].short + ' field Drone Gen 3. Drone wings hit harder now, and outrun older jamming.');
+    return { ok: true };
+  }
+
+  // Jamming generations are bought in order, Gen 1 then Gen 2, from
+  // the same points pool and at the same costs for both nations.
+  // Jamming touches drone fighting power only, through the
+  // droneEffectiveness readout: it never blunts an interceptor launch.
+  function researchJamming(state, nationId) {
+    var n = state.nations[nationId];
+    var gen = jammingGeneration(state, nationId);
+    if (gen >= CFG.jammingCosts.length) return { ok: false, reason: 'already at the highest jamming generation' };
+    var cost = CFG.jammingCosts[gen];
+    if (n.researchPoints < cost) {
+      return { ok: false, reason: 'not enough research points', cost: cost };
+    }
+    n.researchPoints -= cost;
+    n.jammingGen = gen + 1;
+    logEvent(state, state.nations[nationId].short + ' field Jamming Gen ' + n.jammingGen +
+      '. Enemy drone wings fight weaker against them now.');
+    return { ok: true, generation: n.jammingGen };
+  }
+
   // ---------- Enemy AI (minimal, scripted, deliberately weak) ----------
   function aiTakeTurn(state) {
     var ai = 'enemy';
@@ -1437,6 +1652,23 @@
     // Lines 3 and 4 open for the AI by the same factory thresholds as the
     // player, and it feeds them through the same queueProduction path.
     syncProductionLines(state, ai);
+    // Interceptor replenishment, through the same priced production
+    // path the player uses, as a stated spending rule: when the
+    // Dominion's stock is down to 1 or none and its line 2 stands
+    // idle, it retooles line 2 to Interceptors and queues one; once
+    // the stock is back above 1 and line 2 stands idle on the
+    // Interceptor template, it retooles back to Drone Wings. One
+    // order at a time, at the identical steel and manpower prices.
+    var line2 = productionLine(state, ai, 2);
+    if (line2 && line2.queue === 0) {
+      if (interceptorStock(state, ai) <= 1 && line2.template !== 'interceptor') {
+        if (assignLineTemplate(state, ai, 2, 'interceptor').ok) queueProduction(state, ai, 2);
+      } else if (interceptorStock(state, ai) <= 1 && line2.template === 'interceptor') {
+        queueProduction(state, ai, 2);
+      } else if (line2.template === 'interceptor') {
+        assignLineTemplate(state, ai, 2, 'drone');
+      }
+    }
     if (unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
       (n.productionLines || []).forEach(function (line) {
         if (line.queue === 0 && unitsOf(state, ai).length + queuedUnits(state, ai) < 14) {
@@ -1571,7 +1803,31 @@
   // balance run: seed 31337 was lost to that one day head start).
   function aiResearch(state) {
     var n = state.nations.enemy;
-    if (!n.droneGen2 && n.researchPoints >= CFG.droneGen2Cost) researchDroneGen2(state, 'enemy');
+    // One purchase per tick, in a stated priority, each on the same
+    // start of day numbers a player sees: Drone Gen 2 first, then
+    // Jamming Gen 1, then Drone Gen 3, then Jamming Gen 2. The
+    // priority is a save order, not a buy whatever is affordable
+    // order: while an earlier item is unowned, the AI saves for it
+    // and buys nothing later, because Jamming Gen 1 at 50 points
+    // bought on the way to Drone Gen 2 at 60 would starve Gen 2 for
+    // the whole campaign (found in this step's first suite run).
+    // That order is a spending rule for a scripted AI, at identical
+    // costs, never a discount or a private price.
+    if (!n.droneGen2) {
+      if (n.researchPoints >= CFG.droneGen2Cost) researchDroneGen2(state, 'enemy');
+      return;
+    }
+    if (jammingGeneration(state, 'enemy') < 1) {
+      if (n.researchPoints >= CFG.jammingCosts[0]) researchJamming(state, 'enemy');
+      return;
+    }
+    if (!n.droneGen3) {
+      if (n.researchPoints >= CFG.droneGen3Cost) researchDroneGen3(state, 'enemy');
+      return;
+    }
+    if (jammingGeneration(state, 'enemy') < 2 && n.researchPoints >= CFG.jammingCosts[1]) {
+      researchJamming(state, 'enemy');
+    }
   }
 
   // ---------- The tick ----------
@@ -1643,6 +1899,19 @@
     isLineUnlocked: isLineUnlocked,
     lineLockInfo: lineLockInfo,
     researchDroneGen2: researchDroneGen2,
+    researchDroneGen3: researchDroneGen3,
+    researchJamming: researchJamming,
+    droneGeneration: droneGeneration,
+    jammingGeneration: jammingGeneration,
+    droneEffectiveness: droneEffectiveness,
+    interceptorStock: interceptorStock,
+    interceptorCost: interceptorCost,
+    exchangeRecord: exchangeRecord,
+    exchangeDestroyed: exchangeDestroyed,
+    exchangeLost: exchangeLost,
+    exchangeForced: exchangeForced,
+    exchangeSuffered: exchangeSuffered,
+    exchangeNet: exchangeNet,
     unitStats: unitStats,
     stackPower: stackPower,
     unitsIn: unitsIn,

@@ -120,13 +120,23 @@ test('factory: cannot build in an enemy province or past max level', () => {
 test('research: Drone Gen 2 changes drone attack and defense stats', () => {
   const s = Sim.createGame(41);
   const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone');
+  // Cycle 12 step 1: unitStats now folds in the shared EW readout, so
+  // the pinned numbers are the readout's numbers, not the raw base
+  // stats. At the start the Compact is drone generation 1 against
+  // Dominion jamming generation 0, effectiveness 125 percent:
+  // attack round(3 times 1.25) is 4, defense round(2 times 1.25) is 3.
+  // This test legitimately pinned pre EW behavior and is repinned
+  // here for exactly that reason; the formal EW tests are step 3.
   const before = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(before, { attack: 3, defense: 2, supplyPenalty: 0, fortBonus: 0 });
+  assert.deepStrictEqual(before, { attack: 4, defense: 3, supplyPenalty: 0, fortBonus: 0 });
   s.nations.player.researchPoints = Sim.CFG.droneGen2Cost;
   const res = Sim.researchDroneGen2(s, 'player');
   assert.strictEqual(res.ok, true);
   const after = Sim.unitStats(s, drone);
-  assert.deepStrictEqual(after, { attack: Sim.CFG.droneGen2.attack, defense: Sim.CFG.droneGen2.defense, supplyPenalty: 0, fortBonus: 0 });
+  // Drone Gen 2 against jamming generation 0 is effectiveness 150
+  // percent: attack round(5 times 1.5) is 8, defense round(3 times
+  // 1.5) is 5.
+  assert.deepStrictEqual(after, { attack: 8, defense: 5, supplyPenalty: 0, fortBonus: 0 });
   // Infantry is untouched by drone research.
   const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
   assert.deepStrictEqual(Sim.unitStats(s, inf), { attack: 4, defense: 4, supplyPenalty: 0, fortBonus: 0 });
@@ -893,6 +903,15 @@ test('retool: switching a line template resets progress, keeps the queue, refund
 // clash over an empty province, and a plain move.
 function busyScenario(reverse) {
   const s = Sim.createGame(77);
+  // Checker staging (Cycle 12 step 1): this scenario pins movement
+  // and order independence, not the EW launch rule, so both nations
+  // start it with empty interceptor stocks. With stock on hand the
+  // defending Dominion launches at the attacking drone wing and it
+  // dies before the battle, which legitimately changes which
+  // defenders take damage. The launch rule's own pins are Cycle 12
+  // step 3 work.
+  s.nations.player.interceptors = 0;
+  s.nations.enemy.interceptors = 0;
   const byId = id => s.units.find(u => u.id === id);
   // Starting ids: player 1 (p3_2 inf), 2 (p3_4 inf), 3 (p4_3 inf), 4 (p4_3 drone),
   // 5 and 6 (capital inf), 7 (capital drone); enemy 8 (p6_2 inf), 9 (p6_4 inf),
@@ -1798,7 +1817,13 @@ test('textures: every shipped variant fires through real campaigns, and no campa
 test('textures: the same seed and the same commands record the same occurrences', () => {
   const passiveA = texRunCampaign(42, 'passive');
   const passiveB = texRunCampaign(42, 'passive');
-  assert.strictEqual(passiveA.textures.length, 10, 'a passive seed 42 campaign records its 10 occurrences');
+  // Cycle 12 step 1 repin: the count was 10 before the EW cycle.
+  // The new combat mechanic changes this real campaign (one more
+  // rail conversion, and the Dominion's first line now reaches full
+  // efficiency on day 29 as interceptor losses keep its lines
+  // working), so it records 12 occurrences. Formal re-verification
+  // of the campaign pins is Cycle 12 step 3 work.
+  assert.strictEqual(passiveA.textures.length, 12, 'a passive seed 42 campaign records its 12 occurrences');
   assert.deepStrictEqual(passiveB.textures, passiveA.textures);
   const sensibleA = texRunCampaign(42, 'sensible');
   const sensibleB = texRunCampaign(42, 'sensible');
@@ -1816,7 +1841,7 @@ test('textures: recording them changes nothing else in a full campaign', () => {
     }
   };
   const on = play(true), off = play(false);
-  assert.strictEqual(on.textures.length, 10);
+  assert.strictEqual(on.textures.length, 12); // Cycle 12 step 1 repin, see the determinism test above
   assert.deepStrictEqual(off.textures, []);
   const strip = s => { const c = Object.assign({}, s); delete c.textures; return JSON.stringify(c); };
   assert.strictEqual(strip(on), strip(off), 'every unit, province, nation, edge, beat, and log line is identical');
