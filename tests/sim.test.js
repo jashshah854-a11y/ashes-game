@@ -1821,3 +1821,172 @@ test('textures: recording them changes nothing else in a full campaign', () => {
   const strip = s => { const c = Object.assign({}, s); delete c.textures; return JSON.stringify(c); };
   assert.strictEqual(strip(on), strip(off), 'every unit, province, nation, edge, beat, and log line is identical');
 });
+
+// ---------- Cycle 11: manpower ----------
+// Manpower is paid in full at queue time through queueProduction,
+// the one ordering path both nations share, and accrues in
+// incomePhase at one CFG rate per owned province. Staging a pool
+// directly is a checker edit in the Cycle 9 pattern; every charge,
+// refusal, and accrual then goes through the public path. The
+// accrual test pins the player's accrual through incomePhase and
+// the intake formula for both nations through the shared readout;
+// the Dominion's accrual through the real tick is pinned by the
+// parity test at the end of this section, which is what makes the
+// step's non vacuity mutant (intake accrued only for the player)
+// fail exactly that one test.
+
+test('manpower: both nations start at the CFG pool on every standard seed, intake is owned provinces times the CFG rate for both, and costs trace to CFG', () => {
+  [1, 7, 42, 99, 1234, 555, 2024, 31337].forEach(seed => {
+    const s = Sim.createGame(seed);
+    ['player', 'enemy'].forEach(nid => {
+      assert.strictEqual(Sim.manpowerPool(s, nid), Sim.CFG.manpowerStart, 'seed ' + seed + ' ' + nid + ' starting pool');
+      const owned = Object.values(s.provinces).filter(p => p.owner === nid).length;
+      assert.strictEqual(Sim.manpowerIntake(s, nid), owned * Sim.CFG.manpowerPerProvincePerDay,
+        'seed ' + seed + ' ' + nid + ' intake is its owned provinces times the one CFG rate');
+    });
+  });
+  assert.strictEqual(Sim.manpowerCost('infantry'), Sim.CFG.unitTypes.infantry.manpowerCost);
+  assert.strictEqual(Sim.manpowerCost('drone'), Sim.CFG.unitTypes.drone.manpowerCost);
+  assert.ok(Sim.manpowerCost('drone') > 0, 'a drone wing costs a crew, not zero: zero would make drones a manpower bypass');
+  assert.ok(Sim.manpowerCost('infantry') > Sim.manpowerCost('drone'), 'infantry costs substantially more than a drone crew');
+});
+
+test('manpower accrual: incomePhase adds exactly the intake each day, and captured ground raises intake while lost ground lowers it', () => {
+  const s = Sim.createGame(42);
+  const intake0 = Sim.manpowerIntake(s, 'player');
+  assert.ok(intake0 > 0);
+  Sim.incomePhase(s, 'player');
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), Sim.CFG.manpowerStart + intake0, 'one day accrues exactly one intake');
+  Sim.incomePhase(s, 'player');
+  Sim.incomePhase(s, 'player');
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), Sim.CFG.manpowerStart + 3 * intake0, 'accrual sums over days');
+  // Capture and loss, as ownership flips: the same province moves
+  // the gainer's intake up and the loser's down by the CFG rate,
+  // by the identical formula for both nations (the readouts), and
+  // the player's next accrual uses the new intake.
+  const gained = Object.values(s.provinces).find(p => p.owner === 'enemy');
+  const enemyIntake0 = Sim.manpowerIntake(s, 'enemy');
+  gained.owner = 'player';
+  assert.strictEqual(Sim.manpowerIntake(s, 'player'), intake0 + Sim.CFG.manpowerPerProvincePerDay, 'captured ground raises intake');
+  assert.strictEqual(Sim.manpowerIntake(s, 'enemy'), enemyIntake0 - Sim.CFG.manpowerPerProvincePerDay, 'lost ground lowers intake');
+  const poolBefore = Sim.manpowerPool(s, 'player');
+  Sim.incomePhase(s, 'player');
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), poolBefore + intake0 + Sim.CFG.manpowerPerProvincePerDay,
+    'the day after a capture accrues at the raised intake');
+});
+
+test('manpower payment: an infantry order deducts exactly its CFG cost at queue time, a drone order its crew cost, and steel is not charged at queue time', () => {
+  const s = Sim.createGame(42);
+  const steel0 = s.nations.player.steel;
+  const inf = Sim.queueProduction(s, 'player', 1);
+  assert.strictEqual(inf.ok, true);
+  assert.strictEqual(inf.manpowerCost, Sim.CFG.unitTypes.infantry.manpowerCost);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), Sim.CFG.manpowerStart - Sim.CFG.unitTypes.infantry.manpowerCost,
+    'the infantry cost is paid in full at queue time');
+  const dro = Sim.queueProduction(s, 'player', 2);
+  assert.strictEqual(dro.ok, true);
+  assert.strictEqual(dro.manpowerCost, Sim.CFG.unitTypes.drone.manpowerCost);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'),
+    Sim.CFG.manpowerStart - Sim.CFG.unitTypes.infantry.manpowerCost - Sim.CFG.unitTypes.drone.manpowerCost,
+    'the drone crew cost is paid on top, at its own smaller number');
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).queue, 1);
+  assert.strictEqual(Sim.productionLine(s, 'player', 2).queue, 1);
+  assert.strictEqual(s.nations.player.steel, steel0, 'steel still drains over build days, never at queue time');
+});
+
+test('manpower gate: an order the pool cannot pay is rejected with the numbered reason and charges nothing, and topping up by exactly the shortfall makes the same order succeed', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.manpower = Sim.CFG.unitTypes.infantry.manpowerCost - 1; // checker edit: a pool 1 short
+  const logLen = s.log.length;
+  const r = Sim.queueProduction(s, 'player', 1);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.manpower, true);
+  assert.strictEqual(r.manpowerCost, Sim.CFG.unitTypes.infantry.manpowerCost);
+  assert.strictEqual(r.current, Sim.CFG.unitTypes.infantry.manpowerCost - 1);
+  assert.strictEqual(r.missing, 1);
+  assert.strictEqual(r.reason, 'Not enough manpower to queue a ' + Sim.CFG.unitTypes.infantry.label +
+    '. It costs ' + r.manpowerCost + ' manpower, you have ' + r.current + ', you are 1 short.');
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).queue, 0, 'a rejected order queues nothing');
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), r.current, 'a rejected order deducts nothing');
+  assert.strictEqual(s.log.length, logLen, 'a rejected order logs nothing');
+  s.nations.player.manpower += r.missing; // top up by exactly the shortfall
+  const ok = Sim.queueProduction(s, 'player', 1);
+  assert.strictEqual(ok.ok, true, 'the same order succeeds once the shortfall is covered');
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), 0, 'and it pays the full cost, leaving nothing');
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).queue, 1);
+});
+
+test('manpower binding: queueing ahead on seed 42 pays for 13 orders and the 14th attempt is rejected for manpower, public commands only', () => {
+  // The recorded binding trace for Cycle 11 step 3, pinned here:
+  // the starting pool is a reserve, not decoration. Filling line 1
+  // to its queue cap with infantry and queueing drone wings on
+  // line 2 spends 9 times 120 plus 4 times 25, and the next order
+  // is refused by the pool alone (both queues still have room on
+  // line 2, and steel is never charged at queue time).
+  const s = Sim.createGame(42);
+  let paid = 0, count = 0;
+  for (let i = 0; i < 9; i++) {
+    const r = Sim.queueProduction(s, 'player', 1);
+    assert.strictEqual(r.ok, true, 'infantry order ' + (i + 1));
+    paid += r.manpowerCost; count++;
+  }
+  let rejected = null;
+  for (let i = 0; i < 9 && !rejected; i++) {
+    const r = Sim.queueProduction(s, 'player', 2);
+    if (r.ok) { paid += r.manpowerCost; count++; } else rejected = r;
+  }
+  assert.strictEqual(count, 13, '13 orders are paid before the pool binds');
+  assert.strictEqual(paid, 9 * Sim.CFG.unitTypes.infantry.manpowerCost + 4 * Sim.CFG.unitTypes.drone.manpowerCost);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), Sim.CFG.manpowerStart - paid);
+  assert.ok(rejected, 'the 14th attempt is rejected');
+  assert.strictEqual(rejected.manpower, true);
+  assert.strictEqual(rejected.template, 'drone');
+  assert.strictEqual(rejected.current, Sim.CFG.manpowerStart - paid);
+  assert.strictEqual(rejected.missing, Sim.CFG.unitTypes.drone.manpowerCost - rejected.current);
+  assert.strictEqual(Sim.productionLine(s, 'player', 1).queue, 9);
+  assert.strictEqual(Sim.productionLine(s, 'player', 2).queue, 4, 'the rejected order queued nothing');
+});
+
+test('manpower retool: switching a line with queued orders settles the manpower difference per queued order, and a short pool rejects the retool unchanged', () => {
+  const s = Sim.createGame(42);
+  assert.strictEqual(Sim.queueProduction(s, 'player', 2).ok, true); // one drone wing paid at the crew cost
+  const poolAfterQueue = Sim.manpowerPool(s, 'player');
+  const diff = Sim.CFG.unitTypes.infantry.manpowerCost - Sim.CFG.unitTypes.drone.manpowerCost;
+  const up = Sim.assignLineTemplate(s, 'player', 2, 'infantry');
+  assert.strictEqual(up.ok, true);
+  assert.strictEqual(up.manpowerDelta, diff, 'retooling to the dearer template charges the difference for the queued order');
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), poolAfterQueue - diff);
+  assert.strictEqual(Sim.productionLine(s, 'player', 2).queue, 1, 'the queue carries over the retool');
+  const back = Sim.assignLineTemplate(s, 'player', 2, 'drone');
+  assert.strictEqual(back.ok, true);
+  assert.strictEqual(back.manpowerDelta, -diff, 'retooling back refunds the difference');
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), poolAfterQueue, 'a round trip retool costs nothing in manpower');
+  // A retool the pool cannot settle is rejected with the numbers
+  // and changes nothing: no discount path through the panel.
+  const t = Sim.createGame(42);
+  assert.strictEqual(Sim.queueProduction(t, 'player', 2).ok, true);
+  t.nations.player.manpower = diff - 50; // checker edit: 50 short of the settlement
+  const no = Sim.assignLineTemplate(t, 'player', 2, 'infantry');
+  assert.strictEqual(no.ok, false);
+  assert.strictEqual(no.manpower, true);
+  assert.strictEqual(no.missing, 50);
+  assert.strictEqual(Sim.productionLine(t, 'player', 2).template, 'drone', 'the line keeps its template');
+  assert.strictEqual(Sim.manpowerPool(t, 'player'), diff - 50, 'and the pool is untouched');
+});
+
+test('manpower parity: the Dominion pays the same costs through queueProduction and accrues the same intake through the real tick path', () => {
+  const s = Sim.createGame(42);
+  ['player', 'enemy'].forEach(nid => { s.nations[nid].steel = 500; });
+  const pi = Sim.queueProduction(s, 'player', 1), ei = Sim.queueProduction(s, 'enemy', 1);
+  const pd = Sim.queueProduction(s, 'player', 2), ed = Sim.queueProduction(s, 'enemy', 2);
+  assert.strictEqual(ei.manpowerCost, pi.manpowerCost, 'the Dominion pays the infantry cost, no discount');
+  assert.strictEqual(ed.manpowerCost, pd.manpowerCost, 'the Dominion pays the drone crew cost, no discount');
+  assert.strictEqual(Sim.manpowerPool(s, 'enemy'), Sim.manpowerPool(s, 'player'), 'identical orders leave identical pools');
+  const intakeP = Sim.manpowerIntake(s, 'player'), intakeE = Sim.manpowerIntake(s, 'enemy');
+  assert.strictEqual(intakeE, intakeP, 'identical ground gives identical intake');
+  const poolP = Sim.manpowerPool(s, 'player'), poolE = Sim.manpowerPool(s, 'enemy');
+  Sim.tick(s);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), poolP + intakeP, 'the player accrues its intake through the tick');
+  assert.strictEqual(Sim.manpowerPool(s, 'enemy'), poolE + intakeE, 'the Dominion accrues its intake through the same tick');
+  assert.strictEqual(Sim.manpowerPool(s, 'enemy'), Sim.manpowerPool(s, 'player'), 'pools stay equal after one real tick');
+});
