@@ -2348,3 +2348,240 @@ test('drones and EW: AI parity through the real tick path, the Dominion research
     Sim.CFG.manpowerStart + intake - Sim.manpowerCost('infantry') - Sim.manpowerCost('interceptor'),
     'the tick charged the Dominion the shared queue prices: an infantry order on line 1 and the Interceptor on line 2, no discount');
 });
+
+// ---------- Cycle 13: intel and fog ----------
+// Fog is an information layer only: intelState and its kin are the
+// one sight computation, intelPhase records per nation snapshots no
+// rule reads, and agents are built only through the priced Agent
+// production template and placed only through plantAgent. Staging a
+// unit's province or strength, a province's owner or fort level, a
+// nation's agent stock, or the day directly is a checker edit in the
+// Cycle 9 pattern; every sight fact is then read through the shared
+// readouts, every recording through intelPhase or a real tick, every
+// charge through queueProduction and productionPhase, and every
+// placement through plantAgent.
+// Mutant partition, chosen before these tests were written: the
+// drone recon test below is the only test in this section whose
+// assertions depend on CFG.droneSightRange being 2. Every other
+// test reads sight that owned ground, unit adjacency, or an agent
+// provides, or compares two nations or two runs under the same
+// range, so the step's non vacuity mutant (drone sight range
+// computed as 1, drones seeing no further than infantry) fails
+// exactly the drone recon test, and no other.
+
+test('intel: owned ground, its neighbors, and unit provinces are live for both nations, mirrored, and the enemy heartland is dark', () => {
+  const s = Sim.createGame(42);
+  for (const nid of ['player', 'enemy']) {
+    const other = nid === 'player' ? 'enemy' : 'player';
+    assert.strictEqual(Sim.intelState(s, nid, s.nations[nid].capitalId), 'live', nid + ' sees its own capital live');
+    assert.strictEqual(Sim.intelState(s, nid, s.nations[other].capitalId), 'dark', nid + ' has never seen the enemy capital');
+    assert.strictEqual(Sim.intelLastSeenDay(s, nid, s.nations[other].capitalId), null, 'a dark province has no last seen day');
+    assert.strictEqual(Sim.intelSnapshot(s, nid, s.nations[other].capitalId), null, 'a dark province has no snapshot');
+  }
+  // The front provinces are live through owned adjacency: each side
+  // sees the other's front province across the border.
+  assert.strictEqual(Sim.intelState(s, 'player', 'p5_3'), 'live');
+  assert.strictEqual(Sim.intelState(s, 'enemy', 'p4_3'), 'live');
+  assert.strictEqual(Sim.intelLastSeenDay(s, 'player', 'p5_3'), s.day, 'a live province was last seen today');
+  assert.strictEqual(Sim.intelLiveCount(s, 'player'), Sim.intelLiveCount(s, 'enemy'),
+    'identical starting ground gives identical live counts, mirrored');
+  assert.ok(Sim.intelLiveCount(s, 'player') > 35, 'sight reaches past the 35 owned provinces');
+  assert.ok(Sim.intelLiveCount(s, 'player') < 70, 'and the enemy heartland stays dark');
+});
+
+test('intel: a drone wing sees one province further than infantry at the same province, mirrored for the Dominion', () => {
+  // This is the section's mutant target test (see the header): the
+  // only pin that depends on the drone sight range of 2.
+  const s = Sim.createGame(42);
+  assert.strictEqual(Sim.intelState(s, 'player', 'p6_3'), 'live',
+    'the front drone wing at p4_3 makes p6_3, two hops east, live');
+  assert.strictEqual(Sim.intelState(s, 'enemy', 'p3_3'), 'live',
+    'the Dominion drone wing at p5_3 makes p3_3, two hops west, live, mirrored');
+  // Checker edit: ground both nations' drone wings (strength 0 units
+  // give no sight). The infantry standing on the same front
+  // provinces still sees one hop, and no further.
+  for (const u of s.units) if (u.type === 'drone') u.strength = 0;
+  assert.strictEqual(Sim.intelState(s, 'player', 'p5_3'), 'live', 'infantry at p4_3 still sees p5_3, one hop');
+  assert.strictEqual(Sim.intelState(s, 'player', 'p6_3'), 'dark', 'infantry at p4_3 cannot see p6_3, two hops');
+  assert.strictEqual(Sim.intelState(s, 'enemy', 'p4_3'), 'live', 'Dominion infantry at p5_3 still sees p4_3, mirrored');
+  assert.strictEqual(Sim.intelState(s, 'enemy', 'p3_3'), 'dark', 'Dominion infantry at p5_3 cannot see p3_3, mirrored');
+});
+
+test('intel: a snapshot records the true figures on a live day, and a dark province records nothing', () => {
+  const s = Sim.createGame(42);
+  Sim.intelPhase(s);
+  const snap = Sim.intelSnapshot(s, 'player', 'p5_3');
+  assert.ok(snap, 'a live province has a snapshot after the intel phase');
+  assert.strictEqual(snap.day, s.day, 'the snapshot day is the day it was seen');
+  assert.strictEqual(snap.owner, 'enemy');
+  assert.strictEqual(snap.fortLevel, 0);
+  assert.deepStrictEqual(snap.units, [
+    { nation: 'enemy', type: 'drone', count: 1, totalStrength: 6 },
+    { nation: 'enemy', type: 'infantry', count: 1, totalStrength: 12 }
+  ], 'the snapshot groups the units truly present, by nation and type, sorted');
+  assert.strictEqual(Sim.intelSnapshot(s, 'player', 'p9_3'), null, 'the dark enemy capital records nothing');
+  assert.strictEqual(Sim.intelState(s, 'player', 'p9_3'), 'dark');
+});
+
+test('intel: a snapshot freezes while its province is not live, however the truth changes, and updates on the next live day', () => {
+  const s = Sim.createGame(42);
+  Sim.intelPhase(s);
+  const first = Sim.intelSnapshot(s, 'player', 'p5_3');
+  assert.strictEqual(first.day, 1);
+  assert.strictEqual(first.fortLevel, 0);
+  // Checker edits staging the loss of sight: the border province
+  // changes hands and its Compact units fall back to the capital,
+  // so nothing the player owns or fields stands next to p5_3.
+  s.provinces['p4_3'].owner = 'enemy';
+  for (const u of Sim.unitsOf(s, 'player')) if (u.provinceId === 'p4_3') u.provinceId = 'p0_3';
+  assert.strictEqual(Sim.intelIsLive(s, 'player', 'p5_3'), false, 'staging check: p5_3 is no longer live');
+  // The truth underneath moves: walls rise and the garrison leaves.
+  s.provinces['p5_3'].fortLevel = 2;
+  for (const u of Sim.unitsOf(s, 'enemy')) if (u.provinceId === 'p5_3') u.provinceId = 'p9_3';
+  s.day = 9;
+  Sim.intelPhase(s);
+  const frozen = Sim.intelSnapshot(s, 'player', 'p5_3');
+  assert.deepStrictEqual(frozen, first, 'the snapshot is untouched while the province is not live');
+  assert.strictEqual(Sim.intelState(s, 'player', 'p5_3'), 'remembered');
+  assert.strictEqual(Sim.intelLastSeenDay(s, 'player', 'p5_3'), 1, 'freshness stays at the snapshot day');
+  // Sight returns (the border province is ours again): the next
+  // intel phase records the new truth on the new day.
+  s.provinces['p4_3'].owner = 'player';
+  s.day = 12;
+  Sim.intelPhase(s);
+  const updated = Sim.intelSnapshot(s, 'player', 'p5_3');
+  assert.strictEqual(updated.day, 12);
+  assert.strictEqual(updated.fortLevel, 2, 'the updated snapshot shows the walls the frozen one hid');
+  assert.deepStrictEqual(updated.units, [], 'and the garrison that left while it was dark');
+  assert.strictEqual(Sim.intelLastSeenDay(s, 'player', 'p5_3'), 12);
+});
+
+test('intel: an agent is built only through the priced production path, at the stated steel, days, and manpower, for both nations', () => {
+  const t = Sim.CFG.unitTypes.agent;
+  assert.strictEqual(Sim.agentCost(), t.steelCost, 'the agent cost readout traces to CFG');
+  assert.strictEqual(t.steelCost, 40);
+  assert.strictEqual(t.buildDays, 4);
+  assert.strictEqual(Sim.manpowerCost('agent'), 60);
+  for (const nid of ['player', 'enemy']) {
+    const s = Sim.createGame(42);
+    assert.strictEqual(Sim.agentStock(s, nid), 0, nid + ' starts with no agent: the priced path is the only source');
+    assert.ok(Sim.assignLineTemplate(s, nid, 1, 'agent').ok);
+    const poolBefore = Sim.manpowerPool(s, nid);
+    const q = Sim.queueProduction(s, nid, 1);
+    assert.ok(q.ok, nid + ' queues an Agent through the shared path');
+    assert.strictEqual(q.cost, t.steelCost);
+    assert.strictEqual(q.manpowerCost, t.manpowerCost);
+    assert.strictEqual(Sim.manpowerPool(s, nid), poolBefore - t.manpowerCost, 'manpower is paid in full at queue time');
+    // Checker staging: steel topped up once, as the Cycle 10 tests
+    // stage it, so the funded days can be counted exactly.
+    s.nations[nid].steel = 500;
+    const steelBefore = s.nations[nid].steel;
+    const unitsBefore = s.units.length;
+    let days = 0;
+    while (Sim.agentStock(s, nid) === 0 && days < 10) { Sim.productionPhase(s, nid); days++; }
+    assert.strictEqual(days, t.buildDays, nid + ' agent completes on the stated funded day');
+    assert.strictEqual(Sim.agentStock(s, nid), 1, 'completion adds exactly one to the stockpile');
+    assert.strictEqual(steelBefore - s.nations[nid].steel, t.steelCost, 'and drains exactly the listed steel in total');
+    assert.strictEqual(s.units.length, unitsBefore, 'a finished Agent deploys no map unit');
+  }
+});
+
+test('intel: plantAgent spends exactly one stock, watches only its province, and every refusal charges and plants nothing', () => {
+  const s = Sim.createGame(42);
+  // Empty stock: refused, with the priced build path named.
+  let r = Sim.plantAgent(s, 'player', 'p9_3');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.missing, 1);
+  assert.ok(r.reason.includes('40 steel over 4 days') && r.reason.includes('60 manpower'),
+    'the empty stock refusal names the build price from CFG: ' + r.reason);
+  assert.strictEqual(Sim.agentStock(s, 'player'), 0);
+  // Checker staging: one agent in stock, as the priced path delivers.
+  s.nations.player.agents = 1;
+  // Own province: refused, stock untouched.
+  r = Sim.plantAgent(s, 'player', 'p0_3');
+  assert.strictEqual(r.ok, false, 'an agent cannot be planted on a province the nation owns');
+  assert.strictEqual(Sim.agentStock(s, 'player'), 1, 'the refusal spends nothing');
+  assert.strictEqual(Sim.liveAgents(s, 'player').length, 0, 'and plants nothing');
+  // The enemy capital: planted, exactly one stock spent, and only
+  // that province becomes live (its neighbors stay dark).
+  r = Sim.plantAgent(s, 'player', 'p9_3');
+  assert.ok(r.ok);
+  assert.strictEqual(Sim.agentStock(s, 'player'), 0, 'placement spends exactly one stock');
+  assert.strictEqual(Sim.intelState(s, 'player', 'p9_3'), 'live', 'the planted province is live');
+  assert.strictEqual(Sim.intelState(s, 'player', 'p8_3'), 'dark', 'its neighbor is not revealed: the agent watches its province alone');
+  Sim.intelPhase(s);
+  const snap = Sim.intelSnapshot(s, 'player', 'p9_3');
+  assert.ok(snap && snap.owner === 'enemy', 'the planted province records snapshots');
+  assert.deepStrictEqual(snap.units, [
+    { nation: 'enemy', type: 'drone', count: 1, totalStrength: 6 },
+    { nation: 'enemy', type: 'infantry', count: 2, totalStrength: 24 }
+  ], 'with the capital garrison truly present');
+  // A second agent on the same province: refused, nothing spent.
+  s.nations.player.agents = 1;
+  r = Sim.plantAgent(s, 'player', 'p9_3');
+  assert.strictEqual(r.ok, false, 'one agent per province');
+  assert.strictEqual(Sim.agentStock(s, 'player'), 1, 'the duplicate refusal spends nothing');
+  assert.strictEqual(Sim.liveAgents(s, 'player').length, 1);
+});
+
+test('intel: a full passive campaign with intel recording on and off is identical in every field except the intel records', () => {
+  const runCampaign = (intelOn) => {
+    Sim.CFG.campaignIntel = intelOn;
+    try {
+      const s = Sim.createGame(42);
+      while (!s.gameOver && s.day < 160) Sim.tick(s);
+      return s;
+    } finally {
+      Sim.CFG.campaignIntel = true;
+    }
+  };
+  const on = runCampaign(true);
+  const off = runCampaign(false);
+  assert.ok(Object.keys(on.intel.player.snapshots).length > 0, 'recording on: snapshots exist');
+  assert.deepStrictEqual(off.intel.player.snapshots, {}, 'recording off: no player snapshots');
+  assert.deepStrictEqual(off.intel.enemy.snapshots, {}, 'recording off: no Dominion snapshots');
+  // CFG.campaignIntel gates snapshot recording only (and the
+  // end of tick clearing of expired agent records, in intelPhase);
+  // planting itself is plantAgent's own record and is not gated,
+  // so the planted agent record is present in both runs and the
+  // comparison below strips state.intel, the records, and nothing
+  // else.
+  const strip = (s) => {
+    const c = JSON.parse(JSON.stringify(s));
+    delete c.intel;
+    return c;
+  };
+  assert.strictEqual(on.gameOver, off.gameOver);
+  assert.strictEqual(on.day, off.day);
+  assert.strictEqual(on.winner, off.winner);
+  assert.deepStrictEqual(strip(on), strip(off),
+    'the whole campaign, units, provinces, nations, beats, textures, exchange, and log, is identical except the intel records');
+});
+
+test('intel: AI parity through the real tick path, mirrored snapshots, and the Dominion plants its agent on the player capital through the shared priced paths', () => {
+  const s = Sim.createGame(42);
+  Sim.tick(s);
+  assert.strictEqual(Sim.intelLiveCount(s, 'player'), Sim.intelLiveCount(s, 'enemy'),
+    'after one real tick both nations hold the same live count from their mirrored ground');
+  const mine = Sim.intelSnapshot(s, 'player', 'p5_3');
+  const theirs = Sim.intelSnapshot(s, 'enemy', 'p4_3');
+  assert.ok(mine && theirs, 'both nations record a front snapshot on the same tick');
+  assert.strictEqual(mine.day, theirs.day);
+  const shape = (units) => units.map(u => ({ type: u.type, count: u.count, totalStrength: u.totalStrength }));
+  assert.deepStrictEqual(shape(mine.units), shape(theirs.units),
+    'the mirrored front provinces hold mirrored garrisons, and both snapshots record the same shape (each record labels its own nation, so the nation field is normalized out of this comparison)');
+  // The Dominion's agent spending rule, through real ticks only
+  // (passive seed 42): it retooled, queued at the shared price the
+  // log names, completed, and planted on the Compact capital.
+  const c = Sim.createGame(42);
+  while (c.day < 30 && !c.gameOver) Sim.tick(c);
+  const planted = Sim.liveAgents(c, 'enemy');
+  assert.deepStrictEqual(planted.map(a => a.provinceId), [c.nations.player.capitalId],
+    'the Dominion agent watches the player capital, placed through plantAgent');
+  assert.strictEqual(Sim.agentStock(c, 'enemy'), 0, 'the planted agent came out of its stock, built at the shared price');
+  const queueLine = c.log.find(l => /queue a Agent/.test(l.msg));
+  assert.ok(queueLine && queueLine.msg.includes('40 steel over 4 days, 60 manpower'),
+    'the Dominion queued its agent at the identical CFG price: ' + (queueLine && queueLine.msg));
+  assert.strictEqual(Sim.intelState(c, 'enemy', c.nations.player.capitalId), 'live',
+    'the planted capital is live to the Dominion through its agent');
+});
