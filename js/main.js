@@ -3,6 +3,7 @@
 (function () {
   'use strict';
   var Sim = window.AshesSim;
+  var Lore = window.AshesLore;
 
   var state = null;
   var selectedProvinceId = null;
@@ -10,6 +11,12 @@
   var paused = false;
   var speed = 1; // 1x or 2x
   var timer = null;
+  // Lore overlays. A card or the codex pauses the war; closing the last
+  // one puts the pause back the way the player had it.
+  var shownBeats = {};       // beat ids whose card has been shown this game
+  var cardQueue = [];        // beat ids waiting for their card
+  var pauseBeforeOverlay = null;
+  var codexEntryId = 'ashwater';
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
@@ -17,7 +24,10 @@
    'stat-drone-gen', 'btn-research', 'research-explain', 'prov-name', 'prov-details',
    'btn-factory', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'log', 'banner', 'rail-actions',
-   'prod-summary', 'production-lines'
+   'prod-summary', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
+   'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
+   'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
+   'codex-article', 'btn-codex-close'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -44,18 +54,32 @@
       Sim.tick(state);
       render();
       if (state.gameOver) showBanner();
+      else checkBeats(); // no card over the end banner; the codex still lists the beat
     }, ms);
   }
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 
+  // A first game may be replayed with ?seed=N in the address (used by
+  // tools/lore-check.js); New Game always draws a fresh random seed.
+  var urlSeed = (function () {
+    var m = /[?&]seed=(\d{1,9})(?:&|$)/.exec(window.location.search || '');
+    return m ? parseInt(m[1], 10) : null;
+  })();
+
   function newGame() {
-    var seed = Math.floor(Math.random() * 100000);
+    var seed = urlSeed != null ? urlSeed : Math.floor(Math.random() * 100000);
+    urlSeed = null;
     state = Sim.createGame(seed);
     selectedProvinceId = null;
     selectedUnitId = null;
     paused = false;
     el.btnPause.textContent = 'Pause';
     el.banner.classList.add('hidden');
+    shownBeats = {};
+    cardQueue = [];
+    pauseBeforeOverlay = null;
+    el.eventOverlay.classList.add('hidden');
+    el.codexOverlay.classList.add('hidden');
     render();
     startTimer();
   }
@@ -155,6 +179,13 @@
     el.statEnemyProvs.textContent = enemyProvs;
     el.statEnemyUnits.textContent = Sim.unitsOf(state, 'enemy').length;
     el.statEnemyGen.textContent = e.droneGen2 ? 'Gen 2' : 'Gen 1';
+    // The Dominion opens lines by the same factory thresholds you do, so its
+    // factory total says when its next line arrives.
+    var enemyLines = (e.productionLines || []).length;
+    var enemyNext = Sim.lineLockInfo(state, 'enemy', enemyLines + 1);
+    el.statEnemyFactories.textContent = Sim.factoryLevels(state, 'enemy');
+    el.statEnemyLines.textContent = enemyLines + ' of ' + Sim.CFG.maxProductionLines +
+      (enemyNext ? ' (next at ' + enemyNext.required + ' factory levels)' : '');
 
     renderProduction();
     renderProvinceCard();
@@ -395,6 +426,142 @@
     }).join('');
   }
 
+  // ---------- Lore: event cards and the codex ----------
+  function setPaused(p) {
+    paused = p;
+    el.btnPause.textContent = paused ? 'Resume' : 'Pause';
+  }
+  function overlayOpen() {
+    return !el.eventOverlay.classList.contains('hidden') || !el.codexOverlay.classList.contains('hidden');
+  }
+  // The player's own pause is remembered once, when the first overlay of a
+  // run opens, and kept until the last one closes; a second card on the
+  // same day or the codex opened from a card must not overwrite it.
+  function openOverlayPause() {
+    if (pauseBeforeOverlay === null) pauseBeforeOverlay = paused;
+    setPaused(true);
+  }
+  function closeOverlayPause() {
+    if (overlayOpen()) return;
+    if (pauseBeforeOverlay !== null) setPaused(pauseBeforeOverlay);
+    pauseBeforeOverlay = null;
+  }
+
+  var WHO = {
+    player: 'The Vessari reached it first.',
+    enemy: 'The Khessites reached it first.',
+    both: 'Both sides reached it on the same day.'
+  };
+
+  // Turning points come from the sim (state.beats); their words come from
+  // js/lore.js. A beat recorded this tick queues its card once.
+  function checkBeats() {
+    var beats = state.beats || {};
+    Sim.BEAT_IDS.forEach(function (id) {
+      if (beats[id] && !shownBeats[id]) { shownBeats[id] = true; cardQueue.push(id); }
+    });
+    if (cardQueue.length && el.eventOverlay.classList.contains('hidden')) showNextCard();
+  }
+
+  function showNextCard() {
+    var id = cardQueue.shift();
+    var beat = state.beats[id];
+    var text = Lore.beats[id];
+    el.eventKicker.textContent = 'Turning point, day ' + beat.day;
+    el.eventTitle.textContent = text.title;
+    el.eventBody.textContent = text.variants[beat.by];
+    el.eventWhy.innerHTML = '';
+    var label = document.createElement('span');
+    label.className = 'why-label';
+    label.textContent = 'Why this card: ';
+    el.eventWhy.appendChild(label);
+    el.eventWhy.appendChild(document.createTextNode('on day ' + beat.day + ' ' + text.trigger + '. ' + WHO[beat.by]));
+    el.eventNoeffect.textContent = Lore.noEffect;
+    openOverlayPause();
+    el.eventOverlay.classList.remove('hidden');
+    el.btnEventContinue.focus();
+  }
+
+  function closeCard() {
+    el.eventOverlay.classList.add('hidden');
+    if (cardQueue.length) { showNextCard(); return; }
+    closeOverlayPause();
+  }
+
+  function openCodex(entryId) {
+    if (entryId) codexEntryId = entryId;
+    el.eventOverlay.classList.add('hidden');
+    openOverlayPause();
+    el.codexOverlay.classList.remove('hidden');
+    renderCodex();
+    el.btnCodexClose.focus();
+  }
+
+  function closeCodex() {
+    el.codexOverlay.classList.add('hidden');
+    if (cardQueue.length) { showNextCard(); return; } // cards waiting behind the codex
+    closeOverlayPause();
+  }
+
+  function renderCodex() {
+    el.codexNav.innerHTML = '';
+    var head = textDiv('kicker', 'History');
+    el.codexNav.appendChild(head);
+    Lore.codexOrder.forEach(function (id) {
+      var entry = Lore.entries[id];
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'codex-entry';
+      b.setAttribute('aria-pressed', id === codexEntryId ? 'true' : 'false');
+      var t = document.createElement('span'); t.className = 'entry-title'; t.textContent = entry.title;
+      var k = document.createElement('span'); k.className = 'entry-kind'; k.textContent = entry.kind;
+      b.appendChild(t); b.appendChild(k);
+      b.addEventListener('click', function () { codexEntryId = id; renderCodex(); });
+      el.codexNav.appendChild(b);
+    });
+    el.codexNav.appendChild(textDiv('kicker later', 'Turning points so far'));
+    // Reached turning points in the order they happened, then the rest.
+    var beats = state.beats || {};
+    Sim.BEAT_IDS.slice().sort(function (a, b) {
+      var da = beats[a] ? beats[a].day : Infinity, db = beats[b] ? beats[b].day : Infinity;
+      return da - db || Sim.BEAT_IDS.indexOf(a) - Sim.BEAT_IDS.indexOf(b);
+    }).forEach(function (id) {
+      var beat = beats[id];
+      if (!beat) {
+        el.codexNav.appendChild(textDiv('codex-beat pending', Lore.beats[id].title + ': not yet'));
+        return;
+      }
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'codex-entry';
+      b.setAttribute('aria-pressed', codexEntryId === 'beat:' + id ? 'true' : 'false');
+      var t = document.createElement('span'); t.className = 'entry-title';
+      var d = document.createElement('span'); d.className = 'beat-day'; d.textContent = 'Day ' + beat.day + ' ';
+      t.appendChild(d); t.appendChild(document.createTextNode(Lore.beats[id].title));
+      var k = document.createElement('span'); k.className = 'entry-kind'; k.textContent = WHO[beat.by];
+      b.appendChild(t); b.appendChild(k);
+      b.addEventListener('click', function () { codexEntryId = 'beat:' + id; renderCodex(); });
+      el.codexNav.appendChild(b);
+    });
+    var entry;
+    if (codexEntryId.indexOf('beat:') === 0) {
+      var bid = codexEntryId.slice(5), rec = beats[bid], lb = Lore.beats[bid];
+      entry = { kind: 'Turning point, day ' + rec.day, title: lb.title,
+        text: [lb.variants[rec.by], 'Why this card: on day ' + rec.day + ' ' + lb.trigger + '. ' + WHO[rec.by], Lore.noEffect] };
+    } else {
+      entry = Lore.entries[codexEntryId];
+    }
+    el.codexArticle.innerHTML = '';
+    el.codexArticle.appendChild(textDiv('kicker', entry.kind));
+    var h = document.createElement('h3'); h.textContent = entry.title;
+    el.codexArticle.appendChild(h);
+    el.codexArticle.appendChild(textDiv('rule', ''));
+    entry.text.forEach(function (para) {
+      var p = document.createElement('p'); p.textContent = para;
+      el.codexArticle.appendChild(p);
+    });
+  }
+
   // ---------- Interaction ----------
   function onProvinceClick(provId) {
     if (state.gameOver) return;
@@ -419,9 +586,13 @@
   }
 
   el.btnPause.addEventListener('click', function () {
-    paused = !paused;
-    el.btnPause.textContent = paused ? 'Resume' : 'Pause';
+    if (overlayOpen()) return; // a card or the codex holds the pause until closed
+    setPaused(!paused);
   });
+  el.btnCodex.addEventListener('click', function () { openCodex(); });
+  el.btnCodexClose.addEventListener('click', closeCodex);
+  el.btnEventContinue.addEventListener('click', closeCard);
+  el.btnEventCodex.addEventListener('click', function () { openCodex('ashwater'); });
   el.btnSpeed1.addEventListener('click', function () {
     speed = 1;
     el.btnSpeed1.classList.add('active'); el.btnSpeed2.classList.remove('active');
