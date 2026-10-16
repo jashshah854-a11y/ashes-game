@@ -978,3 +978,28 @@ test('economy order: production lines are paid before factories, and idle factor
   assert.strictEqual(n.factoryLevelsIdle, 0);
   assert.strictEqual(n.equipment, eq + levels * Sim.CFG.equipPerFactoryLevel);
 });
+
+test('simultaneous battles: occupants of a province under attack stay to defend it, mirror cases resolve the same way', () => {
+  const mk = (id, nation, provinceId) => ({ id, nation, type: 'infantry', provinceId, strength: 12, maxStrength: 12,
+    order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0 });
+  // West side attacks: occupants of p5_3 were ordered to attack p5_4.
+  const a = Sim.createGame(5);
+  a.provinces.p5_4.owner = 'player';
+  a.units = [mk(1, 'player', 'p4_3'), mk(2, 'player', 'p4_3'), mk(3, 'enemy', 'p5_3'), mk(4, 'player', 'p5_4')];
+  Sim.issueOrder(a, 1, 'p5_3'); Sim.issueOrder(a, 2, 'p5_3'); Sim.issueOrder(a, 3, 'p5_4');
+  Sim.movementPhase(a);
+  // East side attacks, the exact mirror: occupants of p4_3 were ordered to attack p4_4.
+  const b = Sim.createGame(5);
+  b.provinces.p4_4.owner = 'enemy';
+  b.units = [mk(1, 'enemy', 'p5_3'), mk(2, 'enemy', 'p5_3'), mk(3, 'player', 'p4_3'), mk(4, 'enemy', 'p4_4')];
+  Sim.issueOrder(b, 1, 'p4_3'); Sim.issueOrder(b, 2, 'p4_3'); Sim.issueOrder(b, 3, 'p4_4');
+  Sim.movementPhase(b);
+  for (const [s, home, away] of [[a, 'p5_3', 'p5_4'], [b, 'p4_3', 'p4_4']]) {
+    const occ = s.units.find(u => u.id === 3);
+    assert.ok(occ.strength < 12 || occ.provinceId === home, 'the occupant fought at home');
+    assert.notStrictEqual(occ.provinceId, away, 'the occupant did not march out');
+    assert.strictEqual(s.units.find(u => u.id === 4).strength, 12, 'its own attack never happened');
+    assert.ok(s.log.some(e => /after a hard fight|is repelled|destroyed at|cannot advance/.test(e.msg)), 'a battle was fought for ' + home);
+    assert.ok(!s.log.some(e => /unopposed/.test(e.msg)), 'nobody walked into an empty province');
+  }
+});

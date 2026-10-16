@@ -3,9 +3,9 @@
 // Loadable in the browser (window.AshesSim) and in node (module.exports)
 // so the same code that runs the game is the code the tests exercise.
 //
-// Cycle 6 step 2 note: battles resolve simultaneously from a start of
-// tick snapshot. Units crossing the same edge in opposite directions meet
-// in battle on the road. No nation's groups resolve first: every
+// Cycle 6 step 2 note: battles resolve simultaneously from a snapshot
+// taken at the start of the movement phase. Units crossing the same edge
+// in opposite directions meet in battle on the road. No nation's groups resolve first: every
 // engagement gets its own seeded rng and is computed on copies, then all
 // results are applied together.
 //
@@ -767,6 +767,21 @@
 
     // b. Province battles: every unassigned enemy at the target defends,
     // and all groups of the attacking nation into that target fight as one.
+    // Defenders are drawn first, for every targeted province at once: a
+    // unit standing on a province an enemy group marches on stays home to
+    // defend it, whatever its own orders. (Drawn one battle at a time, a
+    // stack whose own attack sorted first by province id marched out and
+    // left its province empty, so the west side always kept the choice;
+    // found by the Cycle 6 judge.)
+    groups.forEach(function (g) {
+      if (g.used || !g.ids.length) return;
+      (atProv[g.target] || []).forEach(function (id) {
+        if (unitById[id].nation !== g.nation && !assigned[id]) drawn[id] = true;
+      });
+    });
+    groups.forEach(function (h) {
+      if (!h.used) h.ids = h.ids.filter(function (id) { return !drawn[id]; });
+    });
     groups.forEach(function (g) {
       if (g.used || !g.ids.length) return;
       var defIds = (atProv[g.target] || []).filter(function (id) {
