@@ -26,6 +26,30 @@ was invented by the loop, not by you:
 - Three event cards: "Blood on the Spine", "The Second Generation", and
   "A Third Line", each with a Vessari, a Khessite, and a same day text.
 
+CYCLE 10 ADDITIONS, ALSO LOOP WRITTEN AND OPEN FOR REWRITE OR VETO
+(second lore pass, step 1). Three recurring texture cards in
+js/lore.js (LORE.textures), each with a Vessari and a Khessite text,
+each printing the same no effect sentence as the turning point cards:
+- "Walls Rise": fires each time a province finishes building a
+  fortification level. The Compact text is engineers, sightlines, and
+  a cost report; the Dominion text is the manual, the schedule, and
+  the next wall ordered before the concrete cures.
+- "The Gauge War": fires each time a stretch of captured rail
+  finishes converting to its new owner's gauge. Both texts are the
+  relaying crews: four days, one rail of every pair moved a hand's
+  width, recorded as a restoration by one side and as overtime by
+  the other.
+- "A Practiced Line": fires each time a production line reaches full
+  efficiency (150 percent). Both texts are the line crews and the
+  report writers disagreeing about what to call it.
+- Both capital codex entries gained a closing paragraph describing
+  both endings the game has: the capital falling (the nation falls
+  with it, in the sim's own end wording) and the campaign ending on
+  day 150 with the capital still standing (for Vesskar, a hard,
+  grinding survival; for Khessograd, the arsenal enduring with its
+  claim intact and its west unrecovered). This closes the endpoint
+  gap recorded in item 9.
+
 1. Calibration feel. Current numbers on master, measured with the
    committed harness (tools/balance.js) and re-verified at Cycle 9
    step 3 (the rerun is committed as tools/baseline-cycle9.txt):
@@ -141,7 +165,20 @@ was invented by the loop, not by you:
    118 percent now quotes 5 and charges 5 for 25 steel, the test
    repinned to equality across every efficiency, suite 65, balance
    byte identical to tools/baseline-cycle9.txt, all four browser
-   checks passing). Steps 1 to 4 of Cycle 10 remain.
+   checks passing). Step 1 is now also done: three recurring texture
+   cards (Walls Rise, The Gauge War, A Practiced Line) are written in
+   js/lore.js with only the variants real campaigns produce, the sim
+   records every occurrence in state.textures as it happens with no
+   rule reading the records, and both capital codex entries now
+   describe both endings. The reachability tally on all four harness
+   profiles and all 8 standard seeds is recorded in CYCLE_LOG: every
+   shipped variant fires, and every trigger fires at least twice in
+   at least one campaign (in fact in 8 of 8 campaigns of at least one
+   profile). Three candidate triggers were not shipped: a province
+   retaken never happened in 32 prototype campaigns, and new rail
+   completed and province captured fire so often (up to 23 and 13
+   times a campaign) that as cards they would be noise, not texture.
+   Steps 2 to 4 of Cycle 10 remain.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -214,15 +251,15 @@ was invented by the loop, not by you:
    Vessari first generation machines captured and copied in the
    Partition years. The race question itself is still yours: the
    loop will only build a player first research path on your word. The both text of "Blood on the
-   Spine" also never fired in 200 passive campaigns the loop ran. Separately, three passages in the lore imply edges
+   Spine" also never fired in 200 passive campaigns the loop ran. The
+   endpoint gap that used to sit in this item is closed: since Cycle 10
+   step 1 both capital entries describe both endings (see the Cycle 10
+   list at the top of this file). Separately, three passages in the lore imply edges
    the game does not give anyone: Khessograd's walls against
    Vesskar's walls that are "not much", the Dominion's old and
    enormous foundries, and Vessari steel that is "never enough",
    while in the game both nations start with identical steel,
-   equipment, and research. And the two capital entries describe
-   only the capital fall ending; neither mentions that a campaign
-   also ends on day 150 with a survival victory if your capital
-   still stands. Your call, in your own time: should the game grow
+   equipment, and research. Your call, in your own time: should the game grow
    asymmetries to match the text (a Vessari research edge, real
    capital walls, uneven steel), should the text be rewritten to
    match the symmetric game, or is the gap acceptable as unreliable
@@ -269,5 +306,6 @@ Line Efficiency Ramps) is complete through its step 4 judge
 (PASS WITH FIX-NOW FLAGS, the one flag carried to Cycle 10
 step 0 by the judge's own prescription). Cycle 10 (the second
 lore pass) is in progress: step 0 is done (that flag closed, the
-readout exact), steps 1 to 4 remain,
+readout exact) and step 1 is done (recurring texture content and
+recording hooks, capital endpoint wording), steps 2 to 4 remain,
 and the work runs without waiting on any item above.
