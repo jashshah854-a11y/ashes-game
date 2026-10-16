@@ -463,7 +463,21 @@ each printing the same no effect sentence as the turning point cards:
    supported capital row crossing quoted the full 4).
    No new taste item was created by this step, and the
    six navy taste questions below stay parked exactly
-   as the Cycle 13 judge left them. Cycle 14, Navy, is
+   as the Cycle 13 judge left them. Cycle 14 step 4
+   (a fresh judge) is now also done: PASS, no fix-now
+   flags, the judge independently rerunning the suite
+   (106 pass), the balance diff (byte identical to
+   tools/baseline-cycle14.txt), and all eight browser
+   checks, and reproducing both binding traces, its
+   own blockade tally (0 of 32 standard campaigns),
+   and the non vacuity mutant. Cycle 14 is complete.
+   The judge prescribed no next cycle: navy was last
+   in the deferred order, the bible's v1 systems list
+   is complete, and the next direction is your call;
+   its candidates (a campaign end screen with scoring,
+   save and load with integrity and determinism tests,
+   a playability pass) are candidates only, recorded
+   in CYCLE_LOG, and none is started. Cycle 14, Navy, is
    prescribed in full in CYCLE_LOG at this step, starting
    at step 0 with that carried flag, then step 1
    (flotillas built through a priced production template
@@ -703,8 +717,16 @@ sim, as recorded in item 2 above. Cycle 14 step 2 is
 now also done: navy on screen, as recorded in item 2
 above. Cycle 14 step 3 is now also done: formal navy
 tests, the binding traces, and the Cycle 14 baseline,
-as recorded in item 2 above. Cycle 14 (Navy) is prescribed
+as recorded in item 2 above. Cycle 14 step 4 (a fresh
+judge) is now also done: PASS, no fix-now flags, so
+Cycle 14 is complete, as recorded in item 2 above.
+Cycle 14 (Navy) is prescribed
 in full in CYCLE_LOG, with six more taste questions
 parked in item 2 above, all undecided and blocking
-nothing. The work runs without waiting on any
+nothing. With Cycle 14 complete, the bible's v1
+systems list is complete and the judge prescribed
+no next cycle: the next direction is your call, and
+the judge's candidates (a campaign end screen with
+scoring, save and load, a playability pass) are
+recorded in CYCLE_LOG as candidates only. The work runs without waiting on any
 item above.
