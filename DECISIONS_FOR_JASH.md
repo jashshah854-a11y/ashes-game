@@ -72,7 +72,12 @@ was invented by the loop, not by you:
    25 percent defense per level (max level 2) through the shared
    stackPower path, lose a level on capture, and the Dominion
    walls its capital and its river Spine province past 300
-   equipment. Step 2 (UI) is next, then tests and balance, and a
+   equipment. Step 2 (UI) is now also done: the province card
+   states the level, cost, days, and exact bonus with a Fortify
+   button, the map badge sits on top of the tile, the attack
+   preview and unit card name the walls, and the enemy card lists
+   Dominion fortifications and its wall rule. Step 3 (tests and
+   balance) is next, then a
    fresh judge, in that order. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
@@ -192,5 +197,5 @@ fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is in progress: step 0
 closed the Drone Gen 2 variant resolution in item 9, step 1 (sim) is
-done, step 2 (UI) is next,
+done, step 2 (UI) is done, step 3 (tests and balance) is next,
 and the cycle runs without waiting on any item above.
