@@ -229,8 +229,16 @@ each printing the same no effect sentence as the turning point cards:
    retooling a line with queued orders settles the manpower
    difference so a cheap queue cannot become an expensive unit
    for free; the suite stays 73 and the balance rerun is byte
-   identical to tools/baseline-cycle9.txt. Steps 2 (UI), 3
-   (tests and balance), and 4 (judge) remain. Its judge parked
+   identical to tools/baseline-cycle9.txt. Step 2 is now also
+   done: the nation card shows the pool and the daily intake
+   with a plain words explanation that intake is per province
+   held, the production summary names the pool, each production
+   row and the unit card state the manpower cost beside the
+   steel cost, a refused queue attempt shows its numbered
+   reason in the panel, and the enemy card shows the Dominion's
+   pool and intake by the same numbers, verified by the new
+   tools/manpower-check.js (15 of 15 in a real browser).
+   Steps 3 (tests and balance) and 4 (judge) remain. Its judge parked
    four taste questions with you, undecided by
    the prescription: whether manpower should also gate factory
    or fortification construction crews, whether the pool should
@@ -375,6 +383,9 @@ fresh judge) is done: PASS, no fix-now flags. Cycle 11
 step 1 (the sim: one pool per nation, intake per owned
 province, per template costs paid at queue time through the
 shared queueProduction path, the identical gate for the AI)
-is done, and steps 2 (UI), 3 (tests and balance), and 4
+is done, step 2 (UI: pool and intake on the nation and enemy
+cards, manpower costs on the production rows and the unit
+card, a visible queue refusal, tools/manpower-check.js 15
+of 15) is done, and steps 3 (tests and balance) and 4
 (judge) remain; the work runs without waiting on any item
 above.
