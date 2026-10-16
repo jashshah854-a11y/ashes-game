@@ -391,6 +391,41 @@ each printing the same no effect sentence as the turning point cards:
    step 1). No new taste item was created by this
    step, and the six taste questions above stay
    parked exactly as the Cycle 12 judge left them.
+   Step 4 (a fresh judge) is now also done: PASS WITH
+   FIX-NOW FLAGS, no failed verdict, independently
+   rerunning the suite (98 pass), the balance diff (byte
+   identical to tools/baseline-cycle13.txt), and all seven
+   browser checks, and reproducing the recon trace and
+   the mutant itself. Its one flag is a defect, not taste:
+   the province card factory button label is computed
+   from the true current factory level with no intel
+   gating, so it leaks that level for dark and remembered
+   provinces; it is carried to Cycle 14 step 0 with its
+   fix prescribed (a constant, level free label for non
+   live provinces, and the intel check extended to pin
+   it). Cycle 13 is complete. Cycle 14, Navy, is
+   prescribed in full in CYCLE_LOG at this step, starting
+   at step 0 with that carried flag, then step 1
+   (flotillas built through a priced production template
+   and stationed through one public command, one shared
+   coastal control readout, blockade pressure on steel
+   income past a threshold, and a named river crossing
+   attack penalty that a flotilla at either bank
+   removes), step 2 (navy on screen), step 3 (tests,
+   balance, and a binding trace), and step 4 (judge).
+   Its judge parks six more taste questions with you,
+   also undecided and blocking nothing: the flotilla's
+   flavor name and service beyond the plain word
+   flotilla; whether blockade should bite steel income,
+   equipment output, or both in a later cycle (Cycle 14
+   builds steel income only); whether a river crossing
+   should also cost time beyond the attack penalty;
+   whether flotillas should be sinkable in a later cycle
+   or stay permanent until their province falls; whether
+   coastal control should be scored on a campaign end
+   screen when scoring exists; and whether the Dominion's
+   coastal provinces should be visible as a theater
+   control bar or stay as counts on the cards.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -597,6 +632,12 @@ chips for remembered provinces, shipped as the loop
 default the prescription allowed and stays open for
 your rewrite or veto. Cycle 13 step 3 (formal tests,
 the recon trace, and the Cycle 13 baseline) is now
-also done, as recorded in item 2 above. After Cycle 13, in the stated
-order: navy. The work runs without waiting on any
+also done, as recorded in item 2 above. Cycle 13 step 4
+(a fresh judge) is now also done: PASS WITH FIX-NOW
+FLAGS, its one flag (the factory button fog leak, a
+defect, not taste) carried to Cycle 14 step 0, so
+Cycle 13 is complete, and Cycle 14 (Navy) is prescribed
+in full in CYCLE_LOG, with six more taste questions
+parked in item 2 above, all undecided and blocking
+nothing. The work runs without waiting on any
 item above.
