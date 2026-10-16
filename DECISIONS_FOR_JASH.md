@@ -88,8 +88,12 @@ was invented by the loop, not by you:
    WITH FIX-NOW FLAGS, with one flag (the map's fort level badge is
    covered by the building badge during an upgrade) carried to
    Cycle 9 step 0 by the judge's own prescription. Cycle 8 is
-   complete. Cycle 9, Production Line Efficiency Ramps, is next,
-   prescribed in full in CYCLE_LOG. The assessed branch items that were pending before
+   complete. Cycle 9, Production Line Efficiency Ramps, is now in
+   progress, prescribed in full in CYCLE_LOG: step 0 is done (the
+   building badge now sits below the level badge, both show during
+   an upgrade, and the fort check's new combined state run passes
+   17 of 17), and step 1 (the efficiency sim) is next. No new taste
+   item was created by step 0; it was a prescribed defect fix. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -207,7 +211,7 @@ reconciliation slices are decided, both assessed branch judge flag
 fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is complete through
-its step 4 judge (PASS WITH FIX-NOW FLAGS, the one flag carried to
-Cycle 9 step 0). Cycle 9 (Production Line Efficiency Ramps) is next,
-starting at step 0 with that flag,
+its step 4 judge (PASS WITH FIX-NOW FLAGS). Cycle 9 (Production
+Line Efficiency Ramps) is in progress: step 0 closed that judge
+flag, and step 1 (the efficiency sim) is next,
 and the work runs without waiting on any item above.
