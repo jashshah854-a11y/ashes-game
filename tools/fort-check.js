@@ -9,6 +9,11 @@
 // The capital is fortified through the real button; the badge, province
 // card, and unit card must state the level and the exact bonus, and the
 // badge must be visible on top, not hidden under unit chips.
+// Run 2b, the combined state (Cycle 9 step 0, closing Cycle 8 judge
+// Flag 1): same checker edit as Run 2, the capital is raised from Fort 1
+// toward Fort 2 through the real button; the tile must show BOTH the
+// current level badge and the building badge at once, each visible on
+// top and not overlapping the other.
 // Run 3, checker edit stated plainly: the Dominion starts with 2000
 // equipment so it walls its river province while the player's front stack
 // still stands next to it; the enemy card row and the attack preview must
@@ -52,6 +57,23 @@ async function badgeOnTop(page, provId) {
     const r = badge.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     return { ok: hit === badge || badge.contains(hit), text: badge.textContent };
+  }, provId);
+}
+
+async function allBadgesOnTop(page, provId) {
+  return page.evaluate((id) => {
+    const tile = document.querySelector('[data-prov="' + id + '"]');
+    if (!tile) return [];
+    tile.scrollIntoView({ block: 'center' });
+    return Array.prototype.map.call(tile.querySelectorAll('.fort-badge'), (badge) => {
+      const r = badge.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return {
+        text: badge.textContent,
+        ok: hit === badge || badge.contains(hit),
+        top: r.top, bottom: r.bottom, left: r.left, right: r.right,
+      };
+    });
   }, provId);
 }
 
@@ -107,6 +129,39 @@ async function untilText(page, fn, ms) {
     await page.click('[data-prov="p0_3"]');
     check('card states the exact bonus', /level 1 of 2, \+25% defense for your units defending here/.test(await page.textContent('#prov-details')));
     check('unit card names the walls', /\(includes \+25% from fortifications here\)/.test(await page.textContent('#unit-details')));
+    await page.close();
+
+    // Run 2b: the combined state. Raise the finished Fort 1 capital toward
+    // Fort 2 through the real button; both badges must show at once.
+    page = await newPage();
+    await withExtraEquipment(page, 'player', 5000);
+    await page.goto(URL);
+    await page.click('#btn-pause');
+    await page.click('[data-prov="p0_3"]');
+    await page.click('#btn-fort');
+    await page.click('#btn-speed2');
+    await page.click('#btn-pause');
+    await untilText(page, async () => (await badgeOnTop(page, 'p0_3')).text === 'Fort 1', 30000);
+    await page.click('#btn-pause');
+    await page.click('[data-prov="p0_3"]');
+    await page.click('#btn-fort');
+    const combined = await allBadgesOnTop(page, 'p0_3');
+    const combinedTexts = combined.map((b) => b.text);
+    check('combined state: tile carries both the current level badge and the building badge',
+      combined.length === 2 && combinedTexts.indexOf('Fort 1') !== -1 && combinedTexts.indexOf('Fort 2 in 5d') !== -1,
+      combinedTexts.join(' / '));
+    check('combined state: both badges are visible on top',
+      combined.length === 2 && combined.every((b) => b.ok), combinedTexts.join(' / '));
+    const lvlBadge = combined.find((b) => b.text === 'Fort 1');
+    const buildBadge = combined.find((b) => b.text === 'Fort 2 in 5d');
+    check('combined state: the two badges do not overlap',
+      !!lvlBadge && !!buildBadge &&
+        (lvlBadge.bottom <= buildBadge.top || buildBadge.bottom <= lvlBadge.top ||
+         lvlBadge.right <= buildBadge.left || buildBadge.right <= lvlBadge.left),
+      lvlBadge && buildBadge ? ('level ' + lvlBadge.top + '-' + lvlBadge.bottom + ', building ' + buildBadge.top + '-' + buildBadge.bottom) : 'missing badge');
+    check('combined state: province card states both the current level and the raise in progress',
+      /level 1 of 2, \+25% defense/.test(await page.textContent('#prov-details')) &&
+        /Being raised to level 2, 5 days left/.test(await page.textContent('#prov-details')));
     await page.close();
 
     // Run 3: the Dominion walls its river province; the preview and enemy card name it.
