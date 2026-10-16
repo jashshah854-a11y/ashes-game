@@ -349,6 +349,25 @@ each printing the same no effect sentence as the turning point cards:
    used are the prescribed ones (the theater map stays
    known and only military fact is hidden, the scripted
    AI does not read intel, agents are not removable).
+   Cycle 13 step 2 is now also done: fog is on screen.
+   The map shows live, remembered (dimmed and hatched,
+   with the snapshot's ghost unit chips marked with
+   their day), and dark states under a plain words
+   legend; the province inspector and the attack
+   preview are gated by the same intel readout, so a
+   remembered target shows only its snapshot with its
+   day and a dark target shows no enemy figures, each
+   stating how to reveal it; the nation card shows
+   provinces under live observation and the agent
+   stock, and planting runs through a Plant agent
+   button on the province card, with refusals shown in
+   the card. tools/intel-check.js passes 29 of 29.
+   The ghost chips question above is now shipped in
+   its ghost chips form as the loop default (ghost
+   figures on the map, snapshot numbers in the
+   inspector); it stays open for your rewrite or veto
+   exactly as parked, and no other taste question was
+   decided by this step.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -546,5 +565,13 @@ step 1 (the sim: the intelState readout family, end of
 tick snapshots, the priced Agent template and
 plantAgent, and the Dominion's stated agent spending
 rules) is now also done, as recorded in item 2 above.
-After Cycle 13, in the stated order: navy. The work
-runs without waiting on any item above.
+Cycle 13 step 2 (fog on screen: the three map states
+with a legend, the gated inspector and preview, the
+agent surface and planting control, and
+tools/intel-check.js at 29 of 29) is now also done, as
+recorded in item 2 above; its one shape choice, ghost
+chips for remembered provinces, shipped as the loop
+default the prescription allowed and stays open for
+your rewrite or veto. After Cycle 13, in the stated
+order: navy. The work runs without waiting on any
+item above.
