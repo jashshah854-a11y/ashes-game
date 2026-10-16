@@ -102,10 +102,18 @@ was invented by the loop, not by you:
    retool, and affects only how many funded days a unit takes to
    build (at the cap, infantry in 4 days and drones in 2), with
    the steel drain per day and the listed steel cost unchanged;
-   step 2 (the panel shows efficiency and its live effect) is
-   next. No new taste item was created by step 0 or step 1; step 0
-   was a prescribed defect fix and step 1's numbers are loop
-   tuning under the judge's prescription. The assessed branch items that were pending before
+   step 2 (efficiency on screen) is now also done: the production
+   panel shows each line's efficiency percent with the live build
+   days from the sim readout against the base days, the funded
+   working days left to full efficiency, a starting level wording
+   at the floor and a full efficiency wording at the cap, and the
+   retool warning now states the efficiency points a retool loses
+   beside the steel at risk; the unit card names its build days as
+   base speed. Step 3 (formal efficiency tests and the Cycle 9
+   baseline) is next. No new taste item was created by step 0,
+   step 1, or step 2; step 0 was a prescribed defect fix and
+   steps 1 and 2 are loop tuning and display under the judge's
+   prescription. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -226,5 +234,5 @@ your rewrite or veto. Cycle 8 (fortifications) is complete through
 its step 4 judge (PASS WITH FIX-NOW FLAGS). Cycle 9 (Production
 Line Efficiency Ramps) is in progress: step 0 closed that judge
 flag, step 1 (the efficiency sim) is built, and step 2 (efficiency
-on screen) is next,
+on screen) is built; step 3 (tests and balance) is next,
 and the work runs without waiting on any item above.
