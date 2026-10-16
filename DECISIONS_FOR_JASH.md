@@ -28,7 +28,8 @@ was invented by the loop, not by you:
 
 1. Calibration feel. Current numbers on master, measured with the
    committed harness (tools/balance.js) and re-verified at Cycle 9
-   step 1: a commander who never acts falls on day 36 on all 8 standard
+   step 3 (the rerun is committed as tools/baseline-cycle9.txt):
+   a commander who never acts falls on day 36 on all 8 standard
    seeds, inside the judge's 30 to 45 band; the scripted sensible player
    (which builds factories toward line 3) captures the enemy capital 8 of
    8, on day 43 on 7 seeds and day 28 on seed 2024, with end strength
@@ -109,10 +110,21 @@ was invented by the loop, not by you:
    at the floor and a full efficiency wording at the cap, and the
    retool warning now states the efficiency points a retool loses
    beside the steel at risk; the unit card names its build days as
-   base speed. Step 3 (formal efficiency tests and the Cycle 9
-   baseline) is next. No new taste item was created by step 0,
-   step 1, or step 2; step 0 was a prescribed defect fix and
-   steps 1 and 2 are loop tuning and display under the judge's
+   base speed. Step 3 (tests and balance) is now also done:
+   7 formal efficiency tests bring the suite to 65, the balance
+   rerun is committed as tools/baseline-cycle9.txt with every
+   ruling band passing and no tuning slice needed, and a seed 42
+   trace shows a line reaching the 150 percent cap after 25
+   funded days and its next unit charged at the ramped 4 days
+   for 20 steel. Step 3 also revisited the equipment question
+   as prescribed: efficiency ramps spend no equipment, equipment
+   keeps its two spends (factories and fortifications), and the
+   late campaign surplus (sensible ends with 1955 to 3090
+   equipment in the Cycle 9 baseline) stays open for a later
+   cycle and for you, with nothing built for it. Step 4 (a fresh
+   judge) is next. No new taste item was created by step 0,
+   step 1, step 2, or step 3; step 0 was a prescribed defect fix and
+   steps 1 to 3 are loop tuning, display, and tests under the judge's
    prescription. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
@@ -233,6 +245,7 @@ through its step 4 judge; the lore above is loop written and open for
 your rewrite or veto. Cycle 8 (fortifications) is complete through
 its step 4 judge (PASS WITH FIX-NOW FLAGS). Cycle 9 (Production
 Line Efficiency Ramps) is in progress: step 0 closed that judge
-flag, step 1 (the efficiency sim) is built, and step 2 (efficiency
-on screen) is built; step 3 (tests and balance) is next,
+flag, step 1 (the efficiency sim) is built, step 2 (efficiency
+on screen) is built, and step 3 (tests and balance) is built;
+step 4 (a fresh judge) is next,
 and the work runs without waiting on any item above.
