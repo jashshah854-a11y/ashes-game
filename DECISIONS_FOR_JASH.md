@@ -221,13 +221,23 @@ each printing the same no effect sentence as the turning point cards:
    shared queueProduction path with numbered rejections, the
    identical gate for the AI, and a step 3 requirement that the
    constraint demonstrably bind while every ruling band passes).
-   Its judge parked four taste questions with you, undecided by
+   Step 1 is now also done: the pool starts at 1200 for both
+   nations, intake is 1 per owned province per day (35 a day at
+   the start), infantry costs 120 manpower and a drone wing 25,
+   both paid in full at queue time through queueProduction with
+   numbered rejections, the AI bound by the identical gate, and
+   retooling a line with queued orders settles the manpower
+   difference so a cheap queue cannot become an expensive unit
+   for free; the suite stays 73 and the balance rerun is byte
+   identical to tools/baseline-cycle9.txt. Steps 2 (UI), 3
+   (tests and balance), and 4 (judge) remain. Its judge parked
+   four taste questions with you, undecided by
    the prescription: whether manpower should also gate factory
    or fortification construction crews, whether the pool should
    have a cap that wastes overflow intake, the flavor name of
    the intake beyond the plain word manpower, and whether a
    future cycle may spend manpower on partial unit
-   reinforcement; none of them blocks step 1.
+   reinforcement; none of them blocks the remaining steps.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -361,6 +371,10 @@ recording hooks, capital endpoint wording), step 2 is done
 codex), step 3 is done (formal texture tests, suite 73, balance
 byte identical to tools/baseline-cycle9.txt), and step 4 (a
 fresh judge) is done: PASS, no fix-now flags. Cycle 11
-(Manpower) is next, prescribed in full in CYCLE_LOG, starting
-at step 1, and the work runs without waiting on any item
+(Manpower) is in progress, prescribed in full in CYCLE_LOG:
+step 1 (the sim: one pool per nation, intake per owned
+province, per template costs paid at queue time through the
+shared queueProduction path, the identical gate for the AI)
+is done, and steps 2 (UI), 3 (tests and balance), and 4
+(judge) remain; the work runs without waiting on any item
 above.
