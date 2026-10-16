@@ -78,7 +78,12 @@
 
     // Event cards, one per campaign beat recorded by the sim. Each has a
     // variant for the side that reached the beat first, or for both when
-    // they reached it on the same day.
+    // they reached it on the same day. One exception, Cycle 8 step 0:
+    // droneGen2 ships only the enemy and both variants. Both nations
+    // accrue research at the same flat rate and the Dominion researches
+    // on the first tick it can afford it, so the player can at best tie
+    // on day 21 and can never field Gen 2 alone first; a player variant
+    // would be text no campaign could ever show.
     beats: {
       capitalRow: {
         title: 'Blood on the Spine',
@@ -93,8 +98,7 @@
         title: 'The Second Generation',
         trigger: 'a nation fielded Drone Gen 2 for the first time',
         variants: {
-          player: 'The Compact\'s workshops have fielded the second generation of drone wings: machines that strike harder and hold up better, and still cost less to lose than anything the Dominion will spend to stop them. The engineers in Vesskar call it the old argument, made louder. The Khessite staff will copy it, and both sides know it.',
-          enemy: 'The foundries of Khessograd have fielded the second generation of drone wings, copied from Vessari designs and built to Khessite standards. The Houses dislike the machines and field them anyway. The staff college has added a chapter to the Reckoning on how to count them.',
+          enemy: 'The foundries of Khessograd have fielded the second generation of drone wings, built on the Vessari first generation machines the Dominion captured and copied in the Partition years, and carried a step further to Khessite standards. The Houses dislike the machines and field them anyway. The staff college has added a chapter to the Reckoning on how to count them.',
           both: 'Both nations fielded the second generation of drone wings on the same day. Spies on each bank will spend the next month explaining to their own side how the other side managed it.'
         }
       },

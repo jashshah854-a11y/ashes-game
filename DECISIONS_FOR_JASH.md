@@ -60,12 +60,15 @@ was invented by the loop, not by you:
    baseline. Step 4 (judge) is now also done: a fresh judge with no
    builder context returned CONDITIONAL PASS (EU5 lore STRONG, with
    one defect), one fix-now flag (a codex bug across New Game) is
-   fixed, and the other (the Drone Gen 2 card texts, item 9) has
-   its documentation done with the variant resolution carried to
-   Cycle 8 step 0. Cycle 7 is complete. Cycle 8, fortifications
-   paid in equipment, is prescribed next: step 0 closes item 9's
-   variant resolution, then sim, UI, tests and balance, and a
-   fresh judge, in that order. The assessed branch items that were pending before
+   fixed, and the other (the Drone Gen 2 card texts, item 9) had
+   its documentation done in Cycle 7 with the variant resolution
+   carried to Cycle 8 step 0. Cycle 7 is complete. Cycle 8,
+   fortifications paid in equipment, is now in progress: step 0 is
+   done (item 9's variant resolution closed by narrowing the card
+   to the enemy and both variants and rewording the enemy text,
+   with a reachability test pinning that real campaigns fire
+   exactly the shipped variants), and step 1 (sim) is next, then
+   UI, tests and balance, and a fresh judge, in that order. The assessed branch items that were pending before
    step 2 are both ported and verified: the Cycle 6 judge flag 1 fix
    (defenders drawn for every targeted province before any battle forms,
    see CYCLE_LOG and item 8) and judge flag 4, which rode with step 2
@@ -126,11 +129,13 @@ was invented by the loop, not by you:
    at all. The judge's question underneath, in its own framing:
    should Drone Gen 2 feel like a race you can win outright, or
    like the simultaneous arms race the symmetric research now
-   produces? The honest text follows from your answer; if you have
-   not answered when Cycle 8 step 0 runs, the loop will narrow the
-   card to the outcomes the game can produce (enemy, both) and
-   reword the enemy text, and will only build a player first
-   research path on your word. The both text of "Blood on the
+   produces? You had not answered when Cycle 8 step 0 ran, so the
+   loop took the default the judge prescribed: the card is narrowed
+   to the outcomes the game can produce (enemy, both), the player
+   variant is deleted, and the enemy text is reworded onto the
+   Vessari first generation machines captured and copied in the
+   Partition years. The race question itself is still yours: the
+   loop will only build a player first research path on your word. The both text of "Blood on the
    Spine" also never fired in 200 passive campaigns the loop ran. Separately, three passages in the lore imply edges
    the game does not give anyone: Khessograd's walls against
    Vesskar's walls that are "not much", the Dominion's old and
@@ -144,8 +149,9 @@ was invented by the loop, not by you:
    capital walls, uneven steel), should the text be rewritten to
    match the symmetric game, or is the gap acceptable as unreliable
    national memory, which both entries already play with? Nothing
-   is blocked; the unreachable texts sit in the codex data and
-   simply never show.
+   is blocked; the unreachable Gen 2 player text is gone from the
+   shipped card since Cycle 8 step 0, and the other passages above
+   remain as written, open for your rewrite or veto.
 
 10. Event cards hard pause the war (loop question, not the
     judge's). Every turning point card currently stops the clock until
@@ -178,6 +184,6 @@ Nothing here blocks the loop. Cycle 6 is complete, the first 6
 reconciliation slices are decided, both assessed branch judge flag
 fixes (1 and 4) are ported, and Cycle 7 (the lore seed) is complete
 through its step 4 judge; the lore above is loop written and open for
-your rewrite or veto. Cycle 8 (fortifications) is prescribed next,
-starting with step 0 closing the Drone Gen 2 variant resolution in item 9,
+your rewrite or veto. Cycle 8 (fortifications) is in progress: step 0
+closed the Drone Gen 2 variant resolution in item 9, step 1 (sim) is next,
 and the cycle runs without waiting on any item above.

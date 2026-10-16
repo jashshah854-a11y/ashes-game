@@ -1038,13 +1038,28 @@ test('lore: every codex entry exists, names match the sim, nation histories are 
   }
 });
 
-test('lore: every sim beat has a card with all three variants, and no lore copy has an em or en dash', () => {
+test('lore: every sim beat has a card with its shipped variants, and no lore copy has an em or en dash', () => {
   assert.deepStrictEqual(Object.keys(Lore.beats).sort(), Sim.BEAT_IDS.slice().sort());
+  // Shipped variant sets, Cycle 8 step 0: droneGen2 ships only enemy
+  // and both, because symmetric research accrual plus the Dominion
+  // researching on the first affordable tick caps the player at a
+  // day 21 tie; a player first variant could never fire (see the
+  // reachability test below). The other beats ship all three.
+  const shipped = {
+    capitalRow: ['player', 'enemy', 'both'],
+    droneGen2: ['enemy', 'both'],
+    line3: ['player', 'enemy', 'both']
+  };
   Sim.BEAT_IDS.forEach(id => {
     const b = Lore.beats[id];
     assert.ok(b.title && b.trigger, id);
-    ['player', 'enemy', 'both'].forEach(v => assert.ok(b.variants[v] && b.variants[v].length > 40, id + ' ' + v));
+    assert.deepStrictEqual(Object.keys(b.variants).sort(), shipped[id].slice().sort(), id + ' shipped variants');
+    shipped[id].forEach(v => assert.ok(b.variants[v] && b.variants[v].length > 40, id + ' ' + v));
   });
+  // The enemy Gen 2 text is grounded in the captured first generation
+  // machines, not in a Vessari Gen 2 the Compact may never have fielded.
+  assert.ok(/first generation/.test(Lore.beats.droneGen2.variants.enemy), 'enemy Gen 2 text names the first generation origin');
+  assert.ok(!/copied from Vessari designs/.test(JSON.stringify(Lore)), 'no lore copy claims Gen 2 was copied from Vessari designs');
   assert.ok(/changes nothing in the game/.test(Lore.noEffect));
   const all = JSON.stringify(Lore);
   assert.ok(!/[\u2013\u2014]/.test(all), 'no em or en dash anywhere in the lore');
@@ -1089,6 +1104,31 @@ test('beats: Drone Gen 2 and line 3 record the first side, or both on the same d
   const day = l.day;
   Sim.tick(l);
   assert.deepStrictEqual(l.beats.line3, { day: day, by: 'player' });
+});
+
+test('beats: every shipped Drone Gen 2 variant can fire through a real campaign path', () => {
+  // Cycle 8 step 0 reachability pin, per the Cycle 7 judge flag 1
+  // resolution: the set of outcomes real campaigns produce must equal
+  // the set of variants js/lore.js ships for this beat. Two profiles on
+  // seed 42 through the public paths only: a passive player who never
+  // researches (tick only) leaves the beat to the enemy alone, and an
+  // eager player who researches the moment the panel numbers allow
+  // ties the Dominion on the same day. No staged state either way.
+  const fired = {};
+  const passive = Sim.createGame(42);
+  while (!passive.beats.droneGen2 && passive.day < 40) Sim.tick(passive);
+  assert.ok(passive.beats.droneGen2, 'passive campaign records the beat');
+  fired[passive.beats.droneGen2.by] = passive.beats.droneGen2.day;
+  const eager = Sim.createGame(42);
+  while (!eager.beats.droneGen2 && eager.day < 40) {
+    if (!eager.nations.player.droneGen2 && eager.nations.player.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(eager, 'player');
+    Sim.tick(eager);
+  }
+  assert.ok(eager.beats.droneGen2, 'eager campaign records the beat');
+  fired[eager.beats.droneGen2.by] = eager.beats.droneGen2.day;
+  assert.deepStrictEqual(Object.keys(fired).sort(), Object.keys(Lore.beats.droneGen2.variants).sort(),
+    'real campaigns fire exactly the shipped variants, no more and no fewer');
+  assert.strictEqual(fired.enemy, fired.both, 'both outcomes land on the same day, the research clock tie');
 });
 
 test('beats: the same seed and the same commands record the same beats', () => {
