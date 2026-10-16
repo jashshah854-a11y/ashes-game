@@ -49,6 +49,15 @@ each printing the same no effect sentence as the turning point cards:
   grinding survival; for Khessograd, the arsenal enduring with its
   claim intact and its west unrecovered). This closes the endpoint
   gap recorded in item 9.
+- One wording note from the Cycle 10 judge (step 4), recorded for
+  this same veto pass and explicitly not graded a defect: both
+  "Walls Rise" variants open with the word "Another", which on a
+  campaign's first ever fortification completion slightly
+  presupposes an earlier one. The judge's reading: walls exist in
+  the world's fiction before any given completion, and the word
+  carries no mechanical or factual claim. No text was changed and
+  no step was assigned; it is yours to keep or strike when you
+  read the card, alongside the item 9 passages.
 
 1. Calibration feel. Current numbers on master, measured with the
    committed harness (tools/balance.js) and re-verified at Cycle 9
@@ -195,8 +204,30 @@ each printing the same no effect sentence as the turning point cards:
    variant set, determinism, zero mechanical effect with its mutant
    failing exactly that test, and a capital endpoint wording test),
    and the balance rerun is byte identical to
-   tools/baseline-cycle9.txt. Step 4 of Cycle 10 (a fresh judge)
-   remains.
+   tools/baseline-cycle9.txt. Step 4 is now also done: a fresh
+   judge with no builder context returned PASS, the first clean
+   pass with no fix-now flags in the loop's recorded verdicts,
+   independently rerunning the suite (73 pass), the balance diff
+   (byte identical to tools/baseline-cycle9.txt), and all four
+   browser checks (lore 116 of 116, efficiency 15 of 15, fort 17
+   of 17, browser 6 of 6), reproducing the step 3 zero effect
+   mutant and the step 1 reachability tally itself, and grading
+   EU5 lore STRONG strengthened and legibility STRONG with no
+   remaining named exception. Cycle 10 is complete. Cycle 11,
+   Manpower, is prescribed in full in CYCLE_LOG at the Cycle 10
+   step 4 entry (no step 0 and no carried flag, so it starts at
+   step 1: one manpower pool per nation, daily intake per owned
+   province, per template costs paid at queue time through the
+   shared queueProduction path with numbered rejections, the
+   identical gate for the AI, and a step 3 requirement that the
+   constraint demonstrably bind while every ruling band passes).
+   Its judge parked four taste questions with you, undecided by
+   the prescription: whether manpower should also gate factory
+   or fortification construction crews, whether the pool should
+   have a cap that wastes overflow intake, the flavor name of
+   the intake beyond the plain word manpower, and whether a
+   future cycle may spend manpower on partial unit
+   reinforcement; none of them blocks step 1.
    No new taste item was created by Cycle 9 step 0,
    step 1, step 2, step 3, or step 4, or by Cycle 10 step 0; the
    step 0s were prescribed defect fixes and Cycle 9 steps 1 to 3
@@ -323,11 +354,13 @@ its step 4 judge (PASS WITH FIX-NOW FLAGS). Cycle 9 (Production
 Line Efficiency Ramps) is complete through its step 4 judge
 (PASS WITH FIX-NOW FLAGS, the one flag carried to Cycle 10
 step 0 by the judge's own prescription). Cycle 10 (the second
-lore pass) is in progress: step 0 is done (that flag closed, the
+lore pass) is complete: step 0 is done (that flag closed, the
 readout exact), step 1 is done (recurring texture content and
-recording hooks, capital endpoint wording), and step 2 is done
+recording hooks, capital endpoint wording), step 2 is done
 (recurring texture on screen through the card overlay and the
 codex), step 3 is done (formal texture tests, suite 73, balance
-byte identical to tools/baseline-cycle9.txt), step 4 (a fresh
-judge) remains, and the work runs without waiting on any item
+byte identical to tools/baseline-cycle9.txt), and step 4 (a
+fresh judge) is done: PASS, no fix-now flags. Cycle 11
+(Manpower) is next, prescribed in full in CYCLE_LOG, starting
+at step 1, and the work runs without waiting on any item
 above.
