@@ -2108,3 +2108,20 @@ This run advanced no step, because there is no unclaimed, unbuilt step to claim.
 
 ### Mission status
 The takeover mission's buildable work is complete: reconciliation decided, Cycles 7 through 14 built and judged, v1 systems list complete. The loop is idle awaiting Jash's direction on the next cycle, not stopped by any stop condition: zero consecutive failed judge verdicts and the build is green on every check run this run. This is the seventeenth consecutive verification run with identical results, which confirms the standing state has not drifted.
+
+## Post Cycle 14 verification run, no step claimed, eighteenth such run (2026-10-17, 03:13 EDT run)
+
+This run advanced no step, because there is no unclaimed, unbuilt step to claim. Cycle 14 closed with a judge PASS and no fix-now flags, the Cycle 8 judge's deferred order is exhausted (fortifications, efficiency ramps, manpower, drones and EW with the cost exchange scoreboard, intel and fog, navy), and the Cycle 14 judge prescribed no next cycle, finding the bible's v1 systems list complete item by item. The next direction is Jash's call; its candidates (a campaign end screen with scoring, save and load with integrity and determinism tests, a playability pass) are recorded in DECISIONS_FOR_JASH.md and none is started here. Starting one would be the loop setting taste, which the hard rules forbid. Lessons applied this run: when a judge prescribes no next cycle because the governing list is complete, record the completeness and start none of the candidates (the Cycle 14 step 4 lesson); a run that starts with no unclaimed step is a verification run, not an invention opportunity (the post Cycle 14 verification lesson); keep the verification method identical across idle runs so the comparison stays clean (the second verification run lesson); the PYTHONPATH workaround for gh.py and removing /tmp/ashes-gh-sync before fetching (sync in).
+
+### Sync in
+- With PYTHONPATH set to /opt/muse/skills/custom-connector-setup/bin and /tmp/ashes-gh-sync removed first, master fetched cleanly and diffed identical to local HEAD 30db15c, file for file. Nothing copied in, nothing overwritten.
+- Working tree was clean at run start, so the concurrency guard passed.
+
+### Verification run by this run
+- node --check on every JS file in js, tests, and tools: all pass. Em and en dash scan of the whole repo as a python byte scan: zero.
+- node --test tests/sim.test.js: 106 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle14.txt, so every band of Jash's 2026-10-11 ruling still holds on the 8 standard seeds exactly as the Cycle 14 judge recorded them.
+- No code, UI, test, or balance change was made. BACKLOG.md and DECISIONS_FOR_JASH.md already record Cycle 14 complete and the candidates parked for Jash, with no contradictions found, so neither needed an edit this run.
+
+### Mission status
+The takeover mission's buildable work is complete: reconciliation decided, Cycles 7 through 14 built and judged, v1 systems list complete. The loop is idle awaiting Jash's direction on the next cycle, not stopped by any stop condition: zero consecutive failed judge verdicts and the build is green on every check run this run. This is the eighteenth consecutive verification run with identical results, which confirms the standing state has not drifted.
