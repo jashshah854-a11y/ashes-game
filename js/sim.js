@@ -86,6 +86,9 @@
 // at either endpoint of that edge. Flotillas never carry units and
 // there are no naval invasions and no sea provinces.
 //
+// Cycle 15 step 1 note: campaign scoring is one shared readout
+// computed from current state only, and no rule reads it.
+//
 // Cycle 11 step 1 note: manpower. Each nation holds one manpower pool.
 // It starts at CFG.manpowerStart, grows every day by
 // CFG.manpowerPerProvincePerDay for each province the nation owns
@@ -137,6 +140,11 @@
     riverCrossingPct: 25,         // percent attack lost attacking across a river edge without flotilla support
     blockadeCoastalThreshold: 3,  // enemy home coastal provinces a nation must control for its blockade to bite
     blockadeSteelPct: 25,         // percent of daily steel income lost to blockade while the threshold is met, rounded down
+    scorePerProvince: 10,         // campaign scoring: points per province owned
+    scorePerFactoryLevel: 5,      // campaign scoring: points per total factory level
+    scorePerStrength: 1,          // campaign scoring: points per army strength point
+    scoreOwnCapital: 50,          // campaign scoring: points for holding own capital
+    scoreEnemyCapital: 100,       // campaign scoring: points for holding enemy capital
     ownedSightRange: 1,           // provinces past owned ground that ownership alone makes live
     unitSightRange: 1,            // provinces past a unit's province that presence makes live (infantry and every non drone unit)
     droneSightRange: 2,           // provinces past a drone wing's province that drone recon makes live, through the graph
@@ -525,6 +533,59 @@
   function exchangeForced(state, nationId) { return exchangeRecord(state, nationId).forced; }
   function exchangeSuffered(state, nationId) { return exchangeRecord(state, nationId).suffered; }
   function exchangeNet(state, nationId) { return exchangeRecord(state, nationId).net; }
+
+  // ---------- Campaign scoring (Cycle 15) ----------
+  // One shared readout for a campaign end screen. Computed from
+  // current state only, no rule reads it, and tick does not call it.
+  // The score pieces mirror what a player can see and influence:
+  // provinces held, factories built, army strength kept, the exchange
+  // ledger net, and both capitals. The function does not mutate state
+  // other than what exchangeNet already does through its ensure helper.
+  function campaignScore(state, nationId) {
+    var otherId = opposingNation(nationId);
+    var provinces = nationProvinces(state, nationId).length;
+    var factoryLevelsTotal = factoryLevels(state, nationId);
+    var armyStrength = Math.round(unitsOf(state, nationId).reduce(function (s, u) { return s + u.strength; }, 0));
+    var exchange = exchangeNet(state, nationId);
+    var ownCapitalHeld = state.provinces[state.nations[nationId].capitalId].owner === nationId;
+    var enemyCapitalHeld = state.provinces[state.nations[otherId].capitalId].owner === nationId;
+    var provincePoints = provinces * CFG.scorePerProvince;
+    var factoryPoints = factoryLevelsTotal * CFG.scorePerFactoryLevel;
+    var armyPoints = armyStrength * CFG.scorePerStrength;
+    var exchangePoints = exchange;
+    var ownCapitalPoints = ownCapitalHeld ? CFG.scoreOwnCapital : 0;
+    var enemyCapitalPoints = enemyCapitalHeld ? CFG.scoreEnemyCapital : 0;
+    var total = provincePoints + factoryPoints + armyPoints + exchangePoints + ownCapitalPoints + enemyCapitalPoints;
+    return {
+      provinces: provinces,
+      provincePoints: provincePoints,
+      factoryLevels: factoryLevelsTotal,
+      factoryPoints: factoryPoints,
+      armyStrength: armyStrength,
+      armyPoints: armyPoints,
+      exchangeNet: exchange,
+      exchangePoints: exchangePoints,
+      ownCapitalHeld: ownCapitalHeld,
+      ownCapitalPoints: ownCapitalPoints,
+      enemyCapitalHeld: enemyCapitalHeld,
+      enemyCapitalPoints: enemyCapitalPoints,
+      total: total
+    };
+  }
+
+  function campaignResult(state) {
+    var playerScore = campaignScore(state, 'player');
+    var enemyScore = campaignScore(state, 'enemy');
+    return {
+      gameOver: state.gameOver,
+      winner: state.winner,
+      endReason: state.endReason,
+      day: state.day,
+      player: playerScore,
+      enemy: enemyScore,
+      margin: playerScore.total - enemyScore.total
+    };
+  }
 
   // ---------- Intel and fog (Cycle 13) ----------
   // The one sight computation every intel number comes from, in the
@@ -2470,6 +2531,8 @@
     exchangeForced: exchangeForced,
     exchangeSuffered: exchangeSuffered,
     exchangeNet: exchangeNet,
+    campaignScore: campaignScore,
+    campaignResult: campaignResult,
     intelState: intelState,
     intelIsLive: intelIsLive,
     intelLastSeenDay: intelLastSeenDay,

@@ -730,3 +730,15 @@ the judge's candidates (a campaign end screen with
 scoring, save and load, a playability pass) are
 recorded in CYCLE_LOG as candidates only. The work runs without waiting on any
 item above.
+
+14. Campaign score floor and feel (Cycle 15 step 1). The new scoring
+    readout weights are loop tuning in CFG: 10 points per province,
+    5 per factory level, 1 per army strength point, the raw exchange
+    net in steel, 50 for holding your own capital, and 100 for holding
+    the enemy capital. Because the exchange net is signed, a heavily
+    losing nation can finish with a negative total (a passive player
+    on seed 1 finishes at minus 15). Should a campaign total floor at
+    zero, or is a negative total an honest and even useful signal of
+    how badly a campaign went? And do the weights themselves feel
+    right when you see the end screen in step 2? Nothing is blocked;
+    the readout ships as built until you rule.

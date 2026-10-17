@@ -2635,3 +2635,41 @@ This run advanced no step, because there is no unclaimed, unbuilt step to claim.
 
 ### Mission status
 The takeover mission's buildable work is complete: reconciliation decided, Cycles 7 through 14 built and judged, v1 systems list complete. The loop is idle awaiting Jash's direction on the next cycle, not stopped by any stop condition: zero consecutive failed judge verdicts and the build is green on every check run this run. This is the forty-eighth consecutive verification run with identical results, which confirms the standing state has not drifted.
+
+## Cycle 15, Campaign end screen with scoring, step list (2026-10-17)
+
+Direction: Jash's 2026-10-17 order for the free model loop, superseding the post Cycle 14 idle posture. The next cycles in order are Cycle 15 (campaign end screen with scoring), Cycle 16 (save and load, including save integrity and time step determinism tests), and Cycle 17 (playability pass). The 48 post Cycle 14 verification runs are closed history; they are not a reason to stay idle under the new order.
+
+Step list for Cycle 15:
+- Step 1: sim. One shared campaignScore readout and a campaignResult readout in js/sim.js only, computed from current state, with no rule reading them and no change to any win condition, price, odds, AI, or tick path.
+- Step 2: UI. A campaign end screen that replaces the one line banner as the end surface, showing the result, the day, and the full scoring breakdown for both nations from the Step 1 readouts, with every component labelled in plain words and a New Game control. Legibility is law: the screen must state how each score number is earned.
+- Step 3: tests and balance. Formal scoring tests (arithmetic at the stated weights, capital cases, determinism, zero mechanical effect, mirrored parity), a committed browser check for the end screen, and a balance rerun that must stay byte identical to tools/baseline-cycle14.txt unless a band break is traced and tuned in a small slice.
+- Step 4: milestone review. Opus 5.5 reviews the whole cycle against the DESIGN_BIBLE compass, with the cycle log entries, diff stat, test counts, and balance output in the package.
+
+## Cycle 15, Step 1 of 4: campaign scoring in the sim (2026-10-17)
+
+Claimed this run: Step 1 only. Steps 2, 3, and 4 remain.
+
+### What was built
+- Builder: free OpenCode model opencode/nemotron-3-ultra-free, through the fixed CLI (opencode v2.0.31). Four earlier models in the prescribed rotation returned Rate limit exceeded and made no changes: opencode/deepseek-v4.1-flash-free, opencode/glm-5.3-flash-free, opencode/mimo-v2.6-flash-free, and opencode/longcat-2.5-preview-free. Nemotron accepted the call and completed in about 333 seconds.
+- js/sim.js only, 63 insertions, no other file touched by the builder. CFG gains five scoring tunables: scorePerProvince 10, scorePerFactoryLevel 5, scorePerStrength 1, scoreOwnCapital 50, scoreEnemyCapital 100.
+- campaignScore(state, nationId) is the one shared readout. It returns provinces and provincePoints, factoryLevels and factoryPoints, armyStrength (the rounded sum of surviving unit strength) and armyPoints, exchangeNet and exchangePoints (the raw net from the existing exchange ledger), ownCapitalHeld and ownCapitalPoints, enemyCapitalHeld and enemyCapitalPoints, and total, which is the sum of the five point fields. It reuses the existing helpers nationProvinces, factoryLevels, unitsOf, exchangeNet, and opposingNation.
+- campaignResult(state) returns gameOver, winner, endReason, day, the player and enemy campaignScore objects, and margin (player total minus enemy total).
+- Both functions are exported in the api object near the exchange exports. A header note and a section comment state that scoring is computed from current state only and that no rule reads it.
+
+### Verification run by the orchestrator (not taken from the builder)
+- Full git diff reviewed: only js/sim.js, only the changes listed above, no scope creep, no UI, test, or docs change by the builder.
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 106 pass, 0 fail (suite unchanged this step; formal scoring tests are Step 3).
+- node tools/balance.js all: byte identical to tools/baseline-cycle14.txt, so every band of Jash's 2026-10-11 ruling still holds exactly as recorded.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- No rule reads the score, verified by grep: the only callers of campaignScore are campaignResult itself and the api export; tick does not call either function.
+- Spot checks by the orchestrator: seed 1 at day 1, player total 542 (35 provinces for 350, 14 factory levels for 70, army strength 72 for 72, exchange 0, own capital 50, enemy capital 0) and enemy total 527 (35 provinces, 11 factory levels, same army and capital shape). Seed 42 at day 1, player 512 and enemy 522. A second call returns an identical object and does not mutate state. A full passive campaign on seed 1 ends on day 36 with winner enemy, player total minus 15, enemy total 1161, and margin minus 1176; the enemy score correctly records that it holds the player capital and the player score records that it does not hold its own.
+- Honest observation, recorded and not fixed in this step: because exchangePoints is the raw exchange net, a heavily losing nation can finish with a negative total (the passive seed 1 player at minus 15 above). That is the arithmetic the brief specified, not a defect in the builder's work. Whether a total should floor at zero is a feel and legibility question: it is parked for Jash in DECISIONS_FOR_JASH.md item 14 and named for Step 3 and the Step 4 judge to consider, with no change made here.
+
+### Lessons applied and learned
+- Lessons applied: one step per run; legibility is law (every score component is a named, visible quantity the player already sees in play, with its weight in CFG); stackPower stays the one shared power function (scoring does not touch it); rebalance only in small slices (no tuning changed, balance byte identical by construction and by rerun).
+- New lesson recorded in LOOP_LESSONS.md: the free model rotation worked as designed on its first live cycle step, with four rate limited models costing only seconds each and the fifth completing the build; and a score that includes a raw signed ledger can go negative, which must be surfaced as a design question instead of silently floored.
+
+### Mission status
+Cycle 15 Step 1 is complete and verified. Next run claims Step 2 (the end screen UI) unless a failure intervenes. No stop condition is met: no failed judge verdicts, no verification failures this run.
