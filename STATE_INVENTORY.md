@@ -223,23 +223,23 @@ the rng is savable as those derivation inputs and nothing else.
 Each one below lists its type or shape, what `newGame` does to it, and what a
 load must do.
 
-| Variable | Type or shape | newGame | A load must do |
-|----------|---------------|---------|----------------|
-| state | object, the live sim state object | Replaces it with a fresh createGame, seeded from urlSeed or a random seed | Replaces it with the deserialized saved state |
-| selectedProvinceId | string or null, a province id | Sets it to null | Sets it to null |
-| selectedUnitId | number or null, a unit id | Sets it to null | Sets it to null |
-| paused | boolean | Sets it to false | Sets it to false |
-| speed | number, 1 or 2 | Does not reset it | Does not reset it |
-| timer | setInterval handle or null, not serializable | Restarts it through startTimer, 900 ms at speed 1 and 300 ms at speed 2 | Restarts it the same way; the old handle is never saved |
-| shownBeats | object, beat ids whose card has been shown this game | Resets it to an empty object | Rebuilds it from state.beats, with every recorded beat id counted as shown |
-| cardQueue | array of waiting card entries, each with kind beat or texture | Resets it to an empty array | Rebuilds it empty, so nothing waits |
-| shownTextureCount | number, an index into state.textures | Resets it to 0 | Rebuilds it from state.textures, set to the saved length so no recorded texture is re-shown |
-| pauseBeforeOverlay | boolean or null, the pause flag to restore when the last overlay closes | Sets it to null | Sets it to null; no overlay is pending |
-| codexEntryId | string, the open codex entry | Sets it to 'ashwater' | Sets it to 'ashwater' |
-| prodNotice | string, the last refused queue or retool reason | Sets it to an empty string | Sets it to an empty string |
-| provNotice | string, the last refused province card action reason | Sets it to an empty string | Sets it to an empty string |
-| el | object, the DOM element cache, not serializable | Leaves it untouched | Leaves it untouched; the same document keeps the cached nodes valid |
-| urlSeed | number or null, the seed parsed from the address | Consumes it, sets it to null | Consumes it, sets it to null; the seed now comes from the saved state |
+| Variable | Type or shape | newGame | A load must do | Sim relevance (Cycle 17 Step 0) |
+|----------|---------------|---------|----------------|----------------------------------|
+| state | object, the live sim state object | Replaces it with a fresh createGame, seeded from urlSeed or a random seed | Replaces it with the deserialized saved state | Sim relevant. It is the sim state object itself; every Sim call reads and writes it. |
+| selectedProvinceId | string or null, a province id | Sets it to null | Sets it to null | Not sim relevant. Selection only. Handlers pass its value as an argument to Sim functions in the same handler (buildFortification, buildFactory, plantAgent, deployFlotilla, js/main.js lines 1373 to 1389); the sim never reads the variable. |
+| selectedUnitId | number or null, a unit id | Sets it to null | Sets it to null | Not sim relevant. Selection only. onProvinceClick (js/main.js line 1319) calls Sim.issueOrder(state, u.id, provId) in the same handler; no pending order is stored in js/main.js, and js/main.js never writes a unit order field directly. |
+| paused | boolean | Sets it to false | Sets it to false | Cadence only. The timer callback (js/main.js lines 66 to 76) reads it to skip Sim.tick; setPaused (line 1104) writes only paused and the button text; it is never passed to a Sim function. |
+| speed | number, 1 or 2 | Does not reset it | Does not reset it | Cadence only. Read only in startTimer (line 66) to choose 900 or 300 ms; its handlers (lines 1349 to 1358) write it and restart the timer. |
+| timer | setInterval handle or null, not serializable | Restarts it through startTimer, 900 ms at speed 1 and 300 ms at speed 2 | Restarts it the same way; the old handle is never saved | Cadence only. The setInterval handle only (lines 66 to 76); it decides when ticks happen, never what a tick computes. |
+| shownBeats | object, beat ids whose card has been shown this game | Resets it to an empty object | Rebuilds it from state.beats, with every recorded beat id counted as shown | Not sim relevant. Card state derived from state.beats in checkLoreCards (line 1145); closeCard (line 1197) calls no Sim function. |
+| cardQueue | array of waiting card entries, each with kind beat or texture | Resets it to an empty array | Rebuilds it empty, so nothing waits | Not sim relevant. Card descriptors derived from state.beats and state.textures; dismissal only shows the next card or restores the pause flag. |
+| shownTextureCount | number, an index into state.textures | Resets it to 0 | Rebuilds it from state.textures, set to the saved length so no recorded texture is re-shown | Not sim relevant. A render only index into state.textures. |
+| pauseBeforeOverlay | boolean or null, the pause flag to restore when the last overlay closes | Sets it to null | Sets it to null; no overlay is pending | Not sim relevant, pause restore only. openOverlayPause and closeOverlayPause only save and restore the paused flag through setPaused. |
+| codexEntryId | string, the open codex entry | Sets it to 'ashwater' | Sets it to 'ashwater' | Not sim relevant. Article selection only; renderCodex falls back to the first history entry for a selection the current game has not produced. |
+| prodNotice | string, the last refused queue or retool reason | Sets it to an empty string | Sets it to an empty string | Not sim relevant. A display string copied from Sim refusal results. |
+| provNotice | string, the last refused province card action reason | Sets it to an empty string | Sets it to an empty string | Not sim relevant. A display string copied from Sim refusal results. |
+| el | object, the DOM element cache, not serializable | Leaves it untouched | Leaves it untouched; the same document keeps the cached nodes valid | Not sim relevant. DOM element references only. |
+| urlSeed | number or null, the seed parsed from the address | Consumes it, sets it to null | Consumes it, sets it to null; the seed now comes from the saved state | Not sim relevant. Parsed at lines 81 to 84 and consumed exactly once in newGame (lines 87 to 88, where it is set to null); loadFromText never reads it as a seed source (it sets it to null at line 159 and the seed comes from the deserialized state). |
 
 Three rules cover the table. `newGame` does not reset `speed`, so the player
 keeps the chosen pace across a new game and a load keeps it too.
@@ -248,6 +248,10 @@ keeps the chosen pace across a new game and a load keeps it too.
 and the `el` cache are not serializable and must never be saved. A failed
 load must leave the current game running: old state, old timer, old selection,
 with the failure reported.
+
+### Classification note (Cycle 17 Step 0, gap G1)
+
+js/main.js contains no direct assignment to a field of state or its subobjects (grep verified; the only state assignments are the whole object replacements in newGame and loadFromText). Confirmed negative: apart from state itself, no UI held variable is read by or feeds the simulation; handlers call Sim functions with values in the same handler, and paused, speed, and timer decide when Sim.tick is called, never what it computes. One proof hole stays open by name: the Cycle 16 continuation tests bypass the main.js timer in a node harness, and the batching test covers tick batching, not UI speed values, so one browser driven continuation check through main.js is owned by Cycle 17 Step 4.
 
 ## 10. Save and Load Hazards
 
