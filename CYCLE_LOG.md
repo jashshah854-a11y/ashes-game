@@ -5159,3 +5159,6 @@ Claimed this run: Step 0 only, the opening step of Cycle 22 (blockade diagnostic
 
 ### Mission status
 Cycle 22 Step 0 is complete: F3 and F5 stand closed with this step's own re-verification on record, the visible progression design for Steps 3 and 4 is ruled in DECISIONS item 24 before any code exists, and the Dominion reinforcement surface is named as the war log with its chain verified in code. Next run claims Step 1 (the blockade diagnostic: record the diagnostic ruling in DECISIONS before any instrumentation, add the ruled blockade figures and the reckless 30 and origStrengthPct answers as report only work, and commit tools/baseline-cycle22.txt, with balance byte identical to baseline-cycle21 once the new columns are stripped). No stop condition is met: no failed judge verdict, no verification failure, and no balance change of any kind this step.
+
+### Cycle 22 step 0 sync note
+- Sync out after commit e019eb5: the import script completed with exit 0 and sent 2 commits to GitHub (bcc4a87, the Cycle 21 step 6 sync note carried over, plus this step's e019eb5; jashshah854-a11y/ashes-game, master now at remote 06a87bb; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
