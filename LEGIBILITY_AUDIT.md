@@ -8,9 +8,9 @@ This is the Cycle 17 Step 0 legibility audit, audit only, no code changed. Stand
 
 | Touch point | Element (file and line) | What the player sees | What they must know to act | Explained at that moment (Yes, Partial, or No) | Gap and owner |
 |-------------|-------------------------|----------------------|----------------------------|-----------------------------------------------|---------------|
-| 1. Start screen or nation pick | index.html lines 9 to 22 (header), js/main.js line 86 (newGame), line 1451 (newGame called on load), line 66 (startTimer) | title, subtitle naming both nations, Day 1 of 150, and the war already running; there is no start screen and no nation pick, the player is always the Vessari Compact | who they are, that the goal is to take the enemy capital before the campaign ends, and that losing their own capital loses the war | Partial | Closed in Cycle 17 Step 1 by tools/first-touch-check.js: the start statement in index.html now states identity, goal, and lose condition. |
-| 2. First map view | index.html line 28 (map), lines 29 to 38 (intel legend), lines 39 to 47 (hint), js/main.js line 325 (renderMap) | colored province tiles with names, steel values, badges, unit chips, and bars | what each color, badge, chip, and bar means | Partial | Closed in Cycle 17 Step 1 by tools/first-touch-check.js: the map legend in index.html now explains every map mark in plain words. |
-| 3. Pause and speed controls | index.html lines 17 to 19, js/main.js lines 1341 to 1358 (handlers), lines 66 to 76 (startTimer, 900 ms at speed 1 and 300 ms at speed 2) | Pause, Speed 1x, Speed 2x buttons; Pause toggles to Resume | the game runs in real time, pause freezes the days, the speeds change the pace of days, and orders can be given while paused or running | Partial | Closed in Cycle 17 Step 1 by tools/first-touch-check.js: the controls explanation in index.html now covers real time, pace, Pause and Resume, and orders while paused. |
+| 1. Start screen or nation pick | index.html lines 9 to 22 (header), js/main.js line 86 (newGame), line 1451 (newGame called on load), line 66 (startTimer) | title, subtitle naming both nations, Day 1 of 150, and the war already running; there is no start screen and no nation pick, the player is always the Vessari Compact | who they are, that the goal is to take the enemy capital before the campaign ends, and that losing their own capital loses the war | Yes | Closed in Cycle 17 Step 1 by tools/first-touch-check.js: the start statement in index.html now states identity, goal, and lose condition. |
+| 2. First map view | index.html line 28 (map), lines 29 to 38 (intel legend), lines 39 to 47 (hint), js/main.js line 325 (renderMap) | colored province tiles with names, steel values, badges, unit chips, and bars | what each color, badge, chip, and bar means | Yes | Closed in Cycle 17 Step 1 by tools/first-touch-check.js: the map legend in index.html now explains every map mark in plain words. |
+| 3. Pause and speed controls | index.html lines 17 to 19, js/main.js lines 1341 to 1358 (handlers), lines 66 to 76 (startTimer, 900 ms at speed 1 and 300 ms at speed 2) | Pause, Speed 1x, Speed 2x buttons; Pause toggles to Resume | the game runs in real time, pause freezes the days, the speeds change the pace of days, and orders can be given while paused or running | Yes | Closed in Cycle 17 Step 1 by tools/first-touch-check.js: the controls explanation in index.html now covers real time, pace, Pause and Resume, and orders while paused. |
 | 4. First production line | index.html lines 88 to 105 (production card), js/main.js line 608 (renderProduction) | per line, the template, steel over days at current efficiency against base days, manpower paid when queued, queue count and cap, efficiency lines, a summary, and a long explain paragraph covering drain, stalls, deployment at the capital, stockpile templates, efficiency, retool loss, and manpower | cost, time, where a finished unit appears, stall and retool rules, and how locked lines open | Yes | none |
 | 5. First factory | index.html lines 108 to 120 (province card), js/main.js line 856 (renderProvinceCard) and lines 900 to 903 (the province explain) | factory level of max, a build button with its equipment cost or its need and have wording, and the explain sentence that factories turn steel into equipment every day and produce more at higher levels, plus the line unlock text | a factory level produces 5 equipment per day and consumes 2 steel per day (js/sim.js CFG, steelPerFactoryLevel 2 and equipPerFactoryLevel 5), and that factory levels gate production lines | Yes | Closed in Cycle 17 Step 2 by tools/core-loop-check.js: the factory per level numbers are now on the province card. |
 | 6. First division (first unit) | index.html lines 122 to 125 (unit card), js/main.js line 970 (renderUnitCard) | for a clicked unit, its label, strength of max, attack and defense, build cost, supply state, stationed province, and any order | what strength means in a fight, that several units in one province fight together as one stack, and what the map chip shorthand means | Yes | Both halves are now closed: the chip legend half in Cycle 17 Step 1 by tools/first-touch-check.js, and the stacking sentence in Cycle 17 Step 2 by tools/core-loop-check.js. |
@@ -95,3 +95,36 @@ Step 2 owns the factory per level numbers, the stacking sentence, and chain link
 Step 3 owns order timing and stays home before the first order, the frontline naming, battle result why and losses, the exchange row definitions, the EW effectiveness rule, and the supply grace number. Step 3 is closed in Cycle 17 Step 3 by tools/battle-systems-check.js covering all six items.
 Step 4 is closed in Cycle 17 Step 4 by tools/save-hardening-check.js covering the save card contents, slot metadata, and replace warning, G2 file import hardening, the G3 rejection message, and the browser driven continuation check.
 PARKED items are the event card hard pause feel (DECISIONS item 10) and the end screen taste items (DECISIONS item 15), each with its reason in one line.
+
+## 9. Cycle 18 Step 0 recount and wall clock record (on HEAD)
+
+### 9a. Interactive recount using the stated method of Section 3
+
+Static interactive elements are button and input tags in index.html counted by tag search. Current index.html contains 20 button elements and 1 input element, total 21 static.
+
+Dynamic interactive element types are the distinct button creation sites in js/main.js. Current js/main.js has 7 creation sites:
+- province tile button created as an HTML string in renderMap (line 393 in js/main.js on HEAD, the button tag in the HTML string)
+- production Queue button at line 727 (createElement)
+- production Retool button at line 739 (createElement, one per other template)
+- rail build button at line 1014 (createElement)
+- codex history entry button at line 1282 (createElement)
+- codex turning point entry button at line 1304 (createElement)
+- codex texture entry button at line 1329 (createElement)
+
+Total dynamic types: 7.
+
+Grand total: 21 static plus 7 dynamic equals 28. This matches the audit count of 28.
+
+Cycle 17 Steps 1 to 4 added no new interactive rows. Step 1 added legend text, controls explanation, and start statement text. Step 2 added province card text and unit card text. Step 3 added battle preview text and log explain text. Step 4 added save card text and handlers. None of these steps added new button or input elements.
+
+### 9b. Wall clock grep rerun on HEAD
+
+Grep of js/sim.js, js/lore.js, and js/save.js for Date.now, performance.now, new Date, Math.random, setTimeout, setInterval, and requestAnimationFrame returns zero hits in all three files. The sim path has zero wall clock or unseeded randomness reads, as expected.
+
+The Cycle 17 Step 4 save time read lives in js/main.js in the browser slot save handler at line 1459: savedAt: new Date().toLocaleString(). This value is stored only in the UI localStorage meta key ashes-save-slot-1-meta. It is never part of the sim payload and is never read by the sim.
+
+The only other such read in js/main.js is Math.random used once in newGame at line 87 to choose a seed when the URL gives none. This is UI code deciding a seed value, not a sim path read.
+
+### 9c. Rationale for the Cycle 17 Step 4 edit to tools/save-check.js
+
+The edit changed only the header comment and the file import expectation to carry the player nation name derived from the deserialized saved artifact (savedState.nations.player.name), matching the new load confirmation wording, and no assertion was weakened or removed because the import notice is still asserted by exact equality against a stricter expected string that now includes the nation.
