@@ -3849,3 +3849,6 @@ Prescription: Cycle 17 step 5 judge, Cycle 18 Step 4, planned in CYCLE_18_STEP0_
 
 ### Mission status
 Cycle 18 Step 4 is complete; Step 5 is next. No stop condition is met: no failed judge verdict, no verification failure on the final tree, and no balance change.
+
+### Cycle 18 step 4 sync note
+- Sync out after commit 2b1bbd4: the import script sent 2 commits to GitHub (cf5adf6 and 2b1bbd4; jashshah854-a11y/ashes-game, master now at remote 8309881; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
