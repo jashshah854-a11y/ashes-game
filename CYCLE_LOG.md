@@ -4690,3 +4690,6 @@ Claimed this run: Step 3 only, under the Cycle 21 step list and DECISIONS item 2
 
 ### Mission status
 Cycle 21 Step 3 is complete: reinforce is on screen, the unit card control and its refusals come entirely from the sim readout, suite 184, balance byte identical to tools/baseline-cycle20.txt, all twenty browser checks at 680 assertions and 0 failures. Next run claims Step 4 (AI reinforce and the updated harness profiles, with equipment spent on reinforcement per seed in the balance report and reckless losing with and without). No stop condition is met: no failed judge verdict, no verification failure on the final tree (the check file defects were caught in orchestrator review and fixed inside this run before commit), and no balance change.
+
+### Cycle 21 step 3 sync note
+- Sync out after commit 88e2eaa: the import script completed with exit 0 and sent this step's 2 commits to GitHub (8451c06 and 88e2eaa; jashshah854-a11y/ashes-game, master now at remote 9bab673; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
