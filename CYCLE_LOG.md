@@ -4290,3 +4290,6 @@ Claimed this run: Step 3 only. Step 4 (visible progression on screen) does not s
 
 ### Mission status
 Cycle 20 Step 3 is complete: history snapshots are recorded in the sim under the Q1 ruling, inside the save payload at version 3 with version 2 saves rejected in plain language, exactly as the saveVersion decision recorded at this step's start requires. Next run claims Step 4 (visible progression on screen, UI only: the comparison panel built from the history snapshots). No stop condition is met: no failed judge verdict, no verification failure on the final tree (the builder's two failing test drafts were corrected inside the same builder session before any verification by the orchestrator, and the step never faced a revert), and no balance change.
+
+### Cycle 20 step 3 sync note
+- Sync out after commit 9318102: the import script completed with exit 0 and sent 3 commits to GitHub (aa800d6, the Cycle 20 step 2 sync note carried over, plus this step's 23a6c9d and 9318102; jashshah854-a11y/ashes-game, master now at remote b583381; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
