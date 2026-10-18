@@ -1151,9 +1151,50 @@
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
   }
 
+  function battleWhyText(entry) {
+    if (!entry.battle) return '';
+    var b = entry.battle;
+    if (!state.nations[b.aNation] || !state.nations[b.bNation]) return '';
+    var aName = state.nations[b.aNation].short;
+    var bName = state.nations[b.bNation].short;
+    var sentences = [];
+
+    if (b.kind === 'meeting') {
+      sentences.push(aName + ' attack power ' + b.aPower + ' against ' + bName + ' attack power ' + b.bPower + '.');
+    } else {
+      sentences.push(aName + ' attack power ' + b.aPower + ' against ' + bName + ' defense power ' + b.bPower + '.');
+    }
+
+    if (b.aSupplyPenaltyPct > 0) sentences.push(aName + ' fought with a ' + b.aSupplyPenaltyPct + ' percent supply penalty.');
+    if (b.bSupplyPenaltyPct > 0) sentences.push(bName + ' fought with a ' + b.bSupplyPenaltyPct + ' percent supply penalty.');
+    if (b.aFortBonusPct > 0) sentences.push(aName + ' had a ' + b.aFortBonusPct + ' percent fortification bonus counted in its power.');
+    if (b.bFortBonusPct > 0) sentences.push(bName + ' had a ' + b.bFortBonusPct + ' percent fortification bonus counted in its power.');
+    if (b.aRiverPenaltyPct > 0) sentences.push(aName + ' had a ' + b.aRiverPenaltyPct + ' percent river crossing penalty counted in its power.');
+    if (b.bRiverPenaltyPct > 0) sentences.push(bName + ' had a ' + b.bRiverPenaltyPct + ' percent river crossing penalty counted in its power.');
+
+    if (b.aDroneEffectivenessPct != null) sentences.push(aName + ' drone wings fought at ' + b.aDroneEffectivenessPct + ' percent effectiveness.');
+    if (b.bDroneEffectivenessPct != null) sentences.push(bName + ' drone wings fought at ' + b.bDroneEffectivenessPct + ' percent effectiveness.');
+
+    if (b.launches > 0) {
+      var launchWord = b.launches === 1 ? '1 interceptor launched' : b.launches + ' interceptors launched';
+      var wingWord = b.launches === 1 ? 'attacking drone wing.' : 'attacking drone wings.';
+      sentences.push(launchWord + ' before the rounds at ' + b.launchSteelEach + ' steel each, knocking down ' + b.launches + ' ' + wingWord);
+    }
+
+    var aUnitWord = b.aDestroyed === 1 ? ' unit' : ' units';
+    var bUnitWord = b.bDestroyed === 1 ? ' unit.' : ' units.';
+    sentences.push('Losses: ' + aName + ' lost ' + b.aDestroyed + aUnitWord + ', ' + bName + ' lost ' + b.bDestroyed + bUnitWord);
+
+    return 'Why: ' + sentences.join(' ');
+  }
+
   function renderLog() {
     var items = state.log.slice(-12).reverse();
     el.log.innerHTML = items.map(function (entry) {
+      var why = battleWhyText(entry);
+      if (why) {
+        return '<li><span class="day-tag">Day ' + entry.day + '</span>' + entry.msg + '<span class="battle-why">' + why + '</span></li>';
+      }
       return '<li><span class="day-tag">Day ' + entry.day + '</span>' + entry.msg + '</li>';
     }).join('');
   }
