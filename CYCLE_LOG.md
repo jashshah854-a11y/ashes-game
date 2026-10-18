@@ -4621,3 +4621,6 @@ Claimed this run: Step 1 only. Step 2 (the reinforce command in the sim) does no
 
 ### Mission status
 Cycle 21 Step 1 is complete: F2 closed, F1 pinned, suite 149, balance byte identical to tools/baseline-cycle20.txt, all nineteen browser checks at 654 assertions and 0 failures. Next run claims Step 2 (the reinforce command in the sim, player path only, under DECISIONS item 22 rulings, including the ruled lastCombatDay field from item 22 Ruling 1; balance still byte identical at its exit). No stop condition is met: no failed judge verdict, no verification failure, and no balance change.
+
+### Cycle 21 step 1 sync note
+- Sync out after commit bad6fe2: the import script completed with exit 0 and sent 3 commits to GitHub (0411447, the Cycle 21 step 0 sync note carried over, plus this step's 3e34a85 and bad6fe2; jashshah854-a11y/ashes-game, master now at remote 646a69b; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
