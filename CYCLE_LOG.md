@@ -4257,3 +4257,6 @@ Claimed this run: Step 2 only, the panel control under the Q4 ruling (DECISIONS_
 
 ### Mission status
 Cycle 20 Step 2 is complete: the cancel command from Step 1 is now reachable from the production panel, with the refund stated before the click, one control per queued order, and no control on a unit in progress, exactly as the Q4 ruling's binding constraints require. Next run claims Step 3 (history snapshots in the sim, Q1 Option A, with the saveVersion decision made and recorded before any code). No stop condition is met: no failed judge verdict, no verification failure on the final tree (the check defect and the two flakes are recorded above with their evidence), and no balance change.
+
+### Cycle 20 step 2 sync note
+- Sync out after commit e22f577: the import script completed with exit 0 and sent 3 commits to GitHub (d164275, the Cycle 20 step 1 sync note carried over, plus this step's b16ecdd and e22f577; jashshah854-a11y/ashes-game, master now at remote 2577cc2; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
