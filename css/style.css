@@ -341,3 +341,15 @@ button.linkish:hover { background: none; color: #fff2c4; }
 .save-notice-error {
   color: #ff9d9d; border-left: 3px solid #ff9d9d; background: rgba(120, 30, 30, 0.35);
 }
+
+/* Cycle 18 Step 3: order marker on the map tile. */
+.order-marker {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: rgba(109, 90, 38, 0.9);
+  color: #fff2c4;
+  border: 1px dashed #e8c87a;
+  font-weight: bold;
+}

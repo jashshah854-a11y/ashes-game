@@ -371,6 +371,17 @@
   function renderMap() {
     var reach = reachableIds();
     var playerSupply = Sim.computeSupply(state, 'player');
+    // Cycle 18 step 3: the pending orders of player units, grouped by
+    // target province id in state.units order, so each target tile draws
+    // one marker per ordered unit. Enemy orders are never shown.
+    var orderGroups = {};
+    state.units.forEach(function (u) {
+      if (u.nation !== 'player' || !u.order || !u.order.target) return;
+      var key = String(u.order.target);
+      if (!orderGroups[key]) orderGroups[key] = [];
+      var word = u.type === 'drone' ? 'Drone' : 'Inf';
+      orderGroups[key].push('<span class="order-marker">Order: ' + word + ' ordered here at dawn</span>');
+    });
     var html = '';
     for (var y = 0; y < state.mapH; y++) {
       for (var x = 0; x < state.mapW; x++) {
@@ -423,6 +434,16 @@
             });
             html += '</span>';
           }
+          // Cycle 18 Step 3: order markers on target tiles. Enemy orders never shown.
+          if (intel === 'live') {
+            var ordersHere = state.units.filter(function (u) {
+              return u.nation === 'player' && u.order && u.order.target === p.id;
+            });
+            ordersHere.forEach(function (u) {
+              var typeLabel = u.type === 'drone' ? 'Drone' : 'Inf';
+              html += '<span class="order-marker">Order: ' + typeLabel + ' ordered here at dawn</span>';
+            });
+          }
         } else if (intel === 'remembered' && snap) {
           if (snap.factoryLevel > 0) {
             html += ' <span class="factory-badge lvl' + snap.factoryLevel + '">Factory ' + snap.factoryLevel + '</span>';
@@ -431,6 +452,8 @@
           if (snap.fortBuild) html += ' <span class="fort-badge building">Fort ' + snap.fortBuild.toLevel + ' in ' + snap.fortBuild.daysLeft + 'd</span>';
           html += ghostChips(snap);
         }
+        var tileOrders = orderGroups[String(p.id)];
+        if (tileOrders) html += tileOrders.join('');
         html += '</button>';
       }
     }
