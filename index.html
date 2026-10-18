@@ -24,6 +24,17 @@
 
 <main>
   <section class="map-wrap">
+    <div id="start-statement" class="intel-legend">
+      You command the Vessari Compact, the blue nation. Win by taking Khessograd, the Dominion
+      capital, before the campaign ends on day 150. You lose if Vesskar City, your capital, falls.
+      If your capital still stands at the end of day 150, you win a survival victory.
+    </div>
+    <p id="controls-explain" class="hint">
+      The war runs in real time. At Speed 1x, one day passes about every 0.9 seconds (900 ms);
+      at Speed 2x, about every 0.3 seconds (300 ms). Pause stops the days passing, and its button
+      then reads Resume. The highlighted speed button is the speed in use. Orders can be given
+      while paused or while the war runs.
+    </p>
     <div id="map" class="map" aria-label="Province map"></div>
     <div id="intel-legend" class="intel-legend">
       Intel and fog, three states. Live: seen today, shown in full, its figures are current.
@@ -34,6 +45,32 @@
       next to them, drone wings, which see one province further (two provinces away), and an agent,
       which watches its own province. Fog gates information, never orders: you may still march or
       attack into any province you could reach before.
+    </div>
+    <div id="map-legend" class="intel-legend">
+      <p class="legend-title">Map legend.</p>
+      <ul class="legend-list">
+        <li>Blue tile: yours. Red tile: the Dominion. Dark gray tile: never seen, so its owner is not shown.</li>
+        <li>The gold capital star marks a capital.</li>
+        <li>A gold outline marks the selected province.</li>
+        <li>A dashed green outline marks the provinces the selected unit can reach, its reach outline.</li>
+        <li>The number after Steel on a tile is that province Steel per day.</li>
+        <li>A Factory N badge marks a Factory level N.</li>
+        <li>A Fort N badge marks a Fort level N.</li>
+        <li>A badge reading Fort N in M d means that fortification is being raised, a building fort, with M days left.</li>
+        <li>A Coast badge marks coastal or river ground a flotilla can use.</li>
+        <li>A Flotilla badge names the nation whose flotilla is stationed there.</li>
+        <li>A pale bar on a shared border is a finished railroad.</li>
+        <li>A striped pale bar with a tag reading Rail N d is rail under construction with N days left.</li>
+        <li>A tag reading Converting N d is captured rail being converted with N days left.</li>
+        <li>A blue bar on a shared border is a river.</li>
+        <li>A thicker green river bar means a flotilla supports that crossing, a supported crossing.</li>
+        <li>Red diagonal supply hatching over your tile means that province is off your rail supply and its units weaken.</li>
+        <li>A unit chip reads its type, Inf for infantry or Drone for a drone wing, then its strength in hp, then A followed by its attack number, for example Inf 12hp A4.</li>
+        <li>A unit chip with a blue border is yours. A unit chip with a red border is the Dominion.</li>
+        <li>The selected unit chip is gold.</li>
+        <li>A dashed chip marked Day N ghost is a remembered snapshot figure from day N.</li>
+        <li>A minus N percent tag on a chip is that unit supply penalty.</li>
+      </ul>
     </div>
     <p class="hint">
       Click one of your units to select it, then click a highlighted neighboring

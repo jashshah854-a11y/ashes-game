@@ -896,7 +896,8 @@
           : 'none stationed here') + '<br>' +
         (riverSupportLine(p) ? riverSupportLine(p) + '<br>' : '') +
         supplyLine + '<br>' +
-        'Units here: ' + Sim.unitsIn(state, p.id).length;
+        'Units here: ' + Sim.unitsIn(state, p.id).length +
+          (Sim.unitsIn(state, p.id).length === 1 ? ' unit' : ' units');
       el.provExplain.textContent = mine
         ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
           'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
@@ -1083,7 +1084,7 @@
       }
     });
     el.unitDetails.innerHTML =
-      base.label + ' (strength ' + u.strength + ' of ' + u.maxStrength + ')<br>' +
+      base.label + ' (strength ' + u.strength + ' hit points of ' + u.maxStrength + ' hit points)<br>' +
       'Attack ' + st.attack + ', Defense ' + st.defense +
       (st.fortBonus > 0 ? ' (includes +' + st.fortBonus + '% from fortifications here)' : '') +
       (u.type === 'drone' ? ' (Drone generation ' + Sim.droneGeneration(state, u.nation) +
