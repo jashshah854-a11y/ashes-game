@@ -3074,9 +3074,13 @@ test('scoring: capital cases, and a full passive campaign, with the exact capita
   const r = Sim.campaignResult(s);
   assert.strictEqual(r.winner, 'enemy');
   assert.strictEqual(r.day, 36);
-  assert.strictEqual(r.player.total, -15, 'the player total is negative, the raw exchange net is not floored');
-  assert.strictEqual(r.enemy.total, 1161);
-  assert.strictEqual(r.margin, -1176);
+  // Cycle 21 step 4: AI reinforce keeps Dominion units alive longer,
+  // the player exchange net on this campaign moves from -260 to -290,
+  // so the player total changes from -15 to -45 and the enemy total
+  // from 1161 to 1206 (more enemy strength retained).
+  assert.strictEqual(r.player.total, -45, 'the player total is negative, the raw exchange net is not floored');
+  assert.strictEqual(r.enemy.total, 1206);
+  assert.strictEqual(r.margin, -1251);
   assert.strictEqual(r.player.ownCapitalPoints, 0, 'the player lost its capital, so its own capital pays nothing');
   assert.strictEqual(r.enemy.enemyCapitalPoints, 100, 'the Dominion holds the player capital, so it earns the enemy capital weight');
 });
@@ -4924,4 +4928,123 @@ test('reinforce: Cycle 21 step 2 exact refusal reason text for engaged and destr
   assert.strictEqual(resDestroyed.ok, false);
   assert.ok(resDestroyed.reason.includes(Sim.CFG.unitTypes.infantry.label));
   assert.ok(!resDestroyed.reason.includes('undefined'));
+});
+
+// ---------- Cycle 21 step 4: AI reinforce through the real tick path ----------
+// Staging notes shared by all three tests:
+// - Zero factory levels (so factoryPhase produces no equipment).
+// - Enemy equipment below CFG.aiFortifyEquipment (300) so no fortification is queued.
+// - Enemy steel below rail and factory gates so no rail or factory builds.
+// - Enemy army at the 14 unit cap so no production is queued.
+// - The tick runs through the real Sim.tick path (aiTakeTurn is called).
+// This isolates the AI reinforce spend inside the tick.
+
+function makeUnit(state, nationId, type, provId) {
+  const base = Sim.CFG.unitTypes[type];
+  const u = {
+    id: state.nextUnitId++,
+    nation: nationId,
+    type: type,
+    provinceId: provId,
+    strength: base.strength,
+    maxStrength: base.strength,
+    order: null,
+    daysOut: 0,
+    supplyPenalty: 0,
+    attritionCarry: 0,
+    lastCombatDay: null
+  };
+  state.units.push(u);
+  return u;
+}
+
+test('Cycle 21 step 4: AI reinforces a staged damaged eligible Dominion unit through tick', () => {
+  const s = Sim.createGame(42);
+  // Zero factory levels: no equipment from factoryPhase.
+  Object.values(s.provinces).filter(p => p.owner === 'enemy').forEach(p => { p.factoryLevel = 0; });
+  // Enemy equipment below fortify gate, enough for reinforce only.
+  s.nations.enemy.equipment = 100;
+  // Enemy steel low: no rail (needs 15) and no factory build (needs 60 steel + 40 equipment).
+  s.nations.enemy.steel = 0;
+  // Stage exactly 14 Dominion units at the capital (the 14 unit cap).
+  // Remove all existing enemy units and add 14 fresh ones.
+  s.units = s.units.filter(u => u.nation !== 'enemy');
+  for (let i = 0; i < 7; i++) {
+    makeUnit(s, 'enemy', 'infantry', s.nations.enemy.capitalId);
+    makeUnit(s, 'enemy', 'drone', s.nations.enemy.capitalId);
+  }
+  assert.strictEqual(Sim.unitsOf(s, 'enemy').length, 14);
+  // Pick one infantry to damage.
+  const target = Sim.unitsIn(s, s.nations.enemy.capitalId).find(u => u.nation === 'enemy' && u.type === 'infantry');
+  assert.ok(target, 'need a Dominion infantry on its capital');
+  target.strength = 6; // damaged, maxStrength is 12
+  target.lastCombatDay = null; // never fought
+  // Ensure the capital is supplied (it is, by starting rail).
+  const supply = Sim.computeSupply(s, 'enemy');
+  assert.ok(supply[s.nations.enemy.capitalId].supplied, 'capital must be supplied');
+  const equipBefore = s.nations.enemy.equipment;
+  const strBefore = target.strength;
+  // Run one full tick: this calls aiTakeTurn which now reinforces.
+  Sim.tick(s);
+  const equipAfter = s.nations.enemy.equipment;
+  const strAfter = target.strength;
+  // Strength must have risen (reinforce buys max affordable, here 6 points for 90 equipment).
+  assert.ok(strAfter > strBefore, 'strength must rise from ' + strBefore + ' to ' + strAfter);
+  // Equipment deducted equals 15 per point restored (no factory production this tick).
+  const pointsRestored = strAfter - strBefore;
+  const expectedCost = pointsRestored * Sim.CFG.reinforceEquipmentPerPoint;
+  assert.strictEqual(equipBefore - equipAfter, expectedCost,
+    'equipment spent ' + (equipBefore - equipAfter) + ' must equal 15 * ' + pointsRestored + ' = ' + expectedCost);
+});
+
+test('Cycle 21 step 4: AI does NOT reinforce a Dominion unit that fought yesterday', () => {
+  const s = Sim.createGame(42);
+  Object.values(s.provinces).filter(p => p.owner === 'enemy').forEach(p => { p.factoryLevel = 0; });
+  s.nations.enemy.equipment = 100;
+  s.nations.enemy.steel = 0;
+  // Stage exactly 14 Dominion units at the capital.
+  s.units = s.units.filter(u => u.nation !== 'enemy');
+  for (let i = 0; i < 7; i++) {
+    makeUnit(s, 'enemy', 'infantry', s.nations.enemy.capitalId);
+    makeUnit(s, 'enemy', 'drone', s.nations.enemy.capitalId);
+  }
+  const capId = s.nations.enemy.capitalId;
+  const target = Sim.unitsIn(s, capId).find(u => u.nation === 'enemy' && u.type === 'infantry');
+  assert.ok(target);
+  target.strength = 6;
+  // lastCombatDay = state.day - 1 means fought yesterday (the previous tick).
+  target.lastCombatDay = s.day - 1;
+  const supply = Sim.computeSupply(s, 'enemy');
+  assert.ok(supply[capId].supplied);
+  const equipBefore = s.nations.enemy.equipment;
+  const strBefore = target.strength;
+  Sim.tick(s);
+  const equipAfter = s.nations.enemy.equipment;
+  const strAfter = target.strength;
+  // No reinforce: strength and equipment unchanged (no factory production either).
+  assert.strictEqual(strAfter, strBefore, 'strength must not change when lastCombatDay is day-1');
+  assert.strictEqual(equipAfter, equipBefore, 'equipment must not change when lastCombatDay is day-1');
+});
+
+test('Cycle 21 step 4: AI spends no equipment on reinforce when no eligible damaged unit exists', () => {
+  const s = Sim.createGame(42);
+  Object.values(s.provinces).filter(p => p.owner === 'enemy').forEach(p => { p.factoryLevel = 0; });
+  s.nations.enemy.equipment = 100;
+  s.nations.enemy.steel = 0;
+  // Stage exactly 14 Dominion units at the capital, all at full strength.
+  s.units = s.units.filter(u => u.nation !== 'enemy');
+  for (let i = 0; i < 7; i++) {
+    makeUnit(s, 'enemy', 'infantry', s.nations.enemy.capitalId);
+    makeUnit(s, 'enemy', 'drone', s.nations.enemy.capitalId);
+  }
+  // All Dominion units are at full strength (12 for infantry, 6 for drone).
+  Sim.unitsOf(s, 'enemy').forEach(u => { u.strength = u.maxStrength; u.lastCombatDay = null; });
+  const equipBefore = s.nations.enemy.equipment;
+  Sim.tick(s);
+  const equipAfter = s.nations.enemy.equipment;
+  // Zero factory levels means factoryPhase produces 0 equipment.
+  // No fortification (equipment < 300), no rail (steel = 0), no production queued (at cap).
+  // The only possible equipment change would be reinforce, but no unit is damaged.
+  assert.strictEqual(equipAfter, equipBefore,
+    'equipment must be unchanged when no damaged eligible unit exists and factory levels are zero');
 });

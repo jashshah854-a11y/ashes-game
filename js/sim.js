@@ -2725,6 +2725,15 @@
         }
       }
     }
+    // Reinforce: visit Dominion units in id order and reinforce any
+    // damaged eligible unit through the public reinforceUnit command.
+    // The AI gets no private path, no discount, and no direct strength
+    // or equipment edits. All eligibility (not destroyed, owned ground,
+    // not engaged, supplied ground, full strength, equipment) is
+    // enforced inside reinforceUnit.
+    unitsOf(state, ai).sort(function (a, b) { return a.id - b.id; }).forEach(function (u) {
+      if (u.strength < u.maxStrength) reinforceUnit(state, u.id);
+    });
     // Orders, decided per origin province so the AI thinks in the same
     // battle groups the combat code fights with. (Cycle 3 lesson: judging
     // a single unit's stats against a whole stack's defense let lone

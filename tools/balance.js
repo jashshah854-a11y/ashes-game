@@ -8,10 +8,11 @@
 // output. Verified in step 5: this file reproduces the step 4 stored
 // output (/tmp/balance-final.txt) on every numeric field for all three
 // profiles on all 8 standard seeds.
-// Usage: node tools/balance.js [passive|sensible|reckless|fortress|all]
+// Usage: node tools/balance.js [passive|sensible|reckless|reckless-reinforce|fortress|all]
 // Profiles use only public sim commands (queueProduction, buildFactory,
-// buildRail, buildFortification, researchDroneGen2, issueOrder). No state
-// edits. The fortress profile and the endEquipment fields were added in
+// buildRail, buildFortification, researchDroneGen2, issueOrder,
+// reinforceUnit). No state edits.
+// The fortress profile and the endEquipment fields were added in
 // Cycle 8 step 3, in this harness's shape: fortress is the sensible
 // script plus walls, and every report now carries both nations' end
 // equipment, so a fortifying path's equipment spend is visible.
@@ -19,6 +20,21 @@
 // shape: every report now carries both nations' end exchange records
 // (Sim.exchangeRecord), so a campaign's interceptor launches and its
 // cost exchange net are visible in the report and the baseline.
+// Cycle 21 step 4: the harness profiles now call the public reinforceUnit
+// command. A reinforceAll helper visits a nation's units in id order,
+// skips full strength units, calls Sim.reinforceUnit and sums the
+// returned cost of successful calls into a per run counter for the
+// player. sensibleDay calls reinforceAll after its rail block and before
+// movement. recklessDay gains a withReinforce parameter: true calls
+// reinforceAll after queueing production and before vacating the
+// capital; false is byte identical to the prior reckless behavior.
+// run() dispatches profile 'reckless' with false and a new profile
+// 'reckless-reinforce' with true, resets the counter at the start of
+// each run, and every returned report gains reinforceSpentPlayer
+// carrying the counter (0 for passive and plain reckless). The 'all'
+// profile list becomes passive, sensible, reckless, reckless-reinforce,
+// fortress in that order, and process.argv profile selection accepts
+// 'reckless-reinforce'.
 const Sim = require('../js/sim.js');
 const SEEDS = [1, 7, 42, 99, 1234, 555, 2024, 31337];
 
@@ -53,6 +69,18 @@ function fortifyHome(s) {
     if (!p || p.owner !== 'player' || p.fortBuild || (p.fortLevel || 0) >= Sim.CFG.fortMaxLevel) continue;
     if (Sim.buildFortification(s, 'player', id).ok) return;
   }
+}
+
+// Reinforce all eligible units of a nation in id order. Sums the
+// equipment cost of successful reinforceUnit calls into the per run
+// counter returned via the reference object.
+function reinforceAll(s, nid, counter) {
+  Sim.unitsOf(s, nid).sort((a, b) => a.id - b.id).forEach(u => {
+    if (u.strength < u.maxStrength) {
+      const r = Sim.reinforceUnit(s, u.id);
+      if (r.ok) counter.spent += r.cost;
+    }
+  });
 }
 
 function sensibleDay(s, trace, withForts) {
@@ -106,6 +134,8 @@ function sensibleDay(s, trace, withForts) {
     cands.sort((e1, e2) => Math.max(s.provinces[e2.a].x, s.provinces[e2.b].x) - Math.max(s.provinces[e1.a].x, s.provinces[e1.b].x));
     if (cands.length) Sim.buildRail(s, 'player', cands[0].a, cands[0].b);
   }
+  // Reinforce: after rail, before movement.
+  if (s._reinforceCounter) reinforceAll(s, 'player', s._reinforceCounter);
   // Movement: keep the 2 starting capital infantry as garrison.
   if (!s._garrison) {
     s._garrison = Sim.unitsIn(s, n.capitalId).filter(u => u.nation === 'player' && u.type === 'infantry').slice(0, 2).map(u => u.id);
@@ -136,11 +166,13 @@ function sensibleDay(s, trace, withForts) {
   });
 }
 
-function recklessDay(s) {
+function recklessDay(s, withReinforce) {
   const n = s.nations.player;
   if (!n.droneGen2 && n.researchPoints >= Sim.CFG.droneGen2Cost) Sim.researchDroneGen2(s, 'player');
   Sim.syncProductionLines(s, 'player');
   n.productionLines.forEach(line => { if (line.queue === 0) Sim.queueProduction(s, 'player', line.id); });
+  // Reinforce: after queueing production, before vacating the capital.
+  if (withReinforce && s._reinforceCounter) reinforceAll(s, 'player', s._reinforceCounter);
   // Vacate the capital north, never return.
   const capUnits = Sim.unitsIn(s, n.capitalId).filter(u => u.nation === 'player');
   if (capUnits.length) {
@@ -159,11 +191,14 @@ function recklessDay(s) {
 function run(seed, profile) {
   const s = Sim.createGame(seed);
   const trace = (profile === 'sensible' || profile === 'fortress') ? [] : null;
+  // Per run reinforce spend counter for the player.
+  s._reinforceCounter = { spent: 0 };
   let days = 0;
   while (!s.gameOver && days < 200) {
     if (profile === 'sensible') sensibleDay(s, trace);
     else if (profile === 'fortress') sensibleDay(s, trace, true);
-    else if (profile === 'reckless') recklessDay(s);
+    else if (profile === 'reckless') recklessDay(s, false);
+    else if (profile === 'reckless-reinforce') recklessDay(s, true);
     Sim.tick(s); days++;
   }
   const origStrength = s.units.filter(u => u.nation === 'player' && u.id <= 7 && u.strength > 0).reduce((a, u) => a + u.strength, 0);
@@ -179,12 +214,13 @@ function run(seed, profile) {
     lines: s.nations.player.productionLines.length,
     line3QueueSeen: trace ? !!trace.line3Queued : undefined,
     trace: trace || undefined,
-    reason: s.endReason
+    reason: s.endReason,
+    reinforceSpentPlayer: s._reinforceCounter.spent
   };
 }
 
 const profile = process.argv[2] || 'all';
-for (const p of (profile === 'all' ? ['passive', 'sensible', 'reckless', 'fortress'] : [profile])) {
+for (const p of (profile === 'all' ? ['passive', 'sensible', 'reckless', 'reckless-reinforce', 'fortress'] : [profile])) {
   console.log('== ' + p);
   for (const seed of SEEDS) {
     const r = run(seed, p);
