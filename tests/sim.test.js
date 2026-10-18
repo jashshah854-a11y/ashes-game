@@ -3980,3 +3980,156 @@ test('battle record: save version 2 carries the record through a round trip', ()
   assert.strictEqual(des.ok, true);
   assert.deepStrictEqual(des.state.log, s.log, 'the restored log deep equals the original, battle fields included');
 });
+
+// ---------- Cycle 20 step 1: production line cancel ----------
+// These tests pin the cancelProduction command: queued orders only,
+// full manpower refund at the line's current template cost, in
+// progress refused, no efficiency or steel changes, save/load round
+// trip preserved.
+
+test('cancel: exact refund per unit type, traced to CFG manpowerCost', () => {
+  const types = [
+    { template: 'infantry', lineId: 1, cost: Sim.CFG.unitTypes.infantry.manpowerCost },
+    { template: 'drone', lineId: 2, cost: Sim.CFG.unitTypes.drone.manpowerCost },
+    { template: 'interceptor', lineId: 1, cost: Sim.CFG.unitTypes.interceptor.manpowerCost },
+    { template: 'agent', lineId: 1, cost: Sim.CFG.unitTypes.agent.manpowerCost },
+    { template: 'flotilla', lineId: 1, cost: Sim.CFG.unitTypes.flotilla.manpowerCost }
+  ];
+  types.forEach(tc => {
+    const s = Sim.createGame(42);
+    s.nations.player.steel = 500;
+    if (tc.template !== 'infantry') {
+      assert.strictEqual(Sim.assignLineTemplate(s, 'player', tc.lineId, tc.template).ok, true);
+    }
+    const poolBefore = Sim.manpowerPool(s, 'player');
+    assert.strictEqual(Sim.queueProduction(s, 'player', tc.lineId).ok, true);
+    const line = Sim.productionLine(s, 'player', tc.lineId);
+    assert.strictEqual(line.queue, 1);
+    const cancel = Sim.cancelProduction(s, 'player', tc.lineId);
+    assert.strictEqual(cancel.ok, true);
+    assert.strictEqual(cancel.manpowerRefund, tc.cost, tc.template + ' refund equals CFG manpowerCost');
+    assert.strictEqual(Sim.manpowerPool(s, 'player'), poolBefore, tc.template + ' pool returns to pre-queue value');
+    assert.strictEqual(line.queue, 0, tc.template + ' queue is 0 after cancel');
+  });
+});
+
+test('cancel: an in progress unit cannot be cancelled', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.steel = 500;
+  Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  // Fund one production day so progressDays = 1 and work > 0
+  Sim.productionPhase(s, 'player');
+  assert.strictEqual(line.progressDays, 1);
+  assert.ok(line.work > 0);
+  const poolBefore = Sim.manpowerPool(s, 'player');
+  const cancel = Sim.cancelProduction(s, 'player', 1);
+  assert.strictEqual(cancel.ok, false);
+  assert.ok(cancel.reason.includes('in progress'));
+  assert.ok(cancel.reason.includes('retooling scraps'));
+  // Nothing changed
+  assert.strictEqual(line.queue, 1);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), poolBefore);
+  assert.strictEqual(line.progressDays, 1);
+  assert.ok(line.work > 0);
+  assert.strictEqual(line.efficiency, Sim.CFG.lineEfficiencyFloor + Sim.CFG.lineEfficiencyRisePerDay);
+  // Two queued, advance one funded day: first cancel succeeds (the queued order)
+  const s2 = Sim.createGame(42);
+  s2.nations.player.steel = 500;
+  Sim.queueProduction(s2, 'player', 1);
+  Sim.queueProduction(s2, 'player', 1);
+  const line2 = Sim.productionLine(s2, 'player', 1);
+  assert.strictEqual(line2.queue, 2);
+  Sim.productionPhase(s2, 'player');
+  assert.strictEqual(line2.progressDays, 1);
+  assert.ok(line2.work > 0);
+  const poolBefore2 = Sim.manpowerPool(s2, 'player');
+  const cancel1 = Sim.cancelProduction(s2, 'player', 1);
+  assert.strictEqual(cancel1.ok, true);
+  assert.strictEqual(cancel1.manpowerRefund, Sim.CFG.unitTypes.infantry.manpowerCost);
+  assert.strictEqual(line2.queue, 1);
+  assert.strictEqual(Sim.manpowerPool(s2, 'player'), poolBefore2 + Sim.CFG.unitTypes.infantry.manpowerCost);
+  const cancel2 = Sim.cancelProduction(s2, 'player', 1);
+  assert.strictEqual(cancel2.ok, false);
+  assert.ok(cancel2.reason.includes('in progress'));
+  assert.strictEqual(line2.queue, 1);
+});
+
+test('cancel: middle of queue order preservation', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.steel = 500;
+  Sim.queueProduction(s, 'player', 1);
+  Sim.queueProduction(s, 'player', 1);
+  Sim.queueProduction(s, 'player', 1);
+  const line = Sim.productionLine(s, 'player', 1);
+  assert.strictEqual(line.queue, 3);
+  const cancel = Sim.cancelProduction(s, 'player', 1);
+  assert.strictEqual(cancel.ok, true);
+  assert.strictEqual(line.queue, 2);
+  // Fund until both remaining units complete
+  let deployed = 0;
+  for (let day = 1; day <= 20; day++) {
+    const r = Sim.productionPhase(s, 'player');
+    deployed += r.completed.length;
+    if (r.completed.length > 0) {
+      r.completed.forEach(u => assert.strictEqual(u.type, 'infantry'));
+    }
+    if (line.queue === 0) break;
+  }
+  assert.strictEqual(deployed, 2, 'exactly 2 infantry deployed');
+  assert.strictEqual(line.queue, 0);
+  // Extra production days should deploy no third unit
+  const extra = Sim.productionPhase(s, 'player');
+  assert.strictEqual(extra.completed.length, 0);
+  const extra2 = Sim.productionPhase(s, 'player');
+  assert.strictEqual(extra2.completed.length, 0);
+});
+
+test('cancel: cancel after a retool refunds the post-retool cost', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.steel = 500;
+  const startingPool = Sim.manpowerPool(s, 'player');
+  // Queue a drone wing (cost 25)
+  Sim.queueProduction(s, 'player', 2);
+  const poolAfterDrone = Sim.manpowerPool(s, 'player');
+  // Retool line 2 to infantry (settlement charges the difference)
+  const retool = Sim.assignLineTemplate(s, 'player', 2, 'infantry');
+  assert.strictEqual(retool.ok, true);
+  assert.strictEqual(retool.manpowerDelta, Sim.CFG.unitTypes.infantry.manpowerCost - Sim.CFG.unitTypes.drone.manpowerCost);
+  const poolAfterRetool = Sim.manpowerPool(s, 'player');
+  // Cancel: refunds 120 (the infantry cost)
+  const cancel = Sim.cancelProduction(s, 'player', 2);
+  assert.strictEqual(cancel.ok, true);
+  assert.strictEqual(cancel.manpowerRefund, Sim.CFG.unitTypes.infantry.manpowerCost);
+  const finalPool = Sim.manpowerPool(s, 'player');
+  assert.strictEqual(finalPool, startingPool, 'pool ends where it was before the drone was queued');
+});
+
+test('cancel: save and load round trip after a cancel', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  s.nations.player.steel = 500;
+  const startingPool = Sim.manpowerPool(s, 'player');
+  Sim.queueProduction(s, 'player', 1);
+  Sim.queueProduction(s, 'player', 1);
+  const poolBeforeCancel = Sim.manpowerPool(s, 'player');
+  const cancel = Sim.cancelProduction(s, 'player', 1);
+  assert.strictEqual(cancel.ok, true);
+  const poolAfterCancel = Sim.manpowerPool(s, 'player');
+  const line = Sim.productionLine(s, 'player', 1);
+  assert.strictEqual(line.queue, 1);
+  // Serialize and deserialize
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const des = Save.deserializeSave(ser.text);
+  assert.strictEqual(des.ok, true);
+  const loaded = des.state;
+  const loadedLine = Sim.productionLine(loaded, 'player', 1);
+  assert.strictEqual(loadedLine.queue, 1, 'loaded line queue is 1');
+  assert.strictEqual(Sim.manpowerPool(loaded, 'player'), poolAfterCancel, 'loaded manpower pool matches post-cancel pool');
+  // Can still cancel the remaining queued order for the same refund
+  const cancel2 = Sim.cancelProduction(loaded, 'player', 1);
+  assert.strictEqual(cancel2.ok, true);
+  assert.strictEqual(cancel2.manpowerRefund, Sim.CFG.unitTypes.infantry.manpowerCost);
+  assert.strictEqual(Sim.manpowerPool(loaded, 'player'), startingPool);
+});

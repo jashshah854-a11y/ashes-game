@@ -1001,9 +1001,9 @@
   // Order one more unit from a line. The steel cost is not paid up
   // front (it lands as the daily drain while the line builds), and
   // no unit appears today, but the manpower cost is paid in full at
-  // queue time: there is no queue cancel to refund through, so the
-  // pool is the gate at the moment of ordering. This replaces the
-  // old instant whole-unit purchase.
+  // queue time: a queued order can be cancelled for a full refund
+  // through cancelProduction, so the pool is the gate at the moment
+  // of ordering. This replaces the old instant whole-unit purchase.
   function queueProduction(state, nationId, lineId) {
     syncProductionLines(state, nationId);
     var line = productionLine(state, nationId, lineId);
@@ -1020,6 +1020,36 @@
       ' on line ' + line.id + ' (' + t.steelCost + ' steel over ' + lineBuildDays(line) +
       ' days, ' + mpCost + ' manpower).');
     return { ok: true, line: line, template: line.template, cost: t.steelCost, manpowerCost: mpCost, buildDays: lineBuildDays(line) };
+  }
+
+  // Cancel a queued order on a line. Cancels apply to queued orders
+  // only (line.queue minus one if a unit is in progress). A unit is in
+  // progress when line.progressDays > 0 or line.work > 0. The refund is
+  // the full manpower cost of the line's current template (after any
+  // retool settlement, because assignLineTemplate already settled the
+  // difference for the whole queue). An in progress unit cannot be
+  // cancelled; retooling scraps it and its drained steel is lost. No
+  // efficiency change, no steel or equipment touched.
+  function cancelProduction(state, nationId, lineId) {
+    syncProductionLines(state, nationId);
+    var line = productionLine(state, nationId, lineId);
+    if (!line) return lockedLineResult(state, nationId, lineId) || { ok: false, reason: 'no such production line' };
+    if (line.queue <= 0) {
+      return { ok: false, reason: 'line ' + lineId + ' has no queued orders to cancel' };
+    }
+    var inProgress = (line.progressDays > 0) || (line.work > 0);
+    var cancellable = line.queue - (inProgress ? 1 : 0);
+    if (cancellable <= 0) {
+      return { ok: false, reason: 'the unit on line ' + lineId + ' is already in progress and cannot be cancelled; retooling scraps it and its drained steel is lost' };
+    }
+    var n = ensureManpower(state, nationId);
+    var mpCost = manpowerCost(line.template);
+    n.manpower += mpCost;
+    line.queue -= 1;
+    var t = CFG.unitTypes[line.template];
+    logEvent(state, state.nations[nationId].short + ' cancel a queued ' + t.label +
+      ' on line ' + line.id + ' (manpower refunded: ' + mpCost + ').');
+    return { ok: true, line: line, template: line.template, manpowerRefund: mpCost, queue: line.queue };
   }
 
   // Retool a line to a different template. Work already done on the
@@ -2612,6 +2642,7 @@
     trainUnit: trainUnit,
     productionLine: productionLine,
     queueProduction: queueProduction,
+    cancelProduction: cancelProduction,
     assignLineTemplate: assignLineTemplate,
     productionPhase: productionPhase,
     productionDrain: productionDrain,
