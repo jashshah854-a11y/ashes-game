@@ -486,13 +486,14 @@
     el.btnResearchJamming.textContent = jamDone
       ? 'Jamming Gen ' + jamGen + ' fielded'
       : 'Research Jamming Gen ' + (jamGen + 1) + ' (' + Sim.CFG.jammingCosts[jamGen] + ' pts)';
+    var ewRule = 'Drone effectiveness is 100 plus ' + Sim.CFG.ewStepPct + ' for each generation a nation drone generation leads the other nation jamming generation, minus ' + Sim.CFG.ewStepPct + ' for each generation it trails, never below ' + Sim.CFG.ewFloorPct + ' and never above ' + Sim.CFG.ewCapPct + '.';
     el.researchJammingExplain.textContent = jamDone
       ? 'Jamming is at Gen ' + jamGen + ', the highest generation. Enemy drone wings fight at the ' +
-        'effectiveness the shared readout gives against it.'
+        'effectiveness the shared readout gives against it. ' + ewRule
       : 'Jamming Gen ' + (jamGen + 1) + ' costs ' + Sim.CFG.jammingCosts[jamGen] + ' pts' +
         (jamGen > 0 ? ', bought after Jamming Gen ' + jamGen : '') +
         '. Each jamming generation lowers enemy drone effectiveness through the shared readout. ' +
-        'Jamming does not blunt interceptor launches.';
+        'Jamming does not blunt interceptor launches. ' + ewRule;
 
     var e = state.nations.enemy;
     var enemyProvs = Object.keys(state.provinces).filter(function (k) {
@@ -556,7 +557,9 @@
     el.exExplain.textContent = 'Net is destroyed plus launches forced, minus lost and launches suffered, all in steel. ' +
       'A drone wing costs ' + Sim.CFG.unitTypes.drone.steelCost + ' steel and an interceptor launch costs ' +
       Sim.interceptorCost() + ' steel, so a drone that dies forcing a launch still wins its exchange. ' +
-      'This board records steel only: it decides nothing, pays for nothing, and changes no win condition.';
+      'This board records steel only: it decides nothing, pays for nothing, and changes no win condition. ' +
+      'Definitions: Destroyed is the steel value of enemy units that this nation destroyed. Lost is the steel value of its own units that it lost. The same words mean the same in both nations rows. Launches forced and launches suffered keep their existing names. ' +
+      'End screen consistency: on the campaign end screen, this net counts at 1 point per steel.';
   }
 
   // Small helper: a div with a class and plain text content.
@@ -993,6 +996,7 @@
       supplyText = 'OUT OF SUPPLY for ' + u.daysOut + (u.daysOut === 1 ? ' day' : ' days') +
         ': attack and defense -' + st.supplyPenalty + '%.';
       if (u.daysOut > Sim.CFG.supplyGraceDays) supplyText += ' It is losing strength to attrition.';
+      supplyText += ' Attrition starts after ' + Sim.CFG.supplyGraceDays + ' days out of supply.';
     }
     // Attack preview: the same stackPower the combat and the AI use, so
     // the numbers here are the numbers the war is fought with.

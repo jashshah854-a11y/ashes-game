@@ -78,6 +78,10 @@
       A star marks a capital. Take theirs before the campaign ends.
       Rail is supply: provinces off your rail net show hatched, and units there
       weaken every day. Build rail from the province card to feed new ground.
+      An order takes effect at dawn on the next day, and a unit moves or attacks one neighboring province per day.
+      If an enemy column marches on the province a unit stands in on the same day, that unit stays to defend its own province and its order is cancelled.
+      The front is the border where your blue provinces meet Dominion red provinces; when a province is captured its tile changes to the captor color, so the front moves, and the war log names the province that changed hands.
+      A unit out of supply weakens every day, and after 3 days out of supply it also loses strength to attrition.
     </p>
     <div id="banner" class="banner hidden">
       <div class="end-head">
@@ -213,6 +217,12 @@
 
     <div class="card log-card">
       <h2>War log</h2>
+      <p class="explain" id="log-explain">
+        A capture line means the named nation took the named province and its tile changed color.
+        A repelled or destroyed line means the defenders held and the province did not change hands.
+        Why a battle is won: the side with the higher stack power in the fight wins, attack against defense, with supply, fortifications, river crossings, and drone effectiveness counted, the same numbers the attack preview shows before you order.
+        Losses: a unit that loses all its strength in hit points is destroyed and its chip disappears from the map; survivors stay with lower strength, shown in hit points on their chip and on the unit card.
+      </p>
       <ul id="log" class="log"></ul>
     </div>
   </aside>
