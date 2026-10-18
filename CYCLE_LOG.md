@@ -3375,3 +3375,6 @@ This correction is written because the step entry above was composed from an int
 
 ### What stands unchanged
 Every verification number in the step entry was run by the orchestrator against the final settled tree (the same tree that was committed): suite 123 pass and 0 fail (rerun on HEAD after this correction was prompted: 123 and 0 again), balance byte identical to both baselines, the 8 golden hashes, the mutant at 118 pass and 5 fail on the current suite and 112 and 0 on the pre step suite (a count both builders also reported independently), and the save check at 19 of 19. The negative zero sequence, the save-check.js revert, the fix rounds, and the disposition are as recorded. The only harm was attribution and two descriptive sentences, now corrected; no committed code, test, or baseline changes as a result of this correction.
+
+### Cycle 16 step 4 correction sync note
+- Sync out after commit 09a94a6: the import script sent the correction commit to GitHub (jashshah854-a11y/ashes-game, master now at remote 899b0e7; the script notes the remote sha differs from the local sha while the tree matches, as in prior syncs). Sync succeeded and did not block or alter the local commit.
