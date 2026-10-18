@@ -3509,3 +3509,6 @@ Claimed this run: Step 1 only. Step 2 does not start this run. Standing rules he
 
 ### Mission status
 Cycle 17 Step 1 is complete; Step 2 is next. No stop condition is met: no failed judge verdict, no verification failure (the three provider HTTP 500s are builder unavailability within one run's rotation, resolved by the fourth model in the same run), and no balance change.
+
+### Cycle 17 step 1 sync note
+- Sync out after commit 74c7289: the import script sent 3 commits to GitHub (6adc90f, the Cycle 17 step 0 sync note carried over, plus 05f69a2 and 74c7289; jashshah854-a11y/ashes-game, master now at remote 39b16f2; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits.
