@@ -1307,3 +1307,51 @@ item above.
     of any kind is ruled or made in Cycle 22 (the 15 per point
     reinforce price, blockade parameters, and AI weights all
     stay as they are).
+
+25. Cycle 22 Step 1 blockade diagnostic ruling (2026-10-18,
+    recorded before any instrumentation is written, as the
+    Cycle 21 prescription requires). Ruled by Claude under
+    Jash's 2026-10-18 autopilot order.
+
+    (a) The diagnostic ruling, pre instrumentation. What
+    blockade is believed to do, from the code: a nation is
+    blockaded when the opposing nation controls at least
+    CFG.blockadeCoastalThreshold (3) of its home coastal
+    provinces, where control means the owner holds the
+    province with units or a stationed flotilla
+    (Sim.coastalControl), home coastal provinces are the 10
+    coastal provinces on a nation's own half of the theater
+    (Sim.homeCoastalProvinces), and the one mechanical effect
+    is that the blockaded nation loses
+    CFG.blockadeSteelPct (25) percent of its daily steel
+    income, rounded down, through incomePhase only
+    (Sim.blockadeLoss). The belief under test: blockade never
+    fires in the standard harness campaigns because the
+    scripted armies of every profile fight the capital row
+    and never contest the coastal rows, so no nation ever
+    controls even one enemy home coastal province. Which
+    profiles and seeds should show it: none of the five
+    harness profiles (passive, sensible, reckless,
+    reckless-reinforce, fortress) on any of the 8 standard
+    seeds is expected to reach a count above 0, because no
+    profile orders a unit toward a coastal province, builds
+    or stations a flotilla, or holds captured coastal ground.
+    The figure that confirms or refutes it: for each nation,
+    sampled after each tick completes, the offensive count
+    Sim.enemyHomeCoastalControlCount(state, nation), meaning
+    how many of the opposing nation's home coastal provinces
+    that nation controls; the report carries, per nation, the
+    highest count reached in the campaign and the number of
+    sampled days the count stood at exactly 1 and exactly 2
+    of the 3 needed. Confirmation is a highest count of 0 and
+    zero days at 1 and at 2 for both nations in all 40
+    campaigns: the armies never come within two provinces of
+    the threshold, so dormancy is a profile geography fact,
+    not a threshold arithmetic defect. Any highest count of
+    2 or more, or a run of days at 2, refutes the strong form
+    and reframes dormancy as a near miss. The instrumentation
+    is report only: new columns in tools/balance.js, sampled
+    through the existing readouts, changing no simulation
+    outcome, with the exit proof that the balance output is
+    byte identical to tools/baseline-cycle21.txt once the
+    new columns are stripped.
