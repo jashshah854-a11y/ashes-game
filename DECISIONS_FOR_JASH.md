@@ -839,3 +839,117 @@ item above.
     retention for visible progression, item 16(b) and 17(a); the
     equipment third spend, item 17(b); blockade dormancy, item 17(d));
     the loop will present them and build nothing on silence.
+
+19. Cycle 19 Step 1 ruling sheet (presented 2026-10-18 by the build loop,
+    awaiting your ruling; nothing is built on silence). The Cycle 18
+    judge directed that three standing questions, plus the item 6 gate
+    for Cycle 19 Step 2, be put to you as explicit questions with
+    recommended defaults. Each question below can be answered in one
+    line. Until you rule, Cycle 19 Steps 2 and 3 stay unstarted, exactly
+    as the step list in CYCLE_LOG records.
+
+    Q1. History retention for visible progression (items 16(b) and
+    17(a); your ruling here gates Cycle 19 Step 3, the first visible
+    progression surface). The game keeps no history today: the end
+    screen shows the final snapshot only, and a year 3 country cannot
+    be compared with its day 1 self on any screen. The judge's
+    recommended default is a compact per nation snapshot, recorded at
+    fixed day intervals across the 150 day campaign (the loop's
+    proposed interval: day 1, then every 30 days, plus the final day,
+    so at most 6 records per nation), holding only provinces owned,
+    total factory levels, army strength, production lines open, steel,
+    equipment, and manpower. Like the beats and textures records, no
+    rule would read it; it would exist only so a screen can show the
+    comparison.
+    - Option A (judge's recommended default): the compact snapshot
+      above. Step 3 then builds a comparison panel from it.
+    - Option B: start and end only. One day 1 snapshot per nation is
+      kept, and Step 3 becomes a start versus end panel. Less storage,
+      no growth curve.
+    - Option C: no history. Step 3 is skipped and recorded, and
+      visible progression stays a map only matter.
+    Save consequence, stated before any code: options A and B put
+    history inside the game state and therefore inside the save
+    payload, so the build step that follows your ruling first makes a
+    saveVersion decision in the Cycle 18 Step 0 style. Option C has
+    no save consequence.
+
+    Q2. The equipment third spend (item 17(b)). Equipment today has
+    exactly two spends: a factory level costs 40 times the target
+    level (40, 80, 120; maximum level 3 per province) and a
+    fortification level costs 100 times the target level (100, 200;
+    maximum level 2), while factories produce 5 equipment per level
+    per day. In the committed Cycle 18 baseline the sensible player
+    finishes holding 1860 to 4405 equipment across the 8 standard
+    seeds, and even the fortress profile, which also buys walls,
+    finishes with 720 to 3395: late in a campaign the stockpile has
+    nothing left to buy. Two concrete costed options, both loop
+    proposals with proposed prices, not tuned facts; whichever you
+    pick gets its own build cycle and must pass the standing balance
+    ruling before it ships:
+    - Option A, reinforce: equipment restores strength to a damaged
+      unit, at a proposed 15 equipment per strength point, only for a
+      unit standing on supplied owned ground, never above its full
+      strength (infantry 12, drone wing 6). Costed examples: an
+      infantry division at half strength (6 of 12) costs 90 to refill;
+      a wing at 1 of 6 costs 75. An end of campaign surplus of 1860
+      would buy about 124 strength points if it were all spent this
+      way. Note: the Cycle 11 judge separately parked whether manpower
+      may one day pay for partial reinforcement; this option is the
+      equipment version of that question, and picking it settles the
+      sink, not the manpower question.
+    - Option B, convert: equipment is scrapped into steel at a
+      proposed 5 equipment for 1 steel, through a control on the
+      nation card, capped only by the stockpile. Costed example: a
+      2000 surplus converts to 400 steel, about 13 infantry divisions
+      at their 30 steel build cost. No new unit, system, or map
+      object; the compounding loop gains an outlet instead of a new
+      verb.
+    - Option C: rule the surplus intended. No third spend is built,
+      and the surplus stands in the record as the honest end state of
+      a won economy.
+
+    Q3. Blockade dormancy (items 17(d) and 18(d)). Blockade bites when
+    a nation controls at least 3 of the other nation's home coastal
+    provinces, and costs the blockaded nation 25 percent of its daily
+    steel income (both numbers are CFG values in js/sim.js). It has
+    never fired in play the loop can measure: 0 of the 32 standard
+    harness campaigns in the Cycle 18 baseline, and 0 blockaded nation
+    days across 289 days of passive campaigns tallied at Cycle 18
+    Step 4. Its explanation is proven on screen (Cycle 18 Step 4); its
+    frequency is the open question.
+    - Option A (judge's recommended default): diagnostic first. A
+      later step records, with no behavior change, how close each
+      nation comes in real campaigns (the highest coastal control
+      count reached, and the days spent at 1 and at 2 of the 3
+      needed), and you rule on tuning with that evidence in hand.
+    - Option B: tune now, without the diagnostic (for example a
+      threshold of 2, or a higher steel percent). This is a balance
+      change under your 2026-10-11 ruling and is not the judge's
+      recommendation.
+    - Option C: rule dormancy intended. Blockade stays rare by
+      design; the distance to threshold display in item 18(d) can
+      still be considered on its own if you want the mechanic
+      learnable before it fires.
+
+    Q4. Production line cancel or pause (item 6; your ruling here
+    gates Cycle 19 Step 2). Today a queued order cannot be cancelled
+    or refunded and a line cannot be paused. The money facts that
+    shape any answer: manpower is paid in full at queue time
+    (infantry 120, drone wing 25, interceptor 10, agent 60, flotilla
+    30), while steel is never paid up front; it drains day by day
+    only while a unit is in progress, and retooling already scraps an
+    in progress unit with no steel refund. Item 6 asks the refund
+    question directly: full refund, partial refund, or none.
+    - Option A, the smallest form: cancel applies to queued orders
+      only, the manpower paid for a cancelled order is refunded in
+      full, and a unit already in progress cannot be cancelled (the
+      retool scrap rule already covers ending its line's work). No
+      pause.
+    - Option B: cancel reaches the unit in progress as well, with
+      manpower refunded and the steel already drained lost, exactly
+      as a retool loses it today.
+    - Option C: cancel plus pause (a paused line holds its queue and
+      its work in progress and drains nothing until resumed).
+    - Option D: no cancel and no pause. Cycle 19 Step 2 is skipped
+      and recorded, and item 6 stays as the standing rule.

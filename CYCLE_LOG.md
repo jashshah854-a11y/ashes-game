@@ -3975,3 +3975,29 @@ Cycle 19 Step 0 is complete; Step 1 is next and does not start this run. Step 1 
 
 ### Cycle 19 step 0 sync note
 - Sync out after commit 1d99dd6: the import script sent 3 commits to GitHub (d77db8c, the Cycle 18 step 5 sync note carried over, plus this step's 610e152 and 1d99dd6; jashshah854-a11y/ashes-game, master now at remote bb3ec70; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 19, Step 1 of 3: owner decisions presented, no ruling received, nothing built (2026-10-18)
+
+Claimed this run: Step 1 only. No code was built, changed, or briefed to a builder: the step's own prescription is decisions before code, and it builds nothing on silence. The deliverable of this run is the presentation itself, DECISIONS_FOR_JASH.md item 19, a single ruling sheet Jash can answer in one line per question. Steps 2 and 3 do not start this run and stay conditional exactly as the step list records.
+
+### Ruling search, run before any writing
+- DECISIONS_FOR_JASH.md read in full: items 6, 14, 15, 16, 17, and 18 all still record their questions as undecided, and item 18's closing paragraph states the loop will present the three Step 1 questions and build nothing on silence. No ruling is recorded anywhere in the file.
+- Shared memory searched (three queries: history retention, equipment third spend and blockade, cancel or pause): no ruling on any of the four questions; the hits are the loop's own earlier state notes.
+- Today's daily log (~/memory/2026-10-18.md) read: its only Ashes entry is the Step 0 record, whose next line names this step. No ruling arrived through any channel the loop can read.
+- Disposition on silence, per the prescription: no default was adopted, no option was treated as chosen, and no taste call was made by the loop. The recording half of this step completes only when Jash rules; until then the step stands as presented and open, and later runs check for a ruling instead of presenting again (see LOOP_LESSONS).
+
+### What was presented (DECISIONS_FOR_JASH.md item 19)
+- Q1, history retention (gates Step 3): the judge's recommended default, a compact per nation snapshot at fixed day intervals across the 150 day campaign (loop proposed interval: day 1, every 30 days, and the final day, at most 6 records per nation; provinces, factory levels, army strength, lines open, steel, equipment, manpower; no rule reads it), against start and end only, against no history. The save consequence is stated in the sheet before any code: in state history enters the save payload and needs a saveVersion decision in the Cycle 18 Step 0 style first.
+- Q2, the equipment third spend: the current facts (factory level at 40 times target level, fortification level at 100 times target level, 5 equipment per factory level per day; sensible end equipment 1860 to 4405 and fortress 720 to 3395 in the committed Cycle 18 baseline) and two concrete costed options as the judge directed, both labelled loop proposals with proposed prices: reinforce at 15 equipment per strength point on supplied owned ground (half strength infantry refills for 90), and convert at 5 equipment for 1 steel (a 2000 surplus becomes 400 steel, about 13 infantry at 30 steel each), plus the option to rule the surplus intended. Either pick needs its own cycle and the standing balance ruling before it ships; this step chose neither.
+- Q3, blockade dormancy: the judge's recommended default, a diagnostic first (record the highest coastal control count reached and the days at 1 and at 2 of the 3 needed, no behavior change), against tuning now and against ruling dormancy intended. The measured facts are stated in the sheet: threshold 3 and 25 percent of daily steel income in CFG, 0 of 32 harness campaigns, 0 blockaded nation days in 289 passive days.
+- Q4, cancel or pause (item 6, gates Step 2): the refund question put with the money facts that shape it (manpower paid in full at queue time at 120, 25, 10, 60, and 30 by template; steel drained only during build days and never up front; the retool scrap rule as the existing precedent for lost steel), in four forms from queued only with full manpower refund, through in progress cancel and pause, to no cancel at all, which skips Step 2.
+
+### Verification run by the orchestrator (state unchanged, as the step requires)
+- Working tree clean at HEAD 0339db8 before any work (git status porcelain empty); the only files this run touches are DECISIONS_FOR_JASH.md, BACKLOG.md, LOOP_LESSONS.md, and this log.
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 130 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle18.txt.
+- Python byte scan for em and en dashes across the whole repo: zero (rerun after the documentation edits in the commit verification).
+
+### Mission status
+Cycle 19 Step 1 is executed as presentation and remains open for Jash's ruling: Q1 gates Step 3, Q4 gates Step 2, and Q2 and Q3 record for their own later cycles, with Q3's recommended diagnostic needing his word before it is built as well. Nothing was built on silence, no stop condition is met (no judge verdict this run, no verification failure, no balance change), and the next run checks for rulings first: a ruling on Q4 or Q1 starts the matching conditional step, and continued silence moves to recording the Step 2 and Step 3 skips rather than presenting a second time.
