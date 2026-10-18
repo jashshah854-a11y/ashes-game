@@ -4760,3 +4760,379 @@ Cycle 21 Step 5 is complete: the cycle's consolidated verification is green on e
 
 ### Cycle 21 step 5 sync note
 - Sync out after commit be9c442: the import script completed with exit 0 and sent 3 commits to GitHub (6309de3, the Cycle 21 step 4 sync note carried over, plus this step's 61b9be1 and be9c442; jashshah854-a11y/ashes-game, master now at remote ed119e7; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 21, Step 6 of 6: cycle close and milestone review (2026-10-18)
+
+Claimed this run: Step 6 only, the milestone run. No builder was briefed and no game code was built, changed, or reverted: this step assembles the cycle package, calls the Opus 5.5 judge, verifies the judge's claims, and records the Cycle 22 prescription. The only files this run touches before its documentation commits are none in game code; the documentation touches are CYCLE_LOG.md, BACKLOG.md, LOOP_LESSONS.md, and DECISIONS_FOR_JASH.md.
+
+### Working tree and method
+- Working tree clean at HEAD 79ee064 before any work (git status porcelain empty; HEAD is the Cycle 21 Step 5 sync note).
+- The package assembled by the orchestrator: the Cycle 21 step summaries from this log, the cycle diff by numstat, test counts, the balance output, and the DESIGN_BIBLE compass, in the Cycle 20 Step 6 shape.
+
+### Orchestrator verification (fresh, this run, on HEAD 79ee064)
+- `node --test tests/sim.test.js`: 187 pass, 0 fail.
+- `node tools/balance.js all`: byte identical to tools/baseline-cycle21.txt (cmp, zero difference).
+- `node --check` on js/sim.js, js/main.js, js/save.js, js/lore.js: all pass.
+- Python byte scan for em dash and en dash across the repo excluding .git: zero files.
+
+### Cycle diff by numstat, range 2cee316..HEAD (pre Cycle 21 HEAD to the Step 5 sync note; includes the cycle's own log, lessons, decisions, and baseline file)
+14 files, 2149 insertions, 20 deletions. Per file: BACKLOG.md 1/1; CYCLE_LOG.md 222/0; DECISIONS_FOR_JASH.md 109/0; LOOP_LESSONS.md 14/0; css/style.css 1/0; index.html 2/0; js/main.js 39/0; js/save.js 73/1; js/sim.js 239/3; tests/sim.test.js 833/3; tools/balance.js 43/7; tools/baseline-cycle21.txt 45/0; tools/reinforce-check.js 412/0; tools/save-hardening-check.js 116/5. The package quoted numstat per file, per the Cycle 16 Step 5 lesson.
+
+### The judge call
+- Route: PYTHONPATH=/opt/muse/skills/custom-connector-setup/bin anthropic.py complete, model claude-opus-5-5, prompt on stdin carrying the DESIGN_BIBLE compass, the cycle step summaries, the orchestrator verification above, the numstat diff, and the balance summary.
+- Main call: usage in 3633, out 8000. It hit the token cap mid prescription, at Cycle 22 Step 1's heading.
+- Completion call 1: carried the full part 1 text plus the exact cut words, per the Cycle 16 Step 5 lesson. Usage in 4461, out 4289. It completed the Cycle 22 prescription and the taste items with no further cut.
+- No fallback to the local claude CLI was needed: the API route returned full output on both calls; the cut was the token cap, not an empty return.
+- This milestone's two calls sum to in 8094 (3633 + 4461) and out 12289 (8000 + 4289).
+
+### Verdict: PASS WITH FIX-NOW FLAGS
+The full review from both calls follows, verbatim and continuous (the continuation seam falls at the Step 1 heading, as the call was cut and resumed):
+
+# Ashes of Empires: Cycle 21 Milestone Judgment
+
+## (1) Verdict: PASS WITH FIX-NOW FLAGS
+
+The reinforce theme shipped inside its binding constraints:
+
+- 15 equipment per point through one `reinforceCost` helper.
+- Explicit and instant for the player.
+- Eligibility order matches the ruling.
+- Partial reinforce is allowed.
+- `stackPower` is untouched by claim.
+- No manpower is read or written.
+- saveVersion stays 3.
+
+The one constraint amendment (`lastCombatDay`) was ruled before code, as the Q2 constraint required.
+
+Verification is strong:
+
+- Suite: 187 pass, 0 fail.
+- Balance: byte identical to `baseline-cycle21.txt`.
+- Browser checks: 674 assertions, 0 failures on first standalone runs.
+- `node --check` passes on all four files.
+- Zero dash violations.
+
+Four items keep this from a clean PASS. None is a FAIL.
+
+1. **Unattributed deletions.** Ten of the 20 deleted lines are not explained in the step summaries, including 3 in `js/sim.js`, the file that holds `stackPower`.
+2. **Silent lore coverage loss.** "A Practiced Line" stopped firing in its driven campaign. The lore check stayed green at 110 of 110 because it is campaign-dependent.
+3. **Surplus claim cannot be checked.** The package contains no ending-equipment figure, so "reinforce closes the equipment surplus" cannot be verified from it.
+4. **A flake was tolerated.** The cancel check needed a rerun after one tick-window flake.
+
+Visible progression on the map stays at D, as in Cycles 17 and 18. Reinforce restores units. It does not upgrade anything, so the Civ VII axis did not move.
+
+## (2) Criticism against each compass axis
+
+### HOI4 heart (production, divisions, bending fronts): B+
+
+**Good:**
+- Reinforce gives equipment a third spend, as the theme intended, and gives divisions a recovery decision.
+- Eligibility is "supplied, owned, not engaged that day." That rewards rotating units off the line, which is the right HOI4 instinct.
+- Supply eligibility goes through `computeSupply`, so rail-as-supply now decides what can recover.
+
+**Weak:**
+- Frontline behavior is unchanged by design.
+- The outcome metric did not move. Sensible and fortress still report origStrengthPct 33.3 while spending 240 to 390 equipment.
+- reckless-reinforce loses on day 37, the same day as plain reckless, after spending exactly 30 equipment.
+
+Reinforce therefore does not rescue bad play, which is correct. But its effect on good play is invisible in the current report. Either the metric counts surviving units rather than hit points, or the reinforce volume is too small to show. Next cycle must say which.
+
+### Civ VII visible progression: D (unchanged)
+
+- Nothing on the map changed this cycle.
+- Reinforce returns a unit to its existing `maxStrength`, which is maintenance, not becoming a different animal.
+- Cycle 20 history snapshots exist (1 to 6 per nation, eight fields) and are now validated on load, but the map still does not use them.
+- This axis has been the weakest for three judged cycles. It must be the build centre of Cycle 22, after the ruled blockade diagnostic.
+
+### EU5 lore depth: C
+
+- No new lore content this cycle.
+- The theme changed AI behavior, the new course changed campaigns, and an authored event ("A Practiced Line") no longer fires in its driven campaign.
+- The check passed because it is campaign-dependent. A green check that cannot notice an event going silent is a coverage hole.
+- Systemic changes will keep shifting campaigns, so every authored event needs a firing guarantee that does not depend on one campaign course.
+
+### Legibility (Stellaris warning): A-
+
+**Best work this cycle.** The unit card reads `Sim.reinforceInfo` once and recomputes nothing. Before any click it states:
+- current and max hit points,
+- buyable points,
+- exact total cost and per-point cost.
+
+When the unit is ineligible, the card shows the readout reason in place of the button. Click refusals route to the card notice. `tools/reinforce-check.js` is non-vacuous: exit 2 against the pre-step UI, and exactly 2 failures under a +15 cost mutant.
+
+**Gaps:**
+1. **Dominion reinforcement is invisible on screen.** It is visible only in the harness through `enemyEquipment`. An enemy unit regaining strength with no on-screen cause is exactly the opacity the bible forbids. One line in an existing notice or log is needed.
+2. **The "engaged today" reason should say when the unit becomes eligible**, for example "fought today; can reinforce after tonight." Otherwise the player must infer the day rule.
+
+### Signature mechanics (drone exchange, EW, rail, intel): B-
+
+**Good:**
+- Equipment now has a real sink, so the drone cost-exchange has teeth. Losing equipment now costs future reinforcement, not just a stockpile number.
+- Interceptor-killed drones are stamped as combat participants, which is consistent.
+- The supply gate makes rail-is-supply decide recovery.
+
+**Missing:**
+- Nothing moved on EW or intel-as-sight.
+- This is acceptable for a scoped theme, but note it for the roadmap.
+
+### Core compounding loop: B
+
+- Reinforce strengthens the "production feeds army" link: equipment now turns back into strength.
+- "Army takes ground, ground holds resources, resources build factories" was not touched.
+- Without an ending-equipment figure, the package cannot show whether the loop now consumes what it produces, or whether surplus still piles up.
+
+## Specific questions
+
+### Does reinforce close the equipment surplus honestly?
+
+No, and the package cannot show that it does. The supported claims are:
+
+- Sensible and fortress spend 240 to 390 equipment per campaign, which is 16 to 26 strength points at 15 per point.
+- reckless-reinforce spends exactly 30, which is 2 points, on every seed.
+- Win and loss bands and origStrengthPct 33.3 are unchanged.
+
+There is no ending-equipment figure in the package for any profile. "Sensible still ends with large equipment" therefore cannot be quantified here, and I will not invent a number.
+
+The honest statement is: reinforce is a new sink of 240 to 390 per good campaign, of unknown size relative to the surplus.
+
+**Do not touch the 15 knob** until the report carries ending equipment. That instrumentation is fix-now flag F5.
+
+The identical 30 across all 8 reckless seeds also needs a one-line explanation. It could be one deterministic early eligible moment, or eligibility being almost never met because reckless units are always engaged or unsupplied.
+
+### Are the F2 closure and F1 pin sufficient?
+
+**F2: sufficient as closure.** The validation covers:
+- one array per nation,
+- 1 to 6 snapshots,
+- eight finite named fields,
+- strictly increasing days, first day 1,
+- plain-language rejection under one prefix,
+- no saveVersion change.
+
+It is backed by 9 tests and 42 of 42 browser assertions.
+
+One remaining gap: snapshot days are not stated to be bounded by the save's current day, so a snapshot dated in the future would pass. Add that bound as a small hardening item (Cycle 22 Step 2). It is not fix-now.
+
+**F1: sufficient as a pin.** The formal 20-pair queue/retool/cancel manpower conservation test locks the invariant. It pins F1; it does not redesign it, which is what was asked.
+
+### Was the `lastCombatDay` amendment justified?
+
+Yes. Step 0 showed that "engaged that day" had no existing source: participation lives only in `movementPhase` locals, and the battle record carries no unit ids. The alternatives were:
+
+- re-deriving participation per call, which duplicates the combat logic, or
+- putting unit ids on battle records, which is a larger save change.
+
+A1 is the smallest honest fix: one saved field, a `typeof` fallback, saveVersion stays 3. The Q2 constraint explicitly allowed per-unit state if a ruling came first, and the ruling was recorded in DECISIONS item 22 before Step 2 code.
+
+**Condition:** the field must stay the only per-unit addition. Any second per-unit field needs its own ruling.
+
+### Diff attribution
+
+| File | Deleted lines | Attributed in summaries? |
+|---|---|---|
+| tests/sim.test.js | 3 | Yes: repinned Cycle 15 scoring lines |
+| tools/balance.js | 7 | Yes: profile and report restructure |
+| js/sim.js | 3 | No |
+| js/save.js | 1 | No |
+| tools/save-hardening-check.js | 5 | No |
+| BACKLOG.md | 1 | No |
+
+The `js/save.js` and save-hardening deletions are plausibly the Step 1 `deserializeSave` and check-section edits. The `js/sim.js` deletions are plausibly the `movementPhase` stamping and `aiTakeTurn` hook.
+
+"Plausibly" is not attribution. Because `stackPower` lives in `js/sim.js` and is bible law, those 3 deleted lines need proof. That is flag F3.
+
+## Fix-now flags (each with a home step)
+
+**F3. Deletion attribution and `stackPower` proof.**
+- **Home:** Cycle 22 Step 0, no code.
+- **Task:** Run `git diff 2cee316..HEAD -- js/sim.js js/save.js tools/save-hardening-check.js BACKLOG.md` and record each of the 10 unattributed deleted lines with its purpose in CYCLE_LOG.
+- **Proof:** Show the `stackPower` function body is byte identical between 2cee316 and HEAD, for example by extracting it at both revisions and running `cmp`.
+- **Pass condition:** every deleted line is attributed, and the `stackPower` diff is empty.
+
+**F4. Authored-event firing guarantee.**
+- **Home:** Cycle 22 Step 2.
+- **Task:** Make "A Practiced Line" fire in a deterministic staged or driven scenario. Add a lore assertion that fails if any authored event does not fire in at least one harness or staged scenario.
+- **Mutant:** prove the assertion is non-vacuous by disabling one event's trigger and confirming the check fails.
+- **Pass condition:** the lore check no longer depends on one campaign course, and the mutant fails it.
+
+**F5. Ending-equipment instrumentation.**
+- **Home:** Cycle 22 Step 1, bundled with the blockade diagnostic. Both are report-only and change no behavior.
+- **Task:** Add `equipmentEndPlayer` and `equipmentEndDominion` to every balance report row, next to `reinforceSpentPlayer`.
+- **Also record:** why reckless-reinforce spends exactly 30 on every seed.
+- **Pass condition:** the sim is byte identical except the new columns, and `baseline-cycle22.txt` is committed.
+
+**F6. Cancel check deflake.**
+- **Home:** Cycle 22 Step 2.
+- **Task:** Replace the tick-window dependency in the cancel check with a deterministic wait on the condition it asserts.
+- **Pass condition:** 10 consecutive standalone runs, all 35 of 35.
+- **Lesson:** record in LOOP_LESSONS that a flake is fixed, never accepted on rerun.
+
+**Process note (lesson only, not a flag).** In Step 3 the orchestrator caught two defects in the as-delivered check: a staged save that was never written, and three assertions comparing page text to itself. Codify this as a lesson: every staged save must be read back and confirmed before use, and no assertion may compare a value to itself.
+
+## (3) Prescription for Cycle 22
+
+**Theme:** blockade diagnostic, then the first map-visible progression.
+
+### Step 0: decisions and audit, no code
+- Close F3: deletion attribution and `stackPower` proof.
+- Rule the visible-progression design for Steps 3 and 4 in DECISIONS:
+  - Visuals are presentation over existing fields only: factories, rail, strength, and history snapshots.
+  - No new system, because the v1 list closed at Cycle 14.
+  - No saveVersion change.
+- Record whether the "on screen" Dominion-reinforce notice uses an existing notice or log surface. It must.
+
+### Step 1: blockade diagnostic, ruled
+Report-only. No sim behavior changes in this step.
+
+- **Rule before code.** Record the diagnostic question in DECISIONS before any instrumentation is written. The ruling states three things:
+  - what the blockade is believed to do,
+  - which profiles and seeds should show it,
+  - which report figure would confirm or refute it.
+
+  A diagnostic without a stated question becomes a fishing trip.
+- **Instrument.** Add the blockade figures named in the ruling to the balance report as new columns only.
+- **Bundle F5.** Add `equipmentEndPlayer` and `equipmentEndDominion` to every row, next to `reinforceSpentPlayer`.
+- **Answer the origStrengthPct question.** Add `reinforcePointsPlayer` (points bought, not equipment spent). Then state in CYCLE_LOG which explanation holds:
+  - origStrengthPct counts surviving units rather than hit points, so reinforce cannot move it, or
+  - the reinforce volume is too small to register.
+
+  Name the field definition that decides it.
+- **Explain the reckless 30.** Record in one line why reckless-reinforce spends exactly 30 on all 8 seeds. Name the day and the units, or name the eligibility clause that blocks everything else.
+- **Write the finding.** State the blockade finding using report numbers. Then rule the next action in DECISIONS: leave as is, tune in a later cycle, or defer a redesign. **No tuning happens in Cycle 22.**
+
+**Exit criteria:**
+- The DECISIONS ruling is dated before the first Step 1 commit.
+- Balance output is byte identical to `baseline-cycle21.txt` once the new columns are stripped. Show the strip-and-compare command and its empty diff.
+- `baseline-cycle22.txt` is committed with the new columns.
+- The surplus question gets a numeric answer per profile: equipment spent on reinforce versus equipment held at the end. The 15 knob stays untouched regardless of the answer.
+- The reckless 30 explanation and the origStrengthPct explanation are both in CYCLE_LOG.
+- Suite still passes at 187 or more, with 0 failures.
+
+### Step 2: hardening and legibility bundle
+
+This step contains four small items, each independently verifiable. Balance must stay byte identical to `baseline-cycle22.txt`.
+
+**F4. Authored-event firing guarantee.**
+- Make "A Practiced Line" fire in a deterministic staged or driven scenario.
+- Add a lore assertion that enumerates every authored event and fails if any one does not fire in at least one harness or staged scenario.
+- Prove the assertion is non-vacuous: disable one event's trigger and confirm the check fails and names that event.
+- **Exit:**
+  - The lore check passes with every event covered.
+  - The mutant run fails and names the disabled event.
+  - Both outputs are recorded in CYCLE_LOG.
+
+**F6. Cancel check deflake.**
+- Replace the tick-window dependency with a deterministic wait on the asserted condition.
+- The wait must have a bounded timeout that fails loudly. It must never pass silently on timeout.
+- **Exit:**
+  - 10 consecutive standalone runs, all 35 of 35, with the run log recorded.
+  - LOOP_LESSONS entry added: a flake is fixed, never accepted on rerun.
+
+**F2 hardening. Snapshot day bound.**
+- Reject any history snapshot whose day exceeds the save's current day. Use the existing plain-language prefix.
+- **Exit:**
+  - New tests cover three cases: a snapshot on the current day passes, a snapshot one day past it fails, and a snapshot far in the future fails.
+  - The existing 42 browser assertions still pass.
+  - saveVersion stays 3.
+
+**Legibility gaps from axis (2).**
+- **Dominion reinforcement on screen.** Show one line in the notice or log surface named in Step 0, for example "Dominion 3rd Armour reinforced (+4)." This adds no new UI surface.
+- **Engaged-today reason.** It must say when the unit becomes eligible, for example "fought today; can reinforce after tonight." The text comes from `Sim.reinforceInfo`; the card computes nothing.
+- **Exit:**
+  - The browser check asserts both strings against staged state. Each staged save is read back and confirmed before use.
+  - A mutant that suppresses the Dominion line fails the check.
+  - No assertion compares a value to itself.
+
+### Step 3: visible progression, part one (map reads existing fields)
+
+This is the build centre of the cycle. All work is presentation over fields that already exist. There is no new system and no saveVersion change.
+
+- **Factories and rail.** Show factory development on owned territory as tiered markers derived from existing factory counts. Draw built rail as visibly distinct from unbuilt routes.
+- **Divisions.** Unit counters show current strength against `maxStrength` at a glance, so a reinforced unit visibly recovers.
+- **Single source.** Every visual reads a sim accessor once. The renderer derives no game numbers.
+- **Test:** a player who has played 30 days must see a map that differs from day 1 without opening any panel.
+
+**Exit criteria:**
+- Balance output is byte identical to `baseline-cycle22.txt`. This proves the step is presentation only.
+- A browser check stages two saves, one early and one developed, reads both back, and asserts the rendered markers differ in the expected direction.
+- A mutant that pins the marker tier to its minimum fails the check.
+- `node --check` passes on every touched file.
+- The diff touches no sim logic. Any `js/sim.js` change must be accessor-only and attributed line by line.
+
+### Step 4: visible progression, part two (history snapshots on screen)
+
+- Surface the Cycle 20 history snapshots: a per-nation growth view drawn only from the eight validated snapshot fields.
+- This turns the validated-but-unused data into the first "your nation became something" moment.
+- It must handle 1 snapshot (a single point, no fake trend) and up to 6.
+- Snapshot cadence and fields are not changed.
+
+**Exit criteria:**
+- Balance output is byte identical to `baseline-cycle22.txt`.
+- A browser check covers saves with 1, 3, and 6 snapshots, each read back before use. The check asserts the rendered values equal the saved field values.
+- A mutant that shifts one field by one snapshot fails the check.
+- A save that fails F2 validation never reaches the view. Its rejection message appears instead.
+- saveVersion stays 3.
+
+### Step 5: verification and close
+
+- **Full checks:**
+  - full suite at 0 failures, with the new count recorded,
+  - balance byte identical to `baseline-cycle22.txt`,
+  - every browser check run standalone on first attempt,
+  - `node --check` on all touched files,
+  - zero dash violations.
+- **Diff attribution.** Write a table covering every deleted line in the cycle, by file, with its purpose. It goes in the step summaries, not reconstructed afterwards. This is the standing fix for F3.
+- **`stackPower`.** Show the body is byte identical between the Cycle 22 start commit and HEAD, using the same extract-and-`cmp` method as Step 0.
+- **LOOP_LESSONS.** Add three lessons:
+  - flakes are fixed, not rerun,
+  - staged saves are read back,
+  - no self-comparing assertions.
+
+**Exit:** every item above is recorded with command output in CYCLE_LOG. Any first-run browser failure is reported as such, even if fixed.
+
+### Binding constraints for Cycle 22
+
+- **No tuning.** The 15 equipment per point knob, blockade parameters, and AI weights are unchanged.
+- **Report-only Steps.** Steps 1 and 2 may change report columns, checks, tests, and UI strings. They may not change simulation outcomes.
+- **Presentation-only Steps.** Steps 3 and 4 add no new system, field, or saved state.
+- **Per-unit state.** `lastCombatDay` remains the only per-unit addition since Cycle 20.
+- **Save format.** saveVersion stays 3.
+- **`stackPower`** is untouched and proven so.
+
+## (4) Taste items (non-binding)
+
+- **Reinforce notice wording.** Lead with the unit name and the gain, for example "+4 strength, 60 equipment." This reads faster than a sentence.
+- **Factory markers.** Prefer three clear tiers over a continuous scale. A player should be able to tell tiers apart from across the map.
+- **Damaged-unit colour.** Reuse an existing palette colour for damaged counters rather than adding a new red, so the map does not get louder.
+- **Growth view framing.** Label the history view with in-world dates or days, not snapshot indices. It is the nation's story, not a debug table.
+- **Profile names.** If the reckless-reinforce explanation shows eligibility is almost never met, consider renaming the profile in the report so its purpose stays clear. This is a naming change only.
+
+### The judge's claims check, verified by the orchestrator before acceptance
+1. Flag F3, unattributed deletions and the stackPower proof: CLOSED this run by verification. The orchestrator ran the exact diff the judge prescribed. stackPower extracted at 2cee316 and at HEAD is byte identical, 1551 characters both, sha256 b25006c44f303e7afe9cd2a845e34e068951cd30d4f16748bd6787e1e333349d at both revisions, cmp clean. Every one of the 10 unattributed deleted lines is now attributed here: js/sim.js (3): the attritionCarry line in addUnit lost only its trailing comma so the lastCombatDay field could be added beneath it (Step 2); the one line clone writeback in movementPhase expanded to a three line block that also stamps lastCombatDay (Step 2); the provinceId line in the export list lost only its trailing comma so the three reinforce exports could follow it (Step 2). js/save.js (1): the header comment sentence ending "wrong." was extended with "A save whose campaign history is damaged is refused." (Step 1). tools/save-hardening-check.js (5): two header comment lines and two in body comment lines renumbering the broken labels and no page errors sections after the history validation section was inserted before them, and one variable, reImportMsg2, dropped from a checked texts list in the same renumbering (Step 1). BACKLOG.md (1): the single giant status paragraph line was replaced by its updated version, the standing shape of every backlog update in this loop (Step 1). No assertion was weakened or removed in any of them. Cycle 22 Step 0 records this closure and does not redo it.
+2. Flag F5, ending equipment instrumentation: CLOSED as instrumentation, with the surplus finding recorded. The judge is correct that the package sent this run contained no ending equipment figure, and that omission is the orchestrator's, recorded as a lesson below. The figures themselves already exist in every balance report row under the names endEquipment (player) and enemyEquipment (Dominion), so the judge's proposed new columns would duplicate existing fields and are not adopted. The numbers from tools/baseline-cycle21.txt: sensible spends 240 to 390 on reinforce and still ends with 1525 to 3505 equipment; fortress spends 240 to 375 and ends with 225 to 1765; passive spends 0 and ends with 725 to 2310. The honest statement, answering the judge's question with the figures: reinforce is a real sink of 240 to 390 per good campaign, and it does NOT close the surplus; sensible play still ends holding roughly four to ten times what it spent on reinforce. The 15 equipment per point knob stays untouched, per the judge's direction and the Q2 ruling. Future milestone packages must quote endEquipment and enemyEquipment, stated as a standing rule in LOOP_LESSONS.
+3. The origStrengthPct question the judge posed: ANSWERED from the code. tools/balance.js line 204 defines it as the summed strength of surviving starting units (unit id at most 7) over the starting 72, so it IS a hit point figure and reinforce can move it in principle. It did not move because the surviving starting units in the winning profiles are the untouched full strength capital garrison (24 of 72, 33.3 percent on every seed), and the profiles' reinforce spend lands on units outside that set. Cycle 22 Step 1 confirms this reading in its report rather than discovering it.
+4. Flag F4, the authored event firing guarantee: CONFIRMED as recorded. Step 4 and Step 5 both record lore at 110 of 110 with A Practiced Line never firing in its driven campaign under the AI reinforce course. The flag stands with its home at Cycle 22 Step 2, exactly as the judge prescribed.
+5. Flag F6, the cancel check flake: CONFIRMED as recorded at Step 4 (cancel passed 35 of 35 on rerun after one tick window flake; Step 5's standalone reruns all passed on first runs). The flag stands with its home at Cycle 22 Step 2.
+6. The judge's two legibility gaps (Dominion reinforcement invisible on screen; the engaged reason not stating when the unit becomes eligible), its F2 hardening note (a history snapshot dated after the save's current day would pass validation), and the process note (staged saves read back, no self comparing assertions) are all adopted and homed at Cycle 22 Step 2 in the prescription below. The Dominion reinforce log line partially exists already: reinforceUnit logs every reinforce through logEvent for both nations in the Step 2 shape, so Step 2's work is proving and, if needed, surfacing that line in the war log the player reads, not inventing a new surface.
+7. Reckless reinforce spending exactly 30 on every seed: NOT traced this run, and not guessed at. It stays a named Step 1 item in Cycle 22, exactly as the judge prescribed.
+
+### Flag disposition
+- F3: closed this run by attribution and the stackPower cmp proof above.
+- F5: closed as instrumentation (the fields exist as endEquipment and enemyEquipment); the surplus finding is recorded above; no new columns.
+- F4: stands, home Cycle 22 Step 2.
+- F6: stands, home Cycle 22 Step 2.
+- Non flag hardening and legibility items from the review: homed at Cycle 22 Step 2.
+
+### Cycle 22 prescription, as adopted (the judge's prescription, with the two closures above folded in)
+Theme: blockade diagnostic, then the first map visible progression. Standing constraints from the judge, adopted whole: no tuning in Cycle 22 (the 15 per point knob, blockade parameters, and AI weights unchanged); Steps 1 and 2 are report, check, test, and UI string work only and may not change simulation outcomes; Steps 3 and 4 are presentation only, no new system, field, or saved state; lastCombatDay remains the only per unit addition since Cycle 20; saveVersion stays 3; stackPower untouched and proven so at close.
+- Step 0, decisions and audit, no code: record the F3 and F5 closures from this entry; rule the visible progression design for Steps 3 and 4 in DECISIONS (presentation over existing fields only: factories, rail, strength, history snapshots; no new system; no saveVersion change); record which existing notice or log surface carries the Dominion reinforce line.
+- Step 1, blockade diagnostic, ruled, report only: record the diagnostic ruling in DECISIONS before instrumentation (what blockade is believed to do, which profiles and seeds should show it, which figure confirms or refutes it); add the blockade figures to the balance report as new columns only (per the Q3 ruling: highest coastal control count reached per nation, days at 1 and at 2 of the 3 needed); quote endEquipment and enemyEquipment beside reinforceSpentPlayer for the surplus answer; record the reckless 30 explanation (day and units, or the eligibility clause that blocks the rest) and confirm the origStrengthPct reading from item 3 above; write the blockade finding in numbers and rule the next action in DECISIONS (leave as is, tune in a later cycle, or defer a redesign), with no tuning in Cycle 22. Exit: balance byte identical to baseline-cycle21 once new columns are stripped, with the strip and compare shown; tools/baseline-cycle22.txt committed with the new columns; suite green.
+- Step 2, hardening and legibility bundle: F4 (A Practiced Line fires in a deterministic staged or driven scenario, plus a lore assertion enumerating every authored event that fails if any does not fire in at least one scenario, proven non vacuous by disabling one trigger); F6 (cancel check deflaked with a deterministic bounded wait that fails loudly, 10 consecutive standalone runs at 35 of 35, lesson recorded); the F2 snapshot day bound (reject a history snapshot whose day exceeds the save's current day, three test cases, saveVersion stays 3); the two legibility items (Dominion reinforce visible on the named surface, the engaged reason stating when the unit becomes eligible, text from Sim.reinforceInfo with the card computing nothing, browser check asserting both strings against read back staged saves, no self comparing assertions). Balance byte identical to baseline-cycle22 throughout.
+- Step 3, visible progression part one, map reads existing fields: tiered factory markers from existing factory counts, built rail visibly distinct from unbuilt routes, unit counters showing current strength against maxStrength at a glance; every visual reads a sim accessor once and the renderer derives no game numbers. Exit: balance byte identical to baseline-cycle22; a browser check staging an early and a developed save (both read back) asserting the rendered markers differ in the expected direction; a minimum tier mutant failing the check; no sim logic in the diff.
+- Step 4, visible progression part two, history snapshots on screen: a per nation growth view drawn only from the eight validated snapshot fields, handling 1, 3, and 6 snapshots honestly (one snapshot is a single point, no fake trend). Exit: balance byte identical to baseline-cycle22; a browser check over saves with 1, 3, and 6 snapshots asserting rendered values equal saved values; a one field shift mutant failing; a save failing validation never reaching the view.
+- Step 5, verification and close: full suite, balance byte identical to baseline-cycle22, every browser check standalone, node --check, zero dashes, a deletion attribution table for the whole cycle written in the step summaries, the stackPower extract and cmp proof between the Cycle 22 start commit and HEAD, and the three lessons (flakes are fixed not rerun, staged saves are read back, no self comparing assertions) recorded in LOOP_LESSONS.
+- Taste items from the judge, settled under the autopilot order and recorded in DECISIONS_FOR_JASH.md item 23: reinforce notice wording leading with unit name and gain; factory markers in three clear tiers; damaged unit colour reusing an existing palette colour; the growth view labelled with in world days, not snapshot indices.
+
+### Mission status
+Cycle 21 is complete: Steps 0 to 6 done, milestone verdict PASS WITH FIX-NOW FLAGS, of which F3 and F5 are closed this run by orchestrator verification and F4 and F6 stand with their home at Cycle 22 Step 2. Cycle 22 is prescribed above, starting with Step 0. No stop condition is met: the verdict is not a FAIL, no build is broken, and no run in this cycle failed verification on its final tree.
+

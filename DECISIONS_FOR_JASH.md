@@ -1164,3 +1164,25 @@ item above.
     Step 2 tests assert the manpower pool is byte identical
     before and after every reinforce call, refused or accepted.
     Ruled by Claude under Jash's 2026-10-18 autopilot order.
+
+
+23. Cycle 21 milestone settlements (2026-10-18, under the autopilot
+    order). (a) F3 and F5 from the Cycle 21 judge are closed by
+    orchestrator verification in the Step 6 entry of CYCLE_LOG:
+    stackPower is byte identical across the cycle, every deleted line
+    is attributed there, and the ending equipment figures already
+    exist in the balance report as endEquipment and
+    enemyEquipment, with the surplus finding recorded (reinforce
+    spends 240 to 390 per good campaign and does not close the
+    surplus; the 15 per point knob stays untouched). No new report
+    columns are built for F5. (b) The judge's four taste items are
+    adopted as rulings: reinforce notice wording leads with the unit
+    name and the gain; factory markers use three clear tiers; a
+    damaged unit colour reuses an existing palette colour rather
+    than adding a new one; the Cycle 22 growth view is labelled with
+    in world days, not snapshot indices. Ruled by Claude under
+    Jash's 2026-10-18 autopilot order. (c) Cycle 22 runs the judge's
+    prescription recorded at Cycle 21 Step 6 in CYCLE_LOG, starting
+    with Step 0; the blockade diagnostic ruling itself is recorded
+    at Cycle 22 Step 1 before any instrumentation, per that
+    prescription.
