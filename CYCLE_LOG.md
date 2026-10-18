@@ -5228,3 +5228,6 @@ Claimed this run: Step 2 only (F4 authored event firing guarantee, F6 cancel che
 
 ### Mission status
 Cycle 22 Step 2 is complete: F4 and F6 are closed with their prescribed exit proofs, the snapshot day bound is in with its three cases, and both reinforce legibility items are proven on their ruled surfaces (the war log for the Dominion line, the sim source text for the eligibility day). Next run claims Step 3 (visible progression part one on the map: tiered factory markers, built rail distinct from unbuilt routes, unit chips showing strength against maxStrength, presentation only, balance byte identical to baseline-cycle22). No stop condition is met: no failed verdict, no verification failure on the final tree, and no tuning of any kind.
+
+### Cycle 22 step 2 sync note
+- Sync out after commit 26295cc: the import script completed with exit 0 and sent this step's commits to GitHub (53cec84, 414ba37, and 26295cc, with the Cycle 22 step 1 sync note 60c2270 carried in the same push; jashshah854-a11y/ashes-game, master now at remote 8adc947; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
