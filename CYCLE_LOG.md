@@ -3906,3 +3906,6 @@ The judge, in substance: no battle outcome changed; balance byte identical acros
 
 ### Mission status
 Cycle 18 is complete: Steps 0, 1, 2, 3, 4, and 5 done, judge PASS WITH FIX-NOW FLAGS with the three flags (F1 partially executed here by the baseline commit and cmp record, F2 and F3 untouched) carried to Cycle 19 Step 0 by the judge's own prescription, no unresolved balance flags. Next run claims Cycle 19 Step 0 (seal Cycle 18). No stop condition is met: no failed judge verdict (this is a pass with carried flags, the Cycle 8, 13, and 17 shape), no verification failure this run, and no balance change.
+
+### Cycle 18 step 5 sync note
+- Sync out after commit 6c2fab4: the import script sent 3 commits to GitHub (6108f1e, the Cycle 18 step 4 sync note carried over, plus this step's 823bf76 and 6c2fab4; jashshah854-a11y/ashes-game, master now at remote f3f68bd; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
