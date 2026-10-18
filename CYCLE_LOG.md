@@ -3749,3 +3749,29 @@ Cycle 18 Step 1 is complete; Step 2 is next. No stop condition is met: no failed
 
 ### Cycle 18 step 1 sync note
 - Sync out after commit 40f9fb0: the import script sent 2 commits to GitHub (89647fb and 40f9fb0; jashshah854-a11y/ashes-game, master now at remote cb655df; the script notes the remote sha differs from the local sha while the tree matches, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 18, Step 2 of 5: per battle why on the war log lines (2026-10-18)
+
+Claimed this run: Step 2 only. Step 3 does not start this run.
+
+### What was built (commit 77f66ba)
+- js/main.js, one new helper battleWhyText(entry) plus a renderLog branch: an entry carrying a battle record renders its message exactly as before plus a span.battle-why line reading "Why: " followed by sentences built only from the record, in a fixed order: the first round powers (side A attack power against side B defense power, or attack against attack when the record kind is meeting), then per side facts only when present (supply penalty, fortification bonus, river crossing penalty, each as a percent sentence; drone effectiveness when the record value is not null), then the interceptor launches when any (count, the steel cost each from the record, and that many attacking drone wings knocked down), then the losses always (units lost per side). Nation names come only from state.nations[key].short; no kind string, nation key, field name, or province id is ever printed. An entry with no record, or a record naming a nation not in state.nations, renders byte identically to the pre step line.
+- css/style.css, exactly one new rule: .log .battle-why as a block with a muted color, a small top margin, and 12px text. No other CSS change, and no display property anywhere else.
+- tools/battle-why-check.js (new): a Playwright browser check staging three saves in node with the exact Cycle 18 Step 1 test stagings (A: seed 233 infantry across the river, record river penalty 25; B: the same with attacker supplyPenalty 30 and fortLevel 2, record supply 30 and fort bonus 50; C: the surviving drone staging, record launches 1 and drone effectiveness 125), serializing each with js/save.js, importing each through the real file input, and asserting the rendered why equals a node replication fed from the staged record, with fact spot checks tying the powers to Sim.stackPower computed before movementPhase, a vocabulary audit of the why text (no nation keys, field names, or underscores), the interceptor launch line carrying no Why, and non battle entries rendering without one.
+- LEGIBILITY_AUDIT.md walk row 9 gap column now records the residual closure beside the Cycle 17 Step 3 closure, so the audit text and the cycle claim agree.
+
+### Builder rotation, recorded plainly
+- opencode/deepseek-v4.1-flash-free, opencode/glm-5.3-flash-free, and opencode/mimo-v2.6-flash-free each refused instantly with Rate limit exceeded and made no changes. opencode/longcat-2.5-preview-free, fourth in the order, accepted the brief, began reading the spec and sim, and was rate limited mid exploration with no changes on disk. opencode/nemotron-3-ultra-free, fifth in the order, built the whole step in one call (js/main.js 41 insertions, css/style.css 1 insertion, the new check at 361 lines) and reported 130 tests and 29 of 29, which the orchestrator then verified independently below.
+
+### Verification run by the orchestrator (not taken from the builder)
+- Full diff review of all 3 files against the brief sentence by sentence: the helper implements the prescribed sentence order, wording, and presence rules exactly; renderLog's non battle branch is byte identical to the old line; the check replicates the helper from the staged node record rather than reading the DOM helper, and its stagings match the Step 1 tests (including computing expA and expB before movementPhase).
+- node --check on every JS file in js, tests, and tools: all pass. node --test tests/sim.test.js: 130 pass, 0 fail. node tools/balance.js all: byte identical to tools/baseline-cycle17.txt (no sim, save, or test file changed, so byte identity holds by construction and by measurement).
+- Real browser checks, standalone with per check logs, playwright-core from /tmp/pwcore: tools/battle-why-check.js 29 of 29 (orchestrator run; every rendered why matched the node replication exactly across the three scenarios, for example scenario B: attack power 2 against defense power 6, supply 30, fort 50, river 25, losses 1 and 0); tools/battle-systems-check.js 56 of 56; tools/save-check.js 19 of 19; tools/save-hardening-check.js 30 of 30.
+- Non vacuity, measured: in a scratch copy with js/main.js and css/style.css restored to the pre step HEAD, tools/battle-why-check.js exits 1 with 11 counted failures of 29, exactly the why content assertions across the three scenarios (the vocabulary audits pass vacuously on the absent span, recorded honestly; the pin is the 11).
+- Python byte scan for em and en dashes across the whole repo: zero.
+
+### Disposition
+- The step passes verification and is committed (77f66ba). Step 2 is complete: the walk row 9 residual is closed by per battle text from the battle record, per the Cycle 18 pass conditions. Step 3 (pending order marker on the map, UI only) is next and does not start this run.
+
+### Mission status
+Cycle 18 Step 2 is complete; Step 3 is next. No stop condition is met: no failed judge verdict, no verification failure (four rate limited builder heads are builder unavailability within one run's rotation, resolved by the fifth model in the same run), and no balance change.
