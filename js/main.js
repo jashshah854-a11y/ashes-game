@@ -434,16 +434,6 @@
             });
             html += '</span>';
           }
-          // Cycle 18 Step 3: order markers on target tiles. Enemy orders never shown.
-          if (intel === 'live') {
-            var ordersHere = state.units.filter(function (u) {
-              return u.nation === 'player' && u.order && u.order.target === p.id;
-            });
-            ordersHere.forEach(function (u) {
-              var typeLabel = u.type === 'drone' ? 'Drone' : 'Inf';
-              html += '<span class="order-marker">Order: ' + typeLabel + ' ordered here at dawn</span>';
-            });
-          }
         } else if (intel === 'remembered' && snap) {
           if (snap.factoryLevel > 0) {
             html += ' <span class="factory-badge lvl' + snap.factoryLevel + '">Factory ' + snap.factoryLevel + '</span>';
