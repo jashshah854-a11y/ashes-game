@@ -21,6 +21,7 @@
   var codexEntryId = 'ashwater';
   var prodNotice = ''; // the last refused queue or retool reason, shown in the production panel until the next attempt
   var provNotice = ''; // the last refused province card action reason (agent planting or flotilla stationing), shown until the next attempt
+  var unitNotice = ''; // the last refused reinforce reason, shown in the unit card until the next attempt
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
@@ -33,6 +34,7 @@
    'btn-research', 'research-explain', 'btn-research-gen3', 'research-gen3-explain',
    'btn-research-jamming', 'research-jamming-explain', 'prov-name', 'prov-details',
    'btn-factory', 'btn-fort', 'btn-agent', 'btn-flotilla', 'prov-notice', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
+    'unit-reinforce', 'unit-notice',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'stat-enemy-jamming',
    'stat-enemy-interceptors', 'log', 'banner', 'end-title', 'end-reason', 'end-day',
    'end-scores', 'end-margin', 'end-explain', 'btn-end-new', 'rail-actions',
@@ -98,6 +100,7 @@
     shownTextureCount = 0;
     prodNotice = '';
     provNotice = '';
+    unitNotice = '';
     codexEntryId = 'ashwater';
     pauseBeforeOverlay = null;
     el.eventOverlay.classList.add('hidden');
@@ -203,6 +206,7 @@
     codexEntryId = 'ashwater';
     prodNotice = '';
     provNotice = '';
+    unitNotice = '';
     urlSeed = null;
     el.eventOverlay.classList.add('hidden');
     el.codexOverlay.classList.add('hidden');
@@ -1141,6 +1145,9 @@
     var u = selectedUnit();
     if (!u) {
       el.unitDetails.textContent = 'No unit selected. Click a province holding your troops.';
+      el.unitReinforce.innerHTML = '';
+      el.unitNotice.textContent = '';
+      el.unitNotice.className = 'hidden';
       return;
     }
     var st = Sim.unitStats(state, u);
@@ -1263,6 +1270,38 @@
       supplyText + '<br>' +
       'This province holds ' + stack.length + ' of your units, and they fight together as one stack: their attack numbers add together when they attack, and their defense numbers add together when they defend.<br>' +
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
+
+    // Reinforce control
+    el.unitReinforce.innerHTML = '';
+    var info = Sim.reinforceInfo(state, u.id);
+    var pointWord = info.buyablePoints === 1 ? 'point' : 'points';
+    var totalCost = Sim.reinforceCost(info.buyablePoints);
+    var line = textDiv('unit-reinforce-line',
+      'Reinforce: this unit is at ' + info.strength + ' of ' + info.maxStrength + ' hit points. ' +
+      'It can regain ' + info.buyablePoints + ' strength ' + pointWord + ' for ' + totalCost + ' equipment (' +
+      info.costPerPoint + ' equipment per point). You have ' + info.equipment + ' equipment.');
+    el.unitReinforce.appendChild(line);
+    if (info.eligible) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-reinforce';
+      btn.textContent = 'Reinforce: restore ' + info.buyablePoints + ' strength for ' + totalCost + ' equipment';
+      btn.addEventListener('click', function () {
+        var res = Sim.reinforceUnit(state, u.id);
+        if (res && !res.ok) {
+          unitNotice = res.reason;
+        } else {
+          unitNotice = '';
+        }
+        render();
+      });
+      el.unitReinforce.appendChild(btn);
+    } else {
+      // Replace the line text with the reason-only version
+      line.textContent = 'Reinforce: ' + info.reason;
+    }
+    el.unitNotice.textContent = unitNotice;
+    el.unitNotice.className = unitNotice ? 'prod-rejected' : 'hidden';
   }
 
   function battleWhyText(entry) {
