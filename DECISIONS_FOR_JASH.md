@@ -784,3 +784,28 @@ item above.
     is logged and parked under your 2026-10-11 ruling, never applied in
     Cycle 17. The uniform exchange weight question the judge also listed
     is already parked at item 15(e) and stays there.
+
+17. Cycle 17 judge taste items (Step 5, all undecided, blocking nothing).
+    The Cycle 17 judge returned PASS WITH FIX-NOW FLAGS (the one flag is
+    documentation only and rides to Cycle 18 Step 0; it is not taste) and
+    listed five taste items in the order of how much they hold the game
+    back from its pitch: (a) visible progression, already parked at item
+    16(b), named by this judge as the weakest compass axis and the largest
+    gap between the game and its pitch, needing your ruling on what
+    history the sim should keep and what a later era country should look
+    like; the look of Cycle 18's pending order markers also falls under
+    this item (their existence is spec, their style waits for the
+    ruling); (b) the equipment third spend: the core loop is now legible
+    end to end but its tail goes slack with a late campaign surplus
+    (recorded under the economy item in BACKLOG.md), and any new sink is
+    design and balance, so name the sink or rule the surplus intended;
+    (c) production line cancel or pause, already parked at item 6,
+    confirmed still parked by this judge; (d) blockade frequency:
+    blockade never fires in the 32 standard harness campaigns, Cycle 18
+    Step 4 will prove its explanation renders in a staged scenario and
+    record the finding, and whether a mechanic players almost never see
+    is working as intended or needs balance work is then yours; (e) gap
+    index items 10 and 15 remain PARKED exactly as recorded, listed by
+    the judge so the ledger is complete. None of these was decided by
+    the loop, and Cycle 18 is prescribed only from the spec items that
+    remain once these are excluded.
