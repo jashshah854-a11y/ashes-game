@@ -2702,3 +2702,28 @@ Claimed this run: Step 2 only. The step did not land. Per the loop rules it was 
 
 ### Mission status
 Cycle 15 Step 1 remains complete and verified. Step 2 remains unbuilt. Next run claims Step 2 again under the tightened brief above.
+
+## Cycle 15, Step 2 of 4: campaign end screen UI, SECOND FAILED VERIFICATION, REVERTED (2026-10-17)
+
+Claimed this run: Step 2 only, under the tightened brief from the first failure. The step did not land. Per the loop rules it was reverted completely, and this entry plus a LOOP_LESSONS entry and a BACKLOG note are the only changes in this commit. The failed diff is preserved outside the repo at /tmp/c15s2-attempt2-failed.patch for the next run to study, not to reapply blindly.
+
+### What the builder did
+- Builder: free OpenCode model opencode/deepseek-v4.1-flash-free, first in the prescribed rotation, accepted the call and completed in about 372 seconds. No other model was needed.
+- Three files, 150 insertions, 3 deletions: index.html (banner children end-title, end-reason, end-day, end-scores, end-margin, end-explain, and a btn-end-new New Game button), js/main.js (the el ids, scoreRow and scoreBlock style helpers named endRow and endNationBlock, showBanner rewritten on Sim.campaignResult and Sim.CFG, btn-end-new wired to newGame), css/style.css (a Cycle 15 block with an explicit #banner.hidden display none rule and wrapping nation blocks).
+
+### Verification run by the orchestrator (not taken from the builder)
+- Full git diff reviewed: scope was exactly the three allowed files, no sim, test, tool, or doc change, and stackPower untouched.
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 106 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle14.txt.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- Real browser check, FUNCTIONAL PASS: the orchestrator reran a headless Chromium check against the actual repo index.html (44 of 44): the banner computes to display none at game start (the first failure's hidden bug is genuinely fixed, by an explicit #banner.hidden rule plus no display property on #banner itself), the banner shows at game over with both nation blocks in the prescribed row order, the exchange row states the full net definition in nation neutral words for both blocks (the first failure's second defect is also fixed), no horizontal scroll at 390 px, and the end screen New Game button starts a fresh game with the banner hidden again.
+- Real browser check, LEGIBILITY FAIL: the same rendered text shows the defect that fails this step. Every weighted row appends a raw code identifier in parentheses, for example "Provinces held: 22, at 10 points per province held (Sim.CFG.scorePerProvince) = 220 points.", and the explain paragraph opens its weight list with "Every weight is read live from Sim.CFG:". Sim.CFG is an internal code name. A player has no way to know what it means, it explains nothing, and it appears eleven times on the end screen (five weighted rows in each nation block, plus the explain paragraph). The brief required plain words, and the bible's legibility rule is law: depth is welcome, opacity is failure, and every system explains itself on screen in words the player already understands. The numbers are correct and the weights are read live, both verified; the failure is purely that code vocabulary leaked into player facing text, the same class of defect as the first attempt's wrong exchange wording, which this loop also treated as a verification failure rather than a wart to carry.
+
+### Disposition
+- The step fails verification for the second time, so it is reverted completely with git checkout on the three files; the working tree is clean apart from this log, LOOP_LESSONS.md, and BACKLOG.md.
+- Per the loop rule, a step failing verification twice gets re-briefed at half size. Step 2 is therefore split for the next runs: Step 2a is the banner structure and showBanner content only (index.html and js/main.js, plain words only, no new layout CSS beyond the #banner.hidden rule in css/style.css, and a hard ban written into the brief: no code identifiers, function names, or file names in any string a player can see, in rows, margin, or explain text). Step 2b is the layout CSS and the wide and narrow browser proof. Each half is claimed by its own run.
+- No stop condition is met: no failed judge verdict, and this is two verification failures of one step across its attempts, not three consecutive runs failing verification (builders unavailable and step 1 intervened, and the prescribed remedy for a twice failed step is the half size re-brief, which is now recorded).
+
+### Mission status
+Cycle 15 Step 1 remains complete and verified. Step 2 remains unbuilt and is now split into Steps 2a and 2b. Next run claims Step 2a under the half size brief above.
