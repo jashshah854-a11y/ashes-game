@@ -1049,7 +1049,7 @@
     // (3) Engaged: refuse when lastCombatDay is a number at least state.day minus 1
     var lcd = typeof unit.lastCombatDay === 'number' ? unit.lastCombatDay : null;
     if (lcd !== null && lcd >= state.day - 1) {
-      return label + ' in ' + prov.name + ' fought in the battle of day ' + lcd + '. Units can be reinforced after a full day out of combat.';
+      return label + ' in ' + prov.name + ' fought in the battle of day ' + lcd + '. Units can be reinforced after a full day out of combat. It can be reinforced again on day ' + (lcd + 2) + '.';
     }
 
     // (4) Supplied ground

@@ -336,6 +336,14 @@
             };
           }
         }
+        // Snapshot day bound: no snapshot may be after the save's own day
+        if (snap.day > payload.day) {
+          return {
+            ok: false,
+            kind: 'corrupt',
+            reason: 'The saved campaign history is damaged, so the save cannot be loaded: snapshot ' + (si + 1) + ' in ' + nationName + "'s history is day " + snap.day + ' but the save itself is only on day ' + payload.day + '.'
+          };
+        }
         if (si === 0) {
           if (snap.day !== 1) {
             return {

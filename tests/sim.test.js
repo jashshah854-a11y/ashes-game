@@ -4920,7 +4920,7 @@ test('reinforce: Cycle 21 step 2 exact refusal reason text for engaged and destr
   const D = inf.lastCombatDay;
   const resEngaged = Sim.reinforceUnit(s, inf.id, 1);
   assert.strictEqual(resEngaged.ok, false);
-  assert.strictEqual(resEngaged.reason, Sim.CFG.unitTypes.infantry.label + ' in ' + provName + ' fought in the battle of day ' + D + '. Units can be reinforced after a full day out of combat.');
+  assert.strictEqual(resEngaged.reason, Sim.CFG.unitTypes.infantry.label + ' in ' + provName + ' fought in the battle of day ' + D + '. Units can be reinforced after a full day out of combat. It can be reinforced again on day ' + (D + 2) + '.');
 
   const inf2 = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.id !== inf.id);
   inf2.strength = 0;
@@ -5047,4 +5047,98 @@ test('Cycle 21 step 4: AI spends no equipment on reinforce when no eligible dama
   // The only possible equipment change would be reinforce, but no unit is damaged.
   assert.strictEqual(equipAfter, equipBefore,
     'equipment must be unchanged when no damaged eligible unit exists and factory levels are zero');
+});
+
+// ---------- Cycle 22 step 2: snapshot day bound and Dominion reinforce log ----------
+
+test('Cycle 22 step 2: snapshot on the current day passes', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 30; i++) Sim.tick(s);
+  // State day is then 31 (createGame starts at day 1, tick increments day)
+  assert.strictEqual(s.day, 31, 'state day after 30 ticks is 31');
+  // History snapshots are days 1 and 30
+  assert.strictEqual(s.history.player.length, 2, 'player history has 2 snapshots');
+  assert.strictEqual(s.history.player[0].day, 1, 'first snapshot is day 1');
+  assert.strictEqual(s.history.player[1].day, 30, 'second snapshot is day 30');
+  assert.strictEqual(s.history.enemy.length, 2, 'enemy history has 2 snapshots');
+  assert.strictEqual(s.history.enemy[0].day, 1, 'enemy first snapshot is day 1');
+  assert.strictEqual(s.history.enemy[1].day, 30, 'enemy second snapshot is day 30');
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const envelope = JSON.parse(ser.text);
+  const payload = JSON.parse(envelope.payload);
+  // Mutate the player history's last snapshot day to equal payload.day (31)
+  payload.history.player[1].day = payload.day;
+  envelope.payload = JSON.stringify(payload);
+  envelope.checksum = Save.checksumFor(envelope.payload);
+  const result = Save.deserializeSave(JSON.stringify(envelope));
+  assert.strictEqual(result.ok, true, 'deserialize ok with last snapshot day equal to save day');
+});
+
+test('Cycle 22 step 2: snapshot one day past the current day fails', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 30; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const envelope = JSON.parse(ser.text);
+  const payload = JSON.parse(envelope.payload);
+  // Mutate the player history's last snapshot day to payload.day + 1 (32)
+  payload.history.player[1].day = payload.day + 1;
+  envelope.payload = JSON.stringify(payload);
+  envelope.checksum = Save.checksumFor(envelope.payload);
+  const result = Save.deserializeSave(JSON.stringify(envelope));
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+});
+
+test('Cycle 22 step 2: snapshot far in the future fails', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 30; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const envelope = JSON.parse(ser.text);
+  const payload = JSON.parse(envelope.payload);
+  // Mutate the player history's last snapshot day to 999
+  payload.history.player[1].day = 999;
+  envelope.payload = JSON.stringify(payload);
+  envelope.checksum = Save.checksumFor(envelope.payload);
+  const result = Save.deserializeSave(JSON.stringify(envelope));
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+});
+
+test('Cycle 22 step 2: Dominion reinforce writes its war log line', () => {
+  const s = Sim.createGame(42);
+  // Take the first enemy infantry unit standing on the enemy capital
+  const capId = s.nations.enemy.capitalId;
+  const target = Sim.unitsIn(s, capId).find(u => u.nation === 'enemy' && u.type === 'infantry');
+  assert.ok(target, 'need a Dominion infantry on its capital');
+  // Set its strength to 5
+  target.strength = 5;
+  // Set enemy equipment to 500
+  s.nations.enemy.equipment = 500;
+  // Call Sim.reinforceUnit on it
+  const res = Sim.reinforceUnit(s, target.id);
+  assert.strictEqual(res.ok, true);
+  // Assert the last entry of state.log has a msg that starts with 'Khessite reinforce '
+  const lastLog = s.log[s.log.length - 1];
+  assert.ok(lastLog.msg.startsWith('Khessite reinforce '), 'log message starts with Khessite reinforce: ' + lastLog.msg);
+  // Contains the unit type label from CFG
+  assert.ok(lastLog.msg.includes(Sim.CFG.unitTypes.infantry.label), 'log message contains unit label: ' + lastLog.msg);
+  // Contains the capital province name
+  assert.ok(lastLog.msg.includes(s.provinces[capId].name), 'log message contains capital name: ' + lastLog.msg);
+  // Contains the points from the result object followed by ' strength'
+  assert.ok(lastLog.msg.includes(res.points + ' strength'), 'log message contains points and strength: ' + lastLog.msg);
+  // Contains the cost from the result object followed by ' equipment'
+  assert.ok(lastLog.msg.includes(res.cost + ' equipment'), 'log message contains cost and equipment: ' + lastLog.msg);
+  // Assert the msg contains no underscore and no 'undefined'
+  assert.ok(!lastLog.msg.includes('_'), 'log message contains no underscore');
+  assert.ok(!lastLog.msg.includes('undefined'), 'log message contains no undefined');
 });
