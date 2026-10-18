@@ -763,3 +763,24 @@ item above.
     exchange component scale across drone heavy sensible play is
     unmeasured; a readout only tally across the standard seeds and paths
     would answer it if you want the number before ruling.
+
+16. Cycle 17 judge taste items (Cycle 16 Step 5, all undecided, blocking nothing).
+    The Cycle 16 judge returned PASS WITH FIX-NOW FLAGS (the one flag
+    closed by attribution, see CYCLE_LOG) and prescribed Cycle 17, the
+    playability pass, with seven taste items parked for you: (a) hint
+    style, contextual first encounter hints (the Step 3 default) against
+    a guided tutorial sequence; (b) visible progression display, whether
+    to add a since day 1 country growth readout, which needs history the
+    sim does not keep today and so needs a ruling on where that history
+    lives and whether it enters the save; (c) save slots and autosave, a
+    single slot (current) against multiple named slots, and whether
+    autosave exists and how often it runs; (d) default speed, what speed
+    a new game starts at and whether speed should reset on newGame, given
+    that it survives today; (e) voice of player facing text, plain and
+    neutral against in world flavored wording for errors, hints, and
+    confirmations; (f) color and accessibility, whether the map legend
+    palette needs a colorblind safe variant in this pass or a later one;
+    (g) balance, where any balance change found during the Cycle 17 walk
+    is logged and parked under your 2026-10-11 ruling, never applied in
+    Cycle 17. The uniform exchange weight question the judge also listed
+    is already parked at item 15(e) and stays there.
