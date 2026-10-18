@@ -1355,3 +1355,38 @@ item above.
     outcome, with the exit proof that the balance output is
     byte identical to tools/baseline-cycle21.txt once the
     new columns are stripped.
+
+    (b) The finding and the next action, ruled after the
+    evidence (Cycle 22 Step 1, same run). The diagnostic
+    confirms the belief in its strong form: across all 5
+    profiles on all 8 standard seeds, 40 campaigns and 1607
+    sampled campaign days, the highest offensive coastal
+    control count reached by either nation in any campaign
+    is 0, with zero days at 1 and zero days at 2 of the 3
+    needed (tools/baseline-cycle22.txt, every blockade field
+    0 in all 40 rows; the stripped output is byte identical
+    to tools/baseline-cycle21.txt). Dormancy is a profile
+    geography fact, not a threshold arithmetic defect: the
+    scripted armies never enter the coastal rows at all, so
+    a threshold of 1 would also never fire. The surplus
+    answer, quoted from the same report: sensible spends
+    240 to 390 on reinforce and still ends at 1525 to 3505
+    equipment (Dominion ends 1335 to 3530); fortress spends
+    240 to 375 and ends at 225 to 1765; reckless-reinforce
+    spends exactly 30 and ends at 810 to 2270; reinforce
+    does not close the late campaign surplus. Next action:
+    Option A adopted, leave as is. Ruled by Claude under
+    Jash's 2026-10-18 autopilot order, on an Opus 5.5
+    consultation in the same run (usage in 1031, out 1422):
+    keep the threshold at 3 and the steel effect at 25
+    percent unchanged; blockade stays a player driven
+    strategic option whose count against the threshold is
+    already shown on the nation card, so it is legible
+    before it fires. The consultation's two caveats are
+    adopted with it: leave as is means until human play
+    data says otherwise, not never revisit; and if AI
+    opponents share the scripted profiles' blindness to
+    the coast, humans can blockade but are never blockaded,
+    an asymmetry that belongs to future AI behavior work
+    judged on its own evidence, not to a blockade retune.
+    No tuning is made in Cycle 22.

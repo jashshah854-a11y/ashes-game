@@ -5162,3 +5162,36 @@ Cycle 22 Step 0 is complete: F3 and F5 stand closed with this step's own re-veri
 
 ### Cycle 22 step 0 sync note
 - Sync out after commit e019eb5: the import script completed with exit 0 and sent 2 commits to GitHub (bcc4a87, the Cycle 21 step 6 sync note carried over, plus this step's e019eb5; jashshah854-a11y/ashes-game, master now at remote 06a87bb; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 22, Step 1 of 5: blockade diagnostic, ruled, report only (2026-10-18)
+
+Claimed this run: Step 1 only (the ruled blockade diagnostic). The diagnostic ruling was recorded in DECISIONS_FOR_JASH.md item 25(a) and committed on its own (28758ee) before any instrumentation existed, exactly as the prescription requires. The instrumentation was built by a free builder through the OpenCode CLI (tools/balance.js only); everything else in this step is orchestrator work: the reckless trace, the origStrengthPct confirmation, the strip and compare proof, the Opus consultation for the next action ruling, and the documentation.
+
+### Builder rotation and diff
+- Models tried in order: deepseek-v4.1-flash-free, glm-5.3-flash-free, mimo-v2.6-flash-free, and longcat-2.5-preview-free each returned Rate limit exceeded; nemotron-3-ultra-free accepted and built the step.
+- Diff, orchestrator reviewed in full: tools/balance.js only, 24 insertions and 1 deletion. A 4 line header comment; a per run tracker for both nations; a sampling loop immediately after Sim.tick(s) that reads Sim.enemyHomeCoastalControlCount(s, n) for player and enemy and updates max, daysAt1, and daysAt2; six new return fields after reinforceSpentPlayer. The 1 deletion is the trailing comma added to the reinforceSpentPlayer line so the new fields can follow it. No profile, seed, existing field, or sim file changed. stackPower untouched (no js file changed at all this step).
+
+### Verification (orchestrator, fresh, on the final tree)
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 187 pass, 0 fail.
+- node tools/balance.js all: 45 lines (5 profile headers, 40 campaign rows), committed as tools/baseline-cycle22.txt (4441b4e; the balance.js commit is 7a75b3b).
+- Exit proof, strip and compare, shown as prescribed: each JSON row of the new output was parsed, the six new blockade keys deleted, and the row restringified; the result is byte identical to tools/baseline-cycle21.txt (cmp, zero difference). No simulation outcome changed.
+- Python byte scan for em and en dashes across the whole repo: zero.
+
+### The blockade finding, in numbers
+- Every one of the 40 rows in tools/baseline-cycle22.txt carries blockadePlayerMax 0, blockadePlayerDaysAt1 0, blockadePlayerDaysAt2 0, blockadeEnemyMax 0, blockadeEnemyDaysAt1 0, blockadeEnemyDaysAt2 0 (counted mechanically from the output: each field 0 in 40 of 40 rows).
+- Sampled days per profile: passive 289, sensible 380, reckless 288, reckless-reinforce 288, fortress 362; total 1607 campaign days, with no nation on any day controlling even 1 enemy home coastal province.
+- The ruling in DECISIONS item 25(a) is confirmed in its strong form: dormancy is a profile geography fact (the scripted armies fight the capital row and never enter the coastal rows), not a threshold arithmetic defect; a threshold of 1 would also never fire on this evidence.
+- Next action ruled in DECISIONS item 25(b): Option A, leave as is, adopted from an Opus 5.5 consultation run this run through the anthropic.py route (usage in 1031, out 1422; no fallback needed). Its reasoning, in brief: the evidence measures profile behavior, not blockade balance; tuning against non human profiles would author the evidence it tunes against; the legibility cost is already paid down because the nation card shows the count against the threshold. Caveats adopted with it: leave as is holds until human play data says otherwise, and AI blindness to the coast is a future AI behavior question, not a blockade retune. Item 17(d) and item 18(d) in DECISIONS_FOR_JASH.md are settled by this ruling to that extent.
+
+### The surplus answer, quoted from the same report
+endEquipment and enemyEquipment beside reinforceSpentPlayer, per profile across the 8 seeds: passive spends 0, ends 725 to 2310 (Dominion 770 to 1615); sensible spends 240 to 390, ends 1525 to 3505 (Dominion 1335 to 3530); reckless spends 0, ends 840 to 2300; reckless-reinforce spends exactly 30, ends 810 to 2270 (Dominion 810 to 1765 both reckless ways); fortress spends 240 to 375, ends 225 to 1765 (Dominion 1335 to 2975). Reinforce is a real sink and does not close the late campaign surplus, unchanged from the Cycle 21 finding.
+
+### The reckless 30 explanation, traced
+An orchestrator probe replicating the harness reckless day exactly (public commands only, reinforce calls traced) on all 8 seeds gives the identical shape on every seed: exactly one successful reinforce in the whole campaign, on day 15, unit 5 (infantry) standing on the capital p0_3, strength 10 to 12, cost 30 (2 points at 15). Every other damaged unit attempt, 183 per campaign, is refused by one eligibility clause: not supplied (the profile masses its units at p0_2 after vacating the capital, with no rail link, so the supplied ground rule in the item 22 rulings blocks every call). No engaged refusal occurs (lastCombatDay is null on every traced attempt) and no owned ground refusal occurs. The 30 is therefore one supplied moment, not a price or equipment limit: the reckless army is almost never on supplied ground when damaged.
+
+### origStrengthPct, confirmed
+The Cycle 21 Step 6 reading is confirmed against the code in tools/balance.js run(): origStrength is the summed strength (hit points) of surviving player units with id at most 7, and origStrengthPct is that sum over the starting 72. It is a hit point figure and reinforce can move it in principle; in the winning profiles it stays 33.3 because the surviving starting units are the untouched capital garrison and the profiles' reinforce spend lands on units outside that set, unchanged.
+
+### Mission status
+Cycle 22 Step 1 is complete: the diagnostic ruling preceded the instrumentation, the report carries the ruled figures, tools/baseline-cycle22.txt is committed, the stripped output is byte identical to the Cycle 21 baseline, the finding and the leave as is ruling are recorded, and the reckless 30 and origStrengthPct questions are answered from traces and code. Next run claims Step 2 (the hardening and legibility bundle: F4, F6, the history snapshot day bound, and the two reinforce legibility items; balance byte identical to baseline-cycle22 throughout). No stop condition is met: no failed verdict, no verification failure, no tuning of any kind.
