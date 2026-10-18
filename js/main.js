@@ -898,11 +898,17 @@
         supplyLine + '<br>' +
         'Units here: ' + Sim.unitsIn(state, p.id).length +
           (Sim.unitsIn(state, p.id).length === 1 ? ' unit' : ' units');
+      var factorySentence = 'Each factory level produces ' + Sim.CFG.equipPerFactoryLevel + ' equipment per day and consumes ' + Sim.CFG.steelPerFactoryLevel + ' steel per day.';
+      if (p.factoryLevel > 0) {
+        factorySentence += ' At level ' + p.factoryLevel + ' this province produces ' + (p.factoryLevel * Sim.CFG.equipPerFactoryLevel) + ' equipment per day and consumes ' + (p.factoryLevel * Sim.CFG.steelPerFactoryLevel) + ' steel per day.';
+      }
+      var chainSentence = 'Holding this province adds its ' + p.steel + ' steel per day to the income of the nation that holds it; taking a province adds its steel per day to your steel income, and losing one removes it.';
       el.provExplain.textContent = mine
         ? 'Factories turn steel into equipment every day. Higher levels show bigger on the map and produce more. ' +
           'Each day your production lines are paid first; factories run on the steel left, and a level with no steel sits idle. ' +
+          factorySentence + ' ' + chainSentence + ' ' +
           lineUnlockText()
-        : 'Enemy province, seen live today. March a unit in to take it.';
+        : 'Enemy province, seen live today. March a unit in to take it. ' + chainSentence;
     } else if (intel === 'remembered') {
       var snap = Sim.intelSnapshot(state, 'player', p.id);
       el.provDetails.innerHTML =
@@ -1091,6 +1097,7 @@
         ', fighting at ' + Sim.droneEffectiveness(state, u.nation) + '% effectiveness)' : '') + '<br>' +
       'Cost to build: ' + base.steelCost + ' steel over ' + base.buildDays + ' days at base speed on a production line (a practiced line builds faster; the Production panel shows each line\'s live days), plus ' + Sim.manpowerCost(u.type) + ' manpower paid in full from the pool when queued.<br>' +
       supplyText + '<br>' +
+      'This province holds ' + stack.length + ' of your units, and they fight together as one stack: their attack numbers add together when they attack, and their defense numbers add together when they defend.<br>' +
       'Stationed in ' + state.provinces[u.provinceId].name + '.<br>' + orderText + preview;
   }
 
