@@ -2901,3 +2901,271 @@ test('navy: a passive campaign in which blockade never fires is identical with t
   assert.deepStrictEqual(JSON.parse(JSON.stringify(off.s)), JSON.parse(JSON.stringify(on.s)),
     'with no blockade day in either run, the whole campaign, units, provinces, nations, and log, is identical: the threshold value alone changes nothing');
 });
+
+// ---------------------------------------------------------------------------
+// Cycle 15 step 3: formal tests for the campaign scoring readout.
+// campaignScore and campaignResult are a readout over current state: tick
+// does not call them, no rule reads them, and calling them changes no
+// outcome. These tests pin the arithmetic at the CFG weights, the capital
+// cases, the result shape, determinism with no mutation, zero mechanical
+// effect, and the mirrored parity of the one formula for both nations.
+// ---------------------------------------------------------------------------
+
+// The scoring formula written out from the sim's own helpers and the CFG
+// weights, role for role, so a test can compare it against campaignScore
+// without crossing the two nations. nationProvinces is not exported, so the
+// province count is taken the same way it is computed: provinces whose
+// owner is the nation.
+function scoringManualScore(s, nationId) {
+  const otherId = nationId === 'player' ? 'enemy' : 'player';
+  const provinces = Object.keys(s.provinces).filter((id) => s.provinces[id].owner === nationId).length;
+  const levels = Sim.factoryLevels(s, nationId);
+  const strength = Math.round(Sim.unitsOf(s, nationId).reduce((t, u) => t + u.strength, 0));
+  const net = Sim.exchangeNet(s, nationId);
+  const ownCapitalHeld = s.provinces[s.nations[nationId].capitalId].owner === nationId;
+  const enemyCapitalHeld = s.provinces[s.nations[otherId].capitalId].owner === nationId;
+  const provincePoints = provinces * Sim.CFG.scorePerProvince;
+  const factoryPoints = levels * Sim.CFG.scorePerFactoryLevel;
+  const armyPoints = strength * Sim.CFG.scorePerStrength;
+  const exchangePoints = net;
+  const ownCapitalPoints = ownCapitalHeld ? Sim.CFG.scoreOwnCapital : 0;
+  const enemyCapitalPoints = enemyCapitalHeld ? Sim.CFG.scoreEnemyCapital : 0;
+  return {
+    provinces: provinces,
+    provincePoints: provincePoints,
+    factoryLevels: levels,
+    factoryPoints: factoryPoints,
+    armyStrength: strength,
+    armyPoints: armyPoints,
+    exchangeNet: net,
+    exchangePoints: exchangePoints,
+    ownCapitalHeld: ownCapitalHeld,
+    ownCapitalPoints: ownCapitalPoints,
+    enemyCapitalHeld: enemyCapitalHeld,
+    enemyCapitalPoints: enemyCapitalPoints,
+    total: provincePoints + factoryPoints + armyPoints + exchangePoints + ownCapitalPoints + enemyCapitalPoints
+  };
+}
+
+// One passive campaign to game over, the shared driver the scoring tests use.
+function scoringPassiveCampaign(seed) {
+  const s = Sim.createGame(seed);
+  while (!s.gameOver && s.day < 160) Sim.tick(s);
+  return s;
+}
+
+test('scoring: arithmetic at the stated weights on a fresh game, for both nations', () => {
+  const s = Sim.createGame(1);
+  for (const nationId of ['player', 'enemy']) {
+    const sc = Sim.campaignScore(s, nationId);
+    const provinces = Object.keys(s.provinces).filter((id) => s.provinces[id].owner === nationId).length;
+    const levels = Sim.factoryLevels(s, nationId);
+    const strength = Math.round(Sim.unitsOf(s, nationId).reduce((t, u) => t + u.strength, 0));
+    const net = Sim.exchangeNet(s, nationId);
+    const ownHeld = s.provinces[s.nations[nationId].capitalId].owner === nationId;
+    assert.strictEqual(sc.provinces, provinces, nationId + ': province count from the owned provinces');
+    assert.strictEqual(sc.provincePoints, provinces * Sim.CFG.scorePerProvince, nationId + ': provinces at the CFG weight');
+    assert.strictEqual(sc.factoryLevels, levels, nationId + ': factory level total');
+    assert.strictEqual(sc.factoryPoints, levels * Sim.CFG.scorePerFactoryLevel, nationId + ': factory levels at the CFG weight');
+    assert.strictEqual(sc.armyStrength, strength, nationId + ': the rounded sum of unit strength');
+    assert.strictEqual(sc.armyPoints, strength * Sim.CFG.scorePerStrength, nationId + ': strength at the CFG weight');
+    assert.strictEqual(sc.exchangeNet, net, nationId + ': the raw exchange net');
+    assert.strictEqual(sc.exchangePoints, net, nationId + ': exchange points equal the net one point per steel');
+    assert.strictEqual(sc.ownCapitalHeld, ownHeld, nationId + ': own capital ownership');
+    assert.strictEqual(sc.enemyCapitalHeld, false, nationId + ': nobody holds the other nation capital on a fresh game');
+    assert.strictEqual(sc.enemyCapitalPoints, 0, nationId + ': and the enemy capital pays nothing');
+    assert.strictEqual(sc.total,
+      sc.provincePoints + sc.factoryPoints + sc.armyPoints + sc.exchangePoints + sc.ownCapitalPoints + sc.enemyCapitalPoints,
+      nationId + ': the total is the sum of the six point pieces');
+  }
+  // The recorded day 1 seed 1 totals from the Cycle 15 step 1 log.
+  const p = Sim.campaignScore(s, 'player');
+  assert.strictEqual(p.provinces, 35);
+  assert.strictEqual(p.factoryLevels, 14);
+  assert.strictEqual(p.armyStrength, 72);
+  assert.strictEqual(p.exchangeNet, 0);
+  assert.strictEqual(p.ownCapitalHeld, true);
+  assert.strictEqual(p.enemyCapitalHeld, false);
+  assert.strictEqual(p.total, 542, 'player: 350 provinces plus 70 factories plus 72 strength plus 50 own capital');
+  const e = Sim.campaignScore(s, 'enemy');
+  assert.strictEqual(e.provinces, 35);
+  assert.strictEqual(e.factoryLevels, 11);
+  assert.strictEqual(e.armyStrength, 72);
+  assert.strictEqual(e.exchangeNet, 0);
+  assert.strictEqual(e.ownCapitalHeld, true);
+  assert.strictEqual(e.enemyCapitalHeld, false);
+  assert.strictEqual(e.total, 527, 'enemy: 350 provinces plus 55 factories plus 72 strength plus 50 own capital');
+  // A staged positive exchange record: the ledger is read raw, and the
+  // total moves by exactly the net.
+  const g = Sim.createGame(1);
+  const base = Sim.campaignScore(g, 'player').total;
+  // Checker staging: a recorded exchange ledger, as if the campaign had
+  // traded steel, destroyed 100 plus forced 50 minus lost 30 minus suffered 20.
+  g.exchange = { player: { destroyed: 100, lost: 30, forced: 50, suffered: 20 } };
+  const staged = Sim.campaignScore(g, 'player');
+  assert.strictEqual(Sim.exchangeNet(g, 'player'), 100);
+  assert.strictEqual(staged.exchangeNet, 100);
+  assert.strictEqual(staged.exchangePoints, 100);
+  assert.strictEqual(staged.total, base + 100, 'the total rises by exactly the staged exchange net');
+  // A staged negative exchange record: a net below zero is read as it is,
+  // with no flooring at zero anywhere in the readout.
+  const n = Sim.createGame(1);
+  const baseNeg = Sim.campaignScore(n, 'player').total;
+  // Checker staging: a losing exchange ledger, destroyed 10 plus forced 0
+  // minus lost 120 minus suffered 30, a net of minus 140.
+  n.exchange = { player: { destroyed: 10, lost: 120, forced: 0, suffered: 30 } };
+  const negative = Sim.campaignScore(n, 'player');
+  assert.strictEqual(negative.exchangeNet, -140);
+  assert.strictEqual(negative.exchangePoints, -140);
+  assert.strictEqual(negative.total, baseNeg - 140, 'a losing exchange lowers the total by its signed net');
+  assert.ok(negative.total < baseNeg, 'the total can go down, it is not floored at zero');
+});
+
+// The only test that pins exact totals or exact capital points in a state
+// where a nation holds the other nation capital. The partition is deliberate:
+// a mutant that pays the own capital weight for the enemy capital must fail
+// exactly this test, and no other new test asserts a total or capital points
+// in a cross held capital state.
+test('scoring: capital cases, and a full passive campaign, with the exact capital figures pinned here only', () => {
+  const W = Sim.CFG;
+  const cases = [
+    { name: 'own held only', pCap: 'player', eCap: 'enemy', own: true, enemy: false },
+    { name: 'enemy capital held only', pCap: 'enemy', eCap: 'player', own: false, enemy: true },
+    { name: 'both held', pCap: 'player', eCap: 'player', own: true, enemy: true },
+    { name: 'neither held', pCap: 'enemy', eCap: 'enemy', own: false, enemy: false }
+  ];
+  for (const c of cases) {
+    const s = Sim.createGame(42);
+    // Checker staging: flip the owner of the two capital provinces only, so
+    // every other province, factory, and unit is untouched.
+    s.provinces[s.nations.player.capitalId].owner = c.pCap;
+    s.provinces[s.nations.enemy.capitalId].owner = c.eCap;
+    const sc = Sim.campaignScore(s, 'player');
+    assert.strictEqual(sc.ownCapitalHeld, c.own, c.name + ': the player own capital flag');
+    assert.strictEqual(sc.enemyCapitalHeld, c.enemy, c.name + ': the player enemy capital flag');
+    assert.strictEqual(sc.ownCapitalPoints, c.own ? W.scoreOwnCapital : 0, c.name + ': the player own capital points');
+    assert.strictEqual(sc.enemyCapitalPoints, c.enemy ? W.scoreEnemyCapital : 0, c.name + ': the player enemy capital points');
+  }
+  // The mirrored enemy cases. First the Dominion holds the player capital
+  // only, so it earns the enemy capital weight and nothing for its own.
+  const em = Sim.createGame(42);
+  // Checker staging: the two capital provinces only, the Dominion holding the
+  // player capital and the player holding the Dominion capital.
+  em.provinces[em.nations.player.capitalId].owner = 'enemy';
+  em.provinces[em.nations.enemy.capitalId].owner = 'player';
+  const emScore = Sim.campaignScore(em, 'enemy');
+  assert.strictEqual(emScore.ownCapitalHeld, false);
+  assert.strictEqual(emScore.ownCapitalPoints, 0);
+  assert.strictEqual(emScore.enemyCapitalHeld, true);
+  assert.strictEqual(emScore.enemyCapitalPoints, W.scoreEnemyCapital, 'the Dominion holding the player capital is worth the enemy capital weight');
+  // Then the Dominion holds both capitals, so its own capital row pays too.
+  const eb = Sim.createGame(42);
+  // Checker staging: the two capital provinces only, the Dominion holding both.
+  eb.provinces[eb.nations.player.capitalId].owner = 'enemy';
+  eb.provinces[eb.nations.enemy.capitalId].owner = 'enemy';
+  const ebScore = Sim.campaignScore(eb, 'enemy');
+  assert.strictEqual(ebScore.ownCapitalHeld, true);
+  assert.strictEqual(ebScore.ownCapitalPoints, W.scoreOwnCapital);
+  assert.strictEqual(ebScore.enemyCapitalHeld, true);
+  assert.strictEqual(ebScore.enemyCapitalPoints, W.scoreEnemyCapital);
+  // A full passive campaign on seed 1, ticked until game over.
+  const s = scoringPassiveCampaign(1);
+  assert.strictEqual(s.gameOver, true, 'the passive campaign reaches game over');
+  const r = Sim.campaignResult(s);
+  assert.strictEqual(r.winner, 'enemy');
+  assert.strictEqual(r.day, 36);
+  assert.strictEqual(r.player.total, -15, 'the player total is negative, the raw exchange net is not floored');
+  assert.strictEqual(r.enemy.total, 1161);
+  assert.strictEqual(r.margin, -1176);
+  assert.strictEqual(r.player.ownCapitalPoints, 0, 'the player lost its capital, so its own capital pays nothing');
+  assert.strictEqual(r.enemy.enemyCapitalPoints, 100, 'the Dominion holds the player capital, so it earns the enemy capital weight');
+});
+
+test('scoring: campaignResult shape and internal consistency on a fresh game and a mid game state', () => {
+  const consistency = (s, label) => {
+    const r = Sim.campaignResult(s);
+    assert.strictEqual(r.gameOver, s.gameOver, label + ': gameOver passes through from the state');
+    assert.strictEqual(r.winner, s.winner, label + ': winner passes through from the state');
+    assert.strictEqual(r.endReason, s.endReason, label + ': endReason passes through from the state');
+    assert.strictEqual(r.day, s.day, label + ': day passes through from the state');
+    assert.deepStrictEqual(r.player, Sim.campaignScore(s, 'player'), label + ': the player score equals campaignScore called directly');
+    assert.deepStrictEqual(r.enemy, Sim.campaignScore(s, 'enemy'), label + ': the enemy score equals campaignScore called directly');
+    assert.strictEqual(r.margin, r.player.total - r.enemy.total, label + ': the margin is the player total minus the enemy total');
+  };
+  consistency(Sim.createGame(7), 'fresh seed 7');
+  const mid = Sim.createGame(42);
+  for (let i = 0; i < 10; i++) Sim.tick(mid);
+  assert.strictEqual(mid.gameOver, false, 'ten ticks is not the end of a passive campaign');
+  assert.strictEqual(mid.provinces[mid.nations.player.capitalId].owner, 'player', 'and no capital was captured in this window');
+  consistency(mid, 'mid game seed 42');
+});
+
+test('scoring: determinism and no mutation on repeat calls', () => {
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 5; i++) Sim.tick(s);
+  const firstPlayer = Sim.campaignScore(s, 'player');
+  const firstEnemy = Sim.campaignScore(s, 'enemy');
+  const firstResult = Sim.campaignResult(s);
+  const snapshot = JSON.parse(JSON.stringify(s));
+  const secondPlayer = Sim.campaignScore(s, 'player');
+  const secondEnemy = Sim.campaignScore(s, 'enemy');
+  const secondResult = Sim.campaignResult(s);
+  assert.deepStrictEqual(secondPlayer, firstPlayer, 'a repeat campaignScore returns the identical player object');
+  assert.deepStrictEqual(secondEnemy, firstEnemy, 'a repeat campaignScore returns the identical enemy object');
+  assert.deepStrictEqual(secondResult, firstResult, 'a repeat campaignResult returns the identical result object');
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(s)), snapshot, 'no scoring call mutated the state after the first calls');
+  // Two separate passive campaigns on seed 42, neither calling scoring
+  // during the run, produce deep equal campaignResult objects.
+  const a = scoringPassiveCampaign(42);
+  const b = scoringPassiveCampaign(42);
+  assert.deepStrictEqual(Sim.campaignResult(a), Sim.campaignResult(b), 'two identical passive campaigns score identically');
+});
+
+test('scoring: zero mechanical effect, the readout is a readout only', () => {
+  // One passive campaign ticks with no scoring call at all.
+  const base = scoringPassiveCampaign(42);
+  // The other ticks identically but calls the whole readout after every tick.
+  const probed = Sim.createGame(42);
+  while (!probed.gameOver && probed.day < 160) {
+    Sim.tick(probed);
+    Sim.campaignScore(probed, 'player');
+    Sim.campaignScore(probed, 'enemy');
+    Sim.campaignResult(probed);
+  }
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(probed)), JSON.parse(JSON.stringify(base)),
+    'the whole campaign state, units, provinces, nations, log, and day, is identical with scoring called every tick');
+  assert.deepStrictEqual(Sim.campaignResult(probed), Sim.campaignResult(base),
+    'and the final campaign results are equal');
+});
+
+test('scoring: mirrored parity of the formula for both nations on fresh games', () => {
+  for (const seed of [1, 42, 7]) {
+    const s = Sim.createGame(seed);
+    const p = Sim.campaignScore(s, 'player');
+    const e = Sim.campaignScore(s, 'enemy');
+    assert.deepStrictEqual(p, scoringManualScore(s, 'player'),
+      'seed ' + seed + ': the player score equals the formula from the sim helpers and the CFG weights');
+    assert.deepStrictEqual(e, scoringManualScore(s, 'enemy'),
+      'seed ' + seed + ': the enemy score equals the same formula, applied role for role, not crossed');
+    const pStrength = Math.round(Sim.unitsOf(s, 'player').reduce((t, u) => t + u.strength, 0));
+    const eStrength = Math.round(Sim.unitsOf(s, 'enemy').reduce((t, u) => t + u.strength, 0));
+    assert.strictEqual(p.armyStrength, pStrength);
+    assert.strictEqual(e.armyStrength, eStrength);
+    assert.strictEqual(p.armyPoints, pStrength * Sim.CFG.scorePerStrength, 'the player army points use the rounded strength sum');
+    assert.strictEqual(e.armyPoints, eStrength * Sim.CFG.scorePerStrength, 'the enemy army points use the rounded strength sum');
+  }
+  // Checker staging: fractional unit strength on both sides, so the rounding
+  // in the strength sum is actually exercised.
+  const f = Sim.createGame(42);
+  Sim.unitsOf(f, 'player')[0].strength += 0.5;
+  Sim.unitsOf(f, 'enemy')[0].strength += 0.25;
+  const rawP = Sim.unitsOf(f, 'player').reduce((t, u) => t + u.strength, 0);
+  const rawE = Sim.unitsOf(f, 'enemy').reduce((t, u) => t + u.strength, 0);
+  assert.ok(rawP !== Math.round(rawP) || rawE !== Math.round(rawE), 'the staged strengths exercise rounding');
+  const pf = Sim.campaignScore(f, 'player');
+  const ef = Sim.campaignScore(f, 'enemy');
+  assert.strictEqual(pf.armyStrength, Math.round(rawP));
+  assert.strictEqual(pf.armyPoints, Math.round(rawP) * Sim.CFG.scorePerStrength);
+  assert.strictEqual(ef.armyStrength, Math.round(rawE));
+  assert.strictEqual(ef.armyPoints, Math.round(rawE) * Sim.CFG.scorePerStrength);
+});
