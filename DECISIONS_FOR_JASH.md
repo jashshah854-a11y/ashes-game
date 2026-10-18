@@ -1186,3 +1186,124 @@ item above.
     with Step 0; the blockade diagnostic ruling itself is recorded
     at Cycle 22 Step 1 before any instrumentation, per that
     prescription.
+
+24. Cycle 22 Step 0 rulings (2026-10-18, under the autopilot
+    order). Ruled by Claude under Jash's 2026-10-18 autopilot
+    order.
+
+    (a) Closures carried from Cycle 21, recorded and re-verified
+    on HEAD bcc4a87 in this step. F3 is closed: the stackPower
+    function body extracted at 2cee316 (the pre Cycle 21 commit)
+    and at HEAD is byte identical, 1551 characters at both
+    revisions, sha256
+    b25006c44f303e7afe9cd2a845e34e068951cd30d4f16748bd6787e1e333349d,
+    cmp clean, re-run in this step, not only cited from the
+    milestone entry; and every deleted line in the cycle is
+    attributed in the Cycle 21 Step 6 claims check in CYCLE_LOG
+    (js/sim.js 3, js/save.js 1, tools/save-hardening-check.js 5,
+    BACKLOG.md 1, each a comma, a comment, a renumbering, or the
+    standing backlog paragraph replacement, with no assertion
+    weakened or removed). F5 is closed as instrumentation: the
+    ending equipment figures already exist in every balance
+    report row as endEquipment (player) and enemyEquipment
+    (Dominion), so no new report columns are built for F5. The
+    surplus finding, read from tools/baseline-cycle21.txt in
+    this step: sensible spends 240 to 390 equipment on reinforce
+    and ends with 1525 to 3505; fortress spends 240 to 375 and
+    ends with 225 to 1765; passive spends 0 and ends with 725 to
+    2310. Reinforce is a real sink and does not close the
+    surplus, and the 15 equipment per point price stays
+    untouched. Future milestone packages quote endEquipment and
+    enemyEquipment beside any spend figure.
+
+    (b) Visible progression design for Cycle 22 Steps 3 and 4,
+    ruled before any code. Presentation only, over fields that
+    already exist: no new system, no new field, no new saved
+    state, saveVersion stays 3, stackPower untouched, and
+    lastCombatDay remains the only per unit addition since
+    Cycle 20. Every visual reads a sim field or accessor once
+    in the renderer and derives no game number: no summing, no
+    averaging, and no threshold invented in the UI. The one
+    mapping allowed is identity mapping, a field value to its
+    own tier or label, as below. All map marks inherit the
+    existing intel gating in renderMap (live provinces show
+    their true marks, remembered provinces show their snapshot
+    marks, dark provinces show none), so no progression mark
+    may leak a fact fog hides.
+
+    Step 3 sources, field by field. Factories: the tier is the
+    province factoryLevel itself, 1, 2, or 3, against
+    CFG.maxFactoryLevel 3; the existing factory badge in
+    renderMap, carrying its lvl1, lvl2, and lvl3 classes, is
+    the tier carrier, and Step 3 strengthens those three tiers
+    so they read apart at a glance and adds plain words legend
+    text for them, per item 23(b) (three clear tiers). No
+    factory count is summed on the map; the nation level total
+    stays where it already lives, on the nation and enemy
+    cards through Sim.factoryLevels. Rail: the state is the
+    edge rail state the existing railBar helper already reads,
+    built (a rail with no days left and not converting),
+    building, converting, or absent (no rail object, no bar);
+    built already draws as a solid bar and building or
+    converting as a striped bar with a days tag, and Step 3
+    may strengthen that distinction in CSS and legend words
+    only, reading the edge state once per edge. Units: a unit
+    chip reads unit.strength and unit.maxStrength once and
+    shows current strength against maximum at a glance (the
+    unit card already states both numbers in words; the chip
+    is the map surface Step 3 owns). A damaged unit, strength
+    below maximum, reuses an existing palette colour, the red
+    family already used for enemy chip borders and supply
+    tags, per item 23(c); Step 3 introduces no new colour
+    value.
+
+    (c) Step 4 home surface, ruled: the existing Campaign
+    growth card (index.html progression card, renderProgression
+    in js/main.js, built in Cycle 20 Step 4) is the single
+    growth view. Step 4 creates no second view and no second
+    panel; its work is the judge's exit proof on that card
+    (saves with 1, 3, and 6 snapshots read back before use,
+    rendered values equal to saved values, a one field shift
+    mutant failing, and a save that fails history validation
+    never reaching the view), plus any wording the proof shows
+    missing. The view draws only from the eight validated
+    history snapshot fields (day, provinces, factoryLevels,
+    armyStrength, linesOpen, steel, equipment, manpower),
+    labels each snapshot by its day, per item 23(d) (in world
+    days, never a snapshot index), and handles one snapshot
+    honestly as a single point with no change row and no fake
+    trend, which is the card's current behaviour. Snapshot
+    cadence and fields do not change.
+
+    (d) Dominion reinforcement surface, ruled: the war log.
+    The chain already exists end to end and Step 0 records it
+    so Step 2 proves it instead of inventing a surface:
+    reinforceUnit in js/sim.js logs every reinforcement for
+    both nations through logEvent, in the shape nation name,
+    reinforce, unit label, province, points gained, and
+    equipment cost; state.log carries the entry; renderLog in
+    js/main.js renders state.log as the war log the player
+    reads (the last 12 entries). No new notice, panel, or UI
+    surface is created for this. Step 2 work under this ruling:
+    a browser proof that a Dominion reinforcement line renders
+    in the war log against a read back staged save, and the
+    engaged today wording item, whose text lives at its source
+    in reinforceEligibility in js/sim.js (today it reads, in
+    part, fought in the battle of day D, units can be
+    reinforced after a full day out of combat) and reaches the
+    unit card only through Sim.reinforceInfo, with the card
+    computing nothing. Any wording change happens at that
+    source, never in the renderer. The item 23(a) wording
+    settlement (lead with the unit name and the gain) applies
+    to the player facing reinforce notice on the unit card;
+    the war log line keeps its nation first shape, which is
+    how every war log entry names its actor.
+
+    (e) What Step 0 does not rule. The blockade diagnostic
+    ruling is not made here: Cycle 22 Step 1 records it in
+    DECISIONS before any instrumentation is written, exactly
+    as the Cycle 21 prescription states, and Step 0 makes no
+    blockade claim and builds no diagnostic figure. No tuning
+    of any kind is ruled or made in Cycle 22 (the 15 per point
+    reinforce price, blockade parameters, and AI weights all
+    stay as they are).
