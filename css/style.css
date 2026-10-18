@@ -266,3 +266,61 @@ button.linkish:hover { background: none; color: #fff2c4; }
    so no later class or element style can reveal it. Layout styling for
    the end screen is a later step. */
 #banner.hidden { display: none; }
+
+/* Cycle 15 step 2b: layout for the campaign end screen that step 2a
+   built. The two nation score blocks sit side by side on a wide screen
+   and stack on a narrow one, and every long row wraps instead of
+   overflowing. Nothing here gives the banner container a display
+   property, so the banner hidden rule above still hides it and still
+   wins while the war runs or after New Game. */
+.end-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 4px;
+}
+.end-nation {
+  flex: 1 1 260px;
+  min-width: 0;
+  background: #1c1f23;
+  border: 1px solid #4a4232;
+  border-radius: 4px;
+  padding: 10px 12px;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+.end-nation-title {
+  color: #e8c87a;
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+.end-row {
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 2px 0;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+.end-total {
+  font-weight: bold;
+  border-top: 1px solid #4a4232;
+  margin-top: 8px;
+  padding-top: 6px;
+}
+.end-head h2 {
+  margin: 0 0 6px;
+}
+.end-reason {
+  margin: 0 0 4px;
+}
+.end-day {
+  margin: 0;
+}
+.end-margin {
+  font-weight: bold;
+  margin: 10px 0 0;
+}
+#btn-end-new {
+  margin-top: 10px;
+}

@@ -2755,3 +2755,28 @@ Cycle 15 Steps 1 and 2a are complete and verified. Next run claims Step 2b (layo
 
 ### Cycle 15 step 2a sync note
 - Sync out after commit c1476a0: the import script sent 1 commit to GitHub (jashshah854-a11y/ashes-game, master now at remote e10784f; the script notes the remote sha differs from the local sha while the tree matches, as in prior syncs). Sync succeeded and did not block or alter the local commit.
+
+## Cycle 15, Step 2b of 4: campaign end screen layout CSS and browser proof (2026-10-18)
+
+Claimed this run: Step 2b only, the second half of the split Step 2. Step 3 (tests and balance, including the committed end screen browser check) and Step 4 (milestone judge) remain.
+
+### What the builder did
+- Builder: free OpenCode model opencode/deepseek-v4.1-flash-free, first in the prescribed rotation, accepted the call and completed in about 68 seconds. No other model was needed.
+- One file, 58 insertions, no deletions: css/style.css gains one Cycle 15 step 2b section. The scores container is a wrapping flex row with a 12px gap; each nation block flexes at 1 1 260px with min-width 0, the theme card colors, padding, and word wrapping; the nation title is gold and bold; rows are 14px at 1.5 line height; the total row is bold with a top border and extra top spacing; the head, reason, day, and margin lines and the New Game button gain spacing. No existing rule was modified, and no display property is set on the banner container, so the Step 2a rule #banner.hidden { display: none; } is untouched and still hides the banner.
+
+### Verification run by the orchestrator (not taken from the builder)
+- Full git diff reviewed: only css/style.css, only the appended section listed above, no HTML, JS, sim, test, or doc change by the builder, and stackPower untouched.
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 106 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle14.txt.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- Real browser proof, orchestrator written and independent of the builder (headless Chromium over raw CDP against the actual repo index.html, passive seed 1 played to the day 36 defeat at each width, event cards dismissed through the real Continue button): 20 of 20 pass. At the wide width the banner computes to display none with a zero box at game start, shows Defeat at game over with the scores container computing to flex, the two nation blocks side by side at the same top with 7 rows each, the total row bold with a 1px top border, no horizontal scroll, and the end screen New Game button hides the banner again. At the narrow width the same facts hold with the two blocks stacked (the second block top below the first block bottom) and no horizontal scroll. One honest measurement note: this headless build reports an inner width of 500 for the 390 window, so the narrow proof is a stacked layout at an effective 500px viewport with the scroll width (485) inside it, not a literal 390px viewport; the committed Step 3 check should pin the narrow case the same way and say so.
+- Regression: the committed tools/browser-check.js passes 6 of 6 unchanged.
+- Cycle 15 Step 2 is now complete in both halves: Step 2a carried structure and plain words content, Step 2b carries layout only. No wording changed this step, so the Step 2a vocabulary audit stands.
+
+### Lessons applied and learned
+- Lessons applied: one step per run and one half per run after the split; the hidden state is proven in a real browser in both states; layout claims (side by side, stacked, no scroll) are measured from bounding boxes and computed styles, not read off the CSS.
+- New lesson recorded in LOOP_LESSONS.md: headless Chromium in this environment floors the window width (a 390 request rendered at 500 inner width), so a narrow width proof must record the measured inner width beside the requested one, or a later reader will trust a viewport that never existed.
+
+### Mission status
+Cycle 15 Steps 1, 2a, and 2b are complete and verified. Next run claims Step 3 (formal scoring tests, the committed end screen browser check, and the balance rerun). No stop condition is met: no failed judge verdicts and no verification failure this run.
