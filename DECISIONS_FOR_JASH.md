@@ -960,3 +960,82 @@ item above.
     through any channel the loop can read. Nothing above is decided
     by that skip: Q1 to Q4 stay open, and a later ruling starts the
     matching work in a later cycle.
+
+20. Rulings under the autopilot order (2026-10-18, superseding the
+    Cycle 19 closure note above). Jash's order of 2026-10-18: this loop
+    is wholly autopilot; decisions, taste calls, and guidance questions
+    never go to Jash and never wait on his silence; they are settled by
+    Claude. The Cycle 19 Steps 2 and 3 skips, recorded on silence, are
+    superseded by this order and reopen in Cycle 20 under the rulings
+    below. Each ruling carries the words the order requires: Ruled by
+    Claude under Jash's 2026-10-18 autopilot order.
+
+    Q1, history retention for visible progression: Option A adopted,
+    the judge's recommended default (compact per nation snapshots).
+    Ruled by Claude under Jash's 2026-10-18 autopilot order. The
+    snapshots are recorded at day 1, then every 30 days, plus the
+    final day, at most 6 records per nation, holding only provinces
+    owned, total factory levels, army strength, production lines
+    open, steel, equipment, and manpower; no rule reads them. History
+    lives inside the game state and therefore inside the save
+    payload; the build step makes its saveVersion decision before
+    any code, in the Cycle 18 Step 0 style. This ruling reopens the
+    visible progression build as Cycle 20 Steps 3 and 4 (history in
+    the sim, then the comparison panel), after the Q4 build, per the
+    cycle order in the Q4 consultation below.
+
+    Q2, the equipment third spend: Option A adopted, reinforce.
+    Ruled by Claude under Jash's 2026-10-18 autopilot order, on the
+    Opus 5.5 consultation recorded in full in CYCLE_LOG at Cycle 20
+    Step 0 (usage in 2119, out 5027). Equipment restores strength to
+    a damaged unit at 15 equipment per strength point, only for a
+    unit standing on supplied owned ground, never above its full
+    strength, through an explicit command on the unit card, never
+    automatic; partial points may be bought when the stockpile is
+    short; a unit engaged in combat that day and a destroyed unit
+    cannot be reinforced; stackPower is unchanged and reinforcement
+    writes only to the existing strength field. The pick gets its
+    own build cycle (Cycle 21, after Cycle 20) and must pass the
+    standing balance ruling on the 8 standard seeds before it ships,
+    with the sensible and fortress profiles updated to reinforce,
+    the reckless profile run with and without reinforcement and
+    losing both ways, the AI using the same command under the same
+    rules, and the balance report showing equipment spent on
+    reinforcement per seed. The price of 15 is the only tuning knob,
+    adjusted in small slices if bands move; eligibility is not
+    loosened to fix balance. The manpower reinforcement question
+    stays parked, untouched by this ruling.
+
+    Q3, blockade dormancy: Option A adopted, diagnostic first, the
+    judge's recommended default. Ruled by Claude under Jash's
+    2026-10-18 autopilot order. A later step records, with no
+    behavior change, how close each nation comes in real campaigns
+    (the highest coastal control count reached, and the days spent
+    at 1 and at 2 of the 3 needed), and any tuning ruling waits for
+    that evidence. The diagnostic's build home is the first step of
+    the cycle after the Q2 cycle (Cycle 22 planning), recorded here
+    so the ruling is not lost; Cycle 20 and Cycle 21 do not carry it.
+
+    Q4, production line cancel or pause (item 6): Option A adopted,
+    cancel queued orders only. Ruled by Claude under Jash's
+    2026-10-18 autopilot order, on the same Opus 5.5 consultation as
+    Q2. Cancel applies to queued orders only; the manpower paid for
+    a cancelled order is refunded in full, at the cost that order
+    currently represents after any retool settlement (infantry 120,
+    drone wing 25, interceptor 10, agent 60, flotilla 30); a unit
+    already in progress cannot be cancelled and shows no cancel
+    control, and its surface states that retooling scraps it and its
+    drained steel is lost; there is no pause. Cancel does not touch
+    line efficiency, adds no new state and no saveVersion change,
+    and the AI and the balance profiles never cancel, so the balance
+    must stay byte identical to tools/baseline-cycle18.txt through
+    the Q4 steps; any diff is a bug, not a tuning event. Required
+    tests: exact refund per unit type, an in progress unit cannot be
+    cancelled, cancelling the middle of a multi order queue
+    preserves the order of the rest, cancel after a retool refunds
+    the post retool cost, and a save and load round trip covering a
+    queue after a cancel. This ruling reopens the cancel build as
+    Cycle 20 Steps 1 and 2 (the sim command, then the panel
+    control), landing before the Q1 build per the consultation's
+    cycle order, because it is small, needs no save change, and
+    keeps any save or balance regression attributable to one change.

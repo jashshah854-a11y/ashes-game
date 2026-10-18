@@ -4057,3 +4057,142 @@ Cycle 19 remains complete and its four questions remain open. No stop condition 
 
 ### Post Cycle 19 verification pass sync note
 - Sync out after commit fd881d5: the import script completed with exit 0 and sent 2 commits to GitHub (00ddf8d, the Cycle 19 steps 2 and 3 sync note carried over, plus this run's fd881d5; jashshah854-a11y/ashes-game, master now at remote 261c787; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 20, step list (recorded at the cycle's start, from the autopilot rulings in DECISIONS_FOR_JASH.md item 20)
+
+Theme: the reopened rulings. Cycle 19 Steps 2 and 3 were skipped on silence; Jash's 2026-10-18 autopilot order supersedes those skips, and Cycle 20 builds both under the rulings recorded at Step 0, in the consultation's cycle order (cancel first, then visible progression, so the cycle's only save payload change lands alone in its own step).
+
+- Step 0, decisions under the autopilot order, no code: record the standing settlements (Q1 Option A, Q3 Option A, the judge's recommended defaults) as rulings, consult Opus 5.5 on Q2 and Q4 with the options and their costs, adopt its picks as rulings, and record all four in DECISIONS_FOR_JASH.md item 20 with the words the order requires.
+- Step 1, production line cancel in the sim (Q4 ruling, Option A): one public cancel command for queued orders only, refunding the cancelled order's current manpower cost in full; a unit in progress cannot be cancelled; no pause; no efficiency change; no new state and no saveVersion change; the AI never cancels. Formal tests for cancel land here or in Step 5 as the step brief states, and must include exact refund per unit type, in progress refusal, middle of queue order preservation, cancel after retool at the post retool cost, and a save and load round trip after a cancel. Balance must stay byte identical to tools/baseline-cycle18.txt; any diff is a bug.
+- Step 2, cancel on screen, UI only: a cancel control on each queued order in the production panel stating its manpower refund in plain words before the click; the in progress entry shows no cancel control and states that retooling scraps it and its drained steel is lost; a browser check shown non vacuous.
+- Step 3, history snapshots in the sim (Q1 ruling, Option A): compact per nation snapshots at day 1, every 30 days, and the final day (at most 6 per nation), holding only provinces owned, total factory levels, army strength, production lines open, steel, equipment, and manpower; no rule reads them. The saveVersion decision is made and recorded at this step's start, before any code, in the Cycle 18 Step 0 style; the consultation expects a bump to version 3 with version 2 saves rejected in plain language and no migration, because history lives inside the save payload. Zero mechanical effect is pinned by test (a campaign identical with recording on and off except the history records).
+- Step 4, visible progression on screen, UI only: a comparison panel built from the history snapshots, showing each nation's day 1 self beside its later snapshots in plain words, so a year 3 country can be compared with its day 1 self on screen; a browser check shown non vacuous.
+- Step 5, tests and balance for the cycle: the full suite, the balance rerun (byte identical to tools/baseline-cycle18.txt is the expectation for the whole cycle, since neither build may move a number; any diff is traced and treated as a defect until proven otherwise), and a new baseline file only if the rerun is byte identical, in the established pattern.
+- Step 6, cycle close and milestone review with Opus 5.5.
+- Not in this cycle, by ruling: the equipment third spend (Q2, Option A reinforce) is Cycle 21, its own build cycle per the consultation's binding constraint; the blockade diagnostic (Q3, Option A) is the first step of the cycle after Cycle 21, per DECISIONS item 20.
+
+## Cycle 20, Step 0: decisions under the autopilot order, all four questions ruled, no code (2026-10-18)
+
+Claimed this run: Step 0 only. No code was built, changed, or briefed to a builder: this step is decisions before code, in the same orchestrator only shape as Cycle 19 Step 1, except that under the autopilot order the decisions are settled by Claude in this run instead of presented and parked. Steps 1 to 6 do not start this run.
+
+### The order and the standing settlements
+- Jash's order (2026-10-18): the loop is wholly autopilot; decisions, taste calls, and guidance questions never go to Jash and never wait on his silence; they are settled (1) by adopting the latest Opus review's recommendation or default where one exists, or (2) by consulting Opus 5.5 and adopting its pick, and every settled question is recorded with the words "Ruled by Claude under Jash's 2026-10-18 autopilot order".
+- Q1 (history retention) and Q3 (blockade dormancy) already carry a judge's recommended default, Option A in both cases, so no new consultation was needed for them: both are adopted as rulings in DECISIONS_FOR_JASH.md item 20. Q1 Option A reopens the visible progression build as Steps 3 and 4 above; Q3 Option A (diagnostic first, no behavior change) is ruled now and its build home is recorded as the first step of the cycle after Cycle 21.
+- Q2 (equipment third spend) and Q4 (production line cancel or pause) had no judge pick, so this run consulted Opus 5.5 on both, as the order prescribes.
+
+### The consultation, and a delivery garble caught against the raw file
+- Route: PYTHONPATH=/opt/muse/skills/custom-connector-setup/bin anthropic.py complete, model claude-opus-5-5, max tokens 8000, prompt on stdin. The prompt carried the design compass, the standing balance ruling, the current sealed state, both questions with every option and its costs, and demanded exactly one pick per question with reasoning, accepted risks, and binding implementation constraints. It returned on the first call, no fallback needed. Usage: in 2119, out 5027. Raw output: 6540 bytes, sha256 4c2aec0f0ce86835fbad1d91827f4e459e2f7a06c58a08d67170635fd1187edc, byte scan for em and en dashes zero, plain ASCII throughout.
+- Incident, recorded under the Cycle 7 Step 4 lesson (a compressed summary of a verdict is not the verdict): the exec completion notice that delivered this run's background call carried a shortened rendering of the output that named Q2's pick as Option B, convert. The raw output file on disk, read in full in this run, names Option A, reinforce, with reasoning that argues against convert in its own words. The raw file is ground truth and governs; the rulings below and in DECISIONS item 20 follow the raw file, and the garbled rendering is recorded here so no later run quotes it.
+- The full consultation text follows, verbatim from the raw output file:
+
+# Q2 PICK: Option A, reinforce
+
+**Reasoning.** The surplus problem is a break in the core loop. Factories feed production, but nothing turns the late stockpile back into army.
+
+- **Reinforce closes the loop at the army.** Equipment becomes strength on the units holding the frontline. That is the HOI4 skeleton the bible names as law.
+- **It is legible.** A unit at 6 of 12 shows "Reinforce: 90 equipment" on its card. One fact, at the moment the player touches the unit.
+- **Why not Convert.** It is cheaper to build, but it makes equipment a second currency for steel. Its value as a sink depends on steel binding, and infantry also costs 120 manpower, so 400 steel probably buys fewer divisions than it appears. A flat one-way exchange is the kind of opaque, dominant late button Stellaris warns against.
+- **Why not rule the surplus intended.** It leaves the slack tail that two judges have flagged.
+- **The sink scales with war.** It is largest when the player is fighting, which is when equipment should matter.
+
+**Main cost and risk accepted.**
+- The pick changes combat staying power, so it can move balance bands, especially by rescuing the reckless path.
+- It adds one verb the player must learn.
+- The sink is self-limiting: a nation at peace with full-strength units still accumulates.
+
+The constraints below are there to contain the first risk. I accept the third: a won and quiet economy may still hold equipment.
+
+**Binding implementation constraints.**
+1. **Own build cycle.** The pick gets its own build cycle and must pass the standing balance ruling on seeds 1, 7, 42, 99, 1234, 555, 2024, 31337:
+   - Both intended paths win with at least 20 percent of starting strength left.
+   - Passive and reckless both lose.
+   - A new baseline file is committed with the cycle.
+2. **Explicit command, not automatic.**
+   - It is a command on the unit card through the public command path.
+   - It resolves instantly, restoring up to full strength (infantry 12, drone wing 6) at 15 equipment per point.
+   - The player may buy partial points if the stockpile is short.
+   - It never auto-drains equipment the player is saving for factories or forts.
+   - Because it is instant, it adds no per-unit state and needs no saveVersion change. If the build finds it needs new state, it stops and takes a saveVersion ruling first.
+3. **Eligibility.**
+   - The unit must stand on supplied owned ground.
+   - It must not be engaged in combat that day. This prevents mid-battle refills, which is where the staying power risk lives.
+   - Destroyed units cannot be reinforced.
+4. **Shared power function untouched.**
+   - stackPower is unchanged.
+   - Reinforcement writes only to the existing strength field stackPower already reads.
+   - The order in which the first unit damage model soaks damage is unchanged.
+   - A test proves that a reinforced unit and a fresh unit at the same strength produce identical stackPower.
+5. **Single tuning knob.**
+   - The price of 15 per point is the only tuning knob.
+   - If bands move, adjust the price in small slices (for example 15 to 18 to 20).
+   - Eligibility rules are not loosened to fix balance.
+6. **Profiles and AI.**
+   - The sensible and fortress profiles are updated to reinforce, so the sink is actually exercised.
+   - The reckless profile is run both with and without reinforcement, and both runs must lose.
+   - The AI uses the same command under the same rules.
+   - The balance report includes equipment spent on reinforcement per seed, which shows whether the sink actually drains the 1860 to 4405 tail.
+7. **Manpower question stays parked.**
+   - Cost is computed in one function so a manpower component can be added later.
+   - No manpower behavior is added now.
+
+# Q4 PICK: Option A, cancel queued orders only
+
+**Reasoning.** Today a misclick in the queue is permanent and silently locks up manpower. That is a legibility failure the bible forbids, so No cancel and no pause is out.
+
+- **Option A is the smallest honest fix.** Manpower is the only thing paid at queue time, and a queued order has consumed nothing else. A full manpower refund is exact and easy to explain: "Cancel: refund 120 manpower."
+- **Why not cancel in progress.** It duplicates the retool scrap rule and adds a second way to silently lose steel.
+- **Why not pause.** It brings new line state, a save consequence, AI questions and a new UI state. That is too much surface for a quality-of-life fix.
+
+**Main cost accepted.**
+- There is no pause.
+- A unit in progress can only be ended by retooling, with its steel lost.
+- Players wanting to idle a line must empty its queue.
+
+**Binding implementation constraints.**
+1. **What cancel touches.**
+   - Cancel applies only to queued entries.
+   - The in-progress entry shows no cancel control. Its tooltip instead reads: "In progress, cannot be cancelled; retooling scraps it and its drained steel is lost."
+2. **Refund amount.**
+   - The refund equals the manpower that order currently represents (infantry 120, drone wing 25, interceptor 10, agent 60, flotilla 30). This is consistent with retool having already settled any differences.
+   - The refund is never silently clamped. If a manpower pool cap exists, the refund still lands in full.
+3. **No side effects on efficiency.**
+   - Cancel does not touch line efficiency.
+   - A line emptied by cancel behaves exactly as any line with an empty queue does today. No new rule is added.
+4. **No save change.**
+   - No new state and no saveVersion change, since queues are already saved.
+   - A save/load round trip test covers a queue after a cancel.
+5. **AI and balance.**
+   - The AI and balance profiles never cancel.
+   - Balance must stay byte-identical to tools/baseline-cycle18.txt. Any diff is a bug, not a tuning event.
+6. **Required tests.**
+   - Exact refund per unit type.
+   - An in-progress unit cannot be cancelled.
+   - Cancelling the middle of a multi-order queue preserves the order of the rest.
+   - Cancel after a retool refunds the post-retool cost.
+
+# CYCLE ORDER
+
+**Q4 cancel lands first, then the Q1 visible progression build.**
+
+- **Q4 is small and needs no save change.** It must hold the cycle 18 baseline byte-identical, so it lands as a clean, verifiable step.
+- **Q1 needs a saveVersion decision before code.** It is expected to bump to 3 because history lives in the save payload. Landing it second keeps that save bump the only payload change in its step.
+- **Isolation makes failures easy to trace.** Any balance or save regression in the cycle is attributable to one change.
+
+### Rulings adopted in this run (recorded in DECISIONS_FOR_JASH.md item 20)
+- Q1, history retention: Option A (compact per nation snapshots). Ruled by Claude under Jash's 2026-10-18 autopilot order.
+- Q2, equipment third spend: Option A, reinforce, at 15 equipment per strength point under the eligibility and constraint set quoted above, as its own build cycle (Cycle 21). Ruled by Claude under Jash's 2026-10-18 autopilot order.
+- Q3, blockade dormancy: Option A, diagnostic first, no behavior change, build home the first step of the cycle after Cycle 21. Ruled by Claude under Jash's 2026-10-18 autopilot order.
+- Q4, production line cancel or pause: Option A, cancel queued orders only with a full manpower refund, no pause, built as Cycle 20 Steps 1 and 2. Ruled by Claude under Jash's 2026-10-18 autopilot order.
+- The Cycle 19 closure note in DECISIONS item 19 stands as a historical record of the silence disposition; item 20 supersedes it, and Steps 2 and 3 of Cycle 19 are reopened as Cycle 20 Steps 1 to 4 as the step list above records.
+- Note on the verbatim text above: the raw output file lived in /tmp, which this environment wipes between sessions (the standing loop lesson), and the file was gone when the orchestrator went to append it to this log, after the DECISIONS item 20 edit had landed. The text above is reproduced from the run's own background completion delivery of that same command, which carried the full untruncated output (6610 characters, marked truncated false) and matches, section for section, what the orchestrator read from the raw file before the wipe, including the usage line and both picks. The sha256 recorded above was taken from the file while it existed.
+
+### Verification run by the orchestrator (state unchanged, as the step requires)
+- Working tree clean at HEAD 468f44a before any work (git status porcelain empty); the only files this run touches are DECISIONS_FOR_JASH.md, CYCLE_LOG.md, BACKLOG.md, and LOOP_LESSONS.md.
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 130 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle18.txt.
+- Python byte scan for em and en dashes across the whole repo: zero (rerun after the documentation edits in the commit verification).
+
+### Mission status
+Cycle 20 Step 0 is complete: all four item 19 questions are ruled under the autopilot order, and the Cycle 20 step list is recorded above. Next run claims Cycle 20 Step 1 (production line cancel in the sim, Q4 Option A). No stop condition is met: no failed judge verdict (this consultation is a decision ruling under the order, not a milestone verdict), no verification failure, and no balance change.
+
