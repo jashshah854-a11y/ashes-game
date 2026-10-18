@@ -3674,3 +3674,6 @@ Standing rules: (1) sim change only in Step 1, an explicit behavior neutral slic
 
 ### Mission status
 Cycle 17 is complete: Steps 0, 1, 2, 3, 4, and 5 done, judge PASS WITH FIX-NOW FLAGS with the one flag (F1, documentation only) carried to Cycle 18 Step 0 by the judge's own prescription, no unresolved balance flags. Next run claims Cycle 18 Step 0 (audit and spec, opening with the F1 fix). No stop condition is met: no failed judge verdict (this is a pass with a carried flag, the Cycle 8 and Cycle 13 shape), no verification failure this run, and no balance change.
+
+### Cycle 17 step 5 sync note
+- Sync out after commit e43df15: the import script sent 3 commits to GitHub (41a3920, the Cycle 17 step 4 sync note carried over, plus this step's a7a6fd6 and e43df15; jashshah854-a11y/ashes-game, master now at remote d24ce85; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits.
