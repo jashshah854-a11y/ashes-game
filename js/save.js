@@ -24,7 +24,7 @@
 // at all, a header with a field missing, a version other than 3, a payload
 // that does not match its checksum, or a payload that is damaged or does
 // not agree with its header, each with a plain reason naming what is
-// wrong.
+// wrong. A save whose campaign history is damaged is refused.
 // Plain functions over plain data. No DOM, no timers, no storage, no file
 // access. Loadable in the browser (window.AshesSave) and in node
 // (module.exports), like js/sim.js.
@@ -282,6 +282,78 @@
           kind: 'corrupt',
           reason: 'The edge at index ' + ei + ' in the saved edge list does not carry the ids of its two provinces as text, so the map cannot be rebuilt.'
         };
+      }
+    }
+
+    // Validate campaign history: each nation must have a list of 1 to 6
+    // snapshots, each a plain object with exactly eight finite number fields,
+    // first day equals 1, and days strictly increase.
+    var history = payload.history;
+    if (!history || typeof history !== 'object' || Array.isArray(history)) {
+      return {
+        ok: false,
+        kind: 'corrupt',
+        reason: 'The saved campaign history is damaged, so the save cannot be loaded: the history is not a container for the two nation histories.'
+      };
+    }
+    var nationsToCheck = ['player', 'enemy'];
+    var requiredFields = ['day', 'provinces', 'factoryLevels', 'armyStrength', 'linesOpen', 'steel', 'equipment', 'manpower'];
+    for (var ni = 0; ni < nationsToCheck.length; ni++) {
+      var nationId = nationsToCheck[ni];
+      var nationName = nationId === 'player' ? 'the player nation' : 'the enemy nation';
+      var list = history[nationId];
+      if (!Array.isArray(list)) {
+        return {
+          ok: false,
+          kind: 'corrupt',
+          reason: 'The saved campaign history is damaged, so the save cannot be loaded: ' + nationName + "'s history is not a list of snapshots."
+        };
+      }
+      if (list.length < 1 || list.length > 6) {
+        return {
+          ok: false,
+          kind: 'corrupt',
+          reason: 'The saved campaign history is damaged, so the save cannot be loaded: ' + nationName + ' has ' + list.length + ' snapshots but must have at least 1 and at most 6.'
+        };
+      }
+      for (var si = 0; si < list.length; si++) {
+        var snap = list[si];
+        if (!snap || typeof snap !== 'object' || Array.isArray(snap)) {
+          return {
+            ok: false,
+            kind: 'corrupt',
+            reason: 'The saved campaign history is damaged, so the save cannot be loaded: snapshot ' + (si + 1) + ' in ' + nationName + "'s history is not a record."
+          };
+        }
+        for (var fi = 0; fi < requiredFields.length; fi++) {
+          var field = requiredFields[fi];
+          var val = snap[field];
+          if (!(field in snap) || typeof val !== 'number' || !Number.isFinite(val)) {
+            return {
+              ok: false,
+              kind: 'corrupt',
+              reason: 'The saved campaign history is damaged, so the save cannot be loaded: snapshot ' + (si + 1) + ' in ' + nationName + "'s history is missing the field " + field + " or carries a value that is not a number."
+            };
+          }
+        }
+        if (si === 0) {
+          if (snap.day !== 1) {
+            return {
+              ok: false,
+              kind: 'corrupt',
+              reason: 'The saved campaign history is damaged, so the save cannot be loaded: the first snapshot in ' + nationName + "'s history is day " + snap.day + " but must be day 1."
+            };
+          }
+        } else {
+          var prevDay = list[si - 1].day;
+          if (snap.day <= prevDay) {
+            return {
+              ok: false,
+              kind: 'corrupt',
+              reason: 'The saved campaign history is damaged, so the save cannot be loaded: snapshot ' + (si + 1) + ' in ' + nationName + "'s history is day " + snap.day + " but must be after day " + prevDay + "."
+            };
+          }
+        }
       }
     }
 

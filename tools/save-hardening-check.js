@@ -64,9 +64,16 @@
 //     through the chooser, assert the Loaded from file notice appears again
 //     with the saved day and the day counter returns to the saved day after a
 //     prompt pause. This pins the input reset.
-// 13. Broken labels: the save card texts checked contain no undefined, NaN,
+// 13. History validation: prove three malformed history cases through the
+//     browser slot path. For each case, take the current valid slot save,
+//     mutate the history (not a list; a snapshot field as text; snapshot days
+//     not starting at 1 or not increasing), recompute the checksum, write the
+//     mutated envelope to the slot, click Load, and assert the notice starts
+//     with the exact damage prefix, has the error style, and does not start
+//     with Loaded. Each case is its own check.
+// 14. Broken labels: the save card texts checked contain no undefined, NaN,
 //     or [object.
-// 14. No page errors.
+// 15. No page errors.
 // Usage: node tools/save-hardening-check.js   (CHROME=/path/to/chrome,
 // PLAYWRIGHT=/path/to/playwright)
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
@@ -491,7 +498,107 @@ function checkTextNoBrokenLabels(text) {
     check('Re-import second load: day counter returns to saved day', dayAfterSecondImport === exportDay,
       'day ' + dayAfterSecondImport + ' expected ' + exportDay);
 
-    // 13. Broken labels: the save card texts checked contain no undefined,
+    // 13. History validation: prove three malformed history cases through the
+    // browser slot path. For each case, take the current valid slot save,
+    // mutate the history, recompute the checksum, write the mutated envelope
+    // to the slot, click Load, and assert the notice starts with the exact
+    // damage prefix, has the error style, and does not start with Loaded.
+    // Each case is its own check() call.
+    const damagePrefix = 'The saved campaign history is damaged, so the save cannot be loaded: ';
+    // Save a valid game to the slot first, to have a clean baseline for each case.
+    async function saveValidSlot() {
+      await ensureRunning(page);
+      await page.click('#btn-save-slot');
+      await page.waitForTimeout(100);
+    }
+    // Read the current slot, mutate it with the given function, write it back,
+    // click Load, and return the notice text and class.
+    async function loadMutatedSave(mutateFn) {
+      const slotText = await readSlotText(page);
+      const envelope = JSON.parse(slotText);
+      const payload = JSON.parse(envelope.payload);
+      mutateFn(payload);
+      envelope.payload = JSON.stringify(payload);
+      envelope.checksum = Save.checksumFor(envelope.payload);
+      const mutatedText = JSON.stringify(envelope);
+      await page.evaluate((args) => { localStorage.setItem(args.key, args.text); }, { key: SAVE_SLOT_KEY, text: mutatedText });
+      await clickWhenClear(page, '#btn-load-slot');
+      await waitFor(page, async () => {
+        const t = (await page.textContent('#save-notice')).trim();
+        return t.length > 0 && t.indexOf('Loaded') !== 0;
+      }, 5000);
+      const msg = await getSaveNotice(page);
+      const cls = await getSaveNoticeClass(page);
+      return { msg, cls };
+    }
+
+    // Case 1: player history is not a list (set to a text value)
+    await saveValidSlot();
+    let result = await loadMutatedSave((payload) => {
+      payload.history.player = 'not a list';
+    });
+    const histMsgCase1 = result.msg;
+    check('History validation: player history not a list - notice starts with damage prefix',
+      result.msg.startsWith(damagePrefix), 'got: ' + result.msg);
+    check('History validation: player history not a list - notice is error style',
+      result.cls === 'save-notice-error', 'class: ' + result.cls);
+    check('History validation: player history not a list - notice does not start with Loaded',
+      result.msg.indexOf('Loaded') !== 0, 'got: ' + result.msg);
+
+    // Case 2: a snapshot field is a text value (steel as text)
+    await saveValidSlot();
+    result = await loadMutatedSave((payload) => {
+      payload.history.player[0].steel = 'not a number';
+    });
+    const histMsgCase2 = result.msg;
+    check('History validation: snapshot steel as text - notice starts with damage prefix',
+      result.msg.startsWith(damagePrefix), 'got: ' + result.msg);
+    check('History validation: snapshot steel as text - notice is error style',
+      result.cls === 'save-notice-error', 'class: ' + result.cls);
+    check('History validation: snapshot steel as text - notice does not start with Loaded',
+      result.msg.indexOf('Loaded') !== 0, 'got: ' + result.msg);
+
+    // Case 3: snapshot days not starting at 1 (first day changed to 2)
+    await saveValidSlot();
+    result = await loadMutatedSave((payload) => {
+      payload.history.player[0].day = 2;
+    });
+    const histMsgCase3 = result.msg;
+    check('History validation: first snapshot day not 1 - notice starts with damage prefix',
+      result.msg.startsWith(damagePrefix), 'got: ' + result.msg);
+    check('History validation: first snapshot day not 1 - notice is error style',
+      result.cls === 'save-notice-error', 'class: ' + result.cls);
+    check('History validation: first snapshot day not 1 - notice does not start with Loaded',
+      result.msg.indexOf('Loaded') !== 0, 'got: ' + result.msg);
+
+    // Case 4: snapshot days not strictly increasing (second day <= first day)
+    // This requires a save with at least 2 snapshots. Tick until we have 2.
+    await ensureRunning(page);
+    await page.click('#btn-speed2');
+    let dayForTwoSnaps = await dayCounter(page);
+    while (dayForTwoSnaps < 31 && Date.now() < Date.now() + 120000) {
+      await dismissBurst(page);
+      dayForTwoSnaps = await dayCounter(page);
+      if (dayForTwoSnaps < 31) await page.waitForTimeout(200);
+    }
+    await saveValidSlot();
+    result = await loadMutatedSave((payload) => {
+      if (payload.history.player.length >= 2) {
+        payload.history.player[1].day = payload.history.player[0].day;
+      }
+    });
+    const histMsg1 = result.msg;
+    check('History validation: snapshot days not increasing - notice starts with damage prefix',
+      result.msg.startsWith(damagePrefix), 'got: ' + result.msg);
+    check('History validation: snapshot days not increasing - notice is error style',
+      result.cls === 'save-notice-error', 'class: ' + result.cls);
+    check('History validation: snapshot days not increasing - notice does not start with Loaded',
+      result.msg.indexOf('Loaded') !== 0, 'got: ' + result.msg);
+
+    // Restore a valid save into the slot for the remaining sections.
+    await saveValidSlot();
+
+    // 14. Broken labels: the save card texts checked contain no undefined,
     // NaN, or [object.
     const textsToCheck = [
       contentsText,
@@ -505,7 +612,11 @@ function checkTextNoBrokenLabels(text) {
       binaryMsg,
       frMsg,
       reImportMsg,
-      reImportMsg2
+      reImportMsg2,
+      histMsgCase1,
+      histMsgCase2,
+      histMsgCase3,
+      histMsg1
     ];
     let allClean = true;
     let badText = '';
@@ -519,7 +630,7 @@ function checkTextNoBrokenLabels(text) {
     check('Broken labels: no undefined, NaN, or [object in save card texts', allClean,
       allClean ? 'all clean' : 'bad text: ' + badText);
 
-    // 14. No page errors.
+    // 15. No page errors.
     check('No page errors', errors.length === 0, errors.join('; ') || 'none');
 
   } finally {

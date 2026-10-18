@@ -4218,3 +4218,182 @@ test('history: determinism across two fresh seed 7 games ticked 35 times', () =>
   for (let i = 0; i < 35; i++) { Sim.tick(a); Sim.tick(b); }
   assert.deepStrictEqual(a.history, b.history, 'history deep equal for same seed and ticks');
 });
+
+// ---------- Cycle 21 step 1: F2 history validation and F1 conservation ----------
+
+test('F1 conservation: manpower conserved across queue, retool, cancel for all 20 ordered template pairs', () => {
+  const templates = ['infantry', 'drone', 'interceptor', 'agent', 'flotilla'];
+  const linesFor = { infantry: 1, drone: 2, interceptor: 1, agent: 1, flotilla: 1 };
+  let pairCount = 0;
+  for (const from of templates) {
+    for (const to of templates) {
+      if (from === to) continue;
+      pairCount++;
+      const s = Sim.createGame(42);
+      s.nations.player.steel = 500;
+      // Ensure line 1 can hold the from template
+      const lineId = linesFor[from];
+      if (from !== 'infantry') {
+        assert.strictEqual(Sim.assignLineTemplate(s, 'player', lineId, from).ok, true);
+      }
+      const poolBefore = Sim.manpowerPool(s, 'player');
+      assert.strictEqual(Sim.queueProduction(s, 'player', lineId).ok, true);
+      const line = Sim.productionLine(s, 'player', lineId);
+      assert.strictEqual(line.queue, 1);
+      // Retool to the to template
+      const retool = Sim.assignLineTemplate(s, 'player', lineId, to);
+      assert.strictEqual(retool.ok, true, 'retool ' + from + ' -> ' + to + ' must succeed');
+      // Cancel the one queued order
+      const cancel = Sim.cancelProduction(s, 'player', lineId);
+      assert.strictEqual(cancel.ok, true, 'cancel must succeed for ' + from + ' -> ' + to);
+      assert.strictEqual(cancel.manpowerRefund, Sim.CFG.unitTypes[to].manpowerCost,
+        'refund must equal ' + to + ' manpower cost for ' + from + ' -> ' + to);
+      assert.strictEqual(Sim.manpowerPool(s, 'player'), poolBefore,
+        'manpower pool must equal pre-queue pool for ' + from + ' -> ' + to);
+    }
+  }
+  assert.strictEqual(pairCount, 20, 'exactly 20 ordered template pairs must be exercised');
+});
+
+// Helper to mutate a save payload, recompute checksum, and rebuild envelope text
+function mutateSaveAndReload(originalText, mutateFn) {
+  const Save = require('../js/save.js');
+  const envelope = JSON.parse(originalText);
+  const payload = JSON.parse(envelope.payload);
+  mutateFn(payload);
+  envelope.payload = JSON.stringify(payload);
+  envelope.checksum = Save.checksumFor(envelope.payload);
+  return Save.deserializeSave(JSON.stringify(envelope));
+}
+
+test('F2 history validation: player history not an array is rejected', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = mutateSaveAndReload(ser.text, (payload) => {
+    payload.history.player = 'not a list';
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+  assert.ok(!result.reason.includes('undefined'), 'reason must not contain undefined text');
+});
+
+test('F2 history validation: snapshot with non-number field is rejected', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = mutateSaveAndReload(ser.text, (payload) => {
+    payload.history.player[0].steel = 'not a number';
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+  assert.ok(!result.reason.includes('undefined'), 'reason must not contain undefined text');
+});
+
+test('F2 history validation: snapshot with missing field is rejected', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = mutateSaveAndReload(ser.text, (payload) => {
+    delete payload.history.player[0].manpower;
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+  assert.ok(!result.reason.includes('undefined'), 'reason must not contain undefined text');
+});
+
+test('F2 history validation: snapshot days not starting at 1 is rejected', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = mutateSaveAndReload(ser.text, (payload) => {
+    payload.history.player[0].day = 2;
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+  assert.ok(!result.reason.includes('undefined'), 'reason must not contain undefined text');
+});
+
+test('F2 history validation: snapshot days not strictly increasing is rejected', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  // Tick enough to get at least 2 snapshots (day 1 and day 30)
+  for (let i = 0; i < 30; i++) Sim.tick(s);
+  assert.ok(s.history.player.length >= 2, 'must have at least 2 snapshots');
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = mutateSaveAndReload(ser.text, (payload) => {
+    // Make second snapshot day equal to first (not increasing)
+    payload.history.player[1].day = payload.history.player[0].day;
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+  assert.ok(!result.reason.includes('undefined'), 'reason must not contain undefined text');
+});
+
+test('F2 history validation: list longer than 6 entries is rejected', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = mutateSaveAndReload(ser.text, (payload) => {
+    // Append copies to make 7 entries
+    while (payload.history.player.length < 7) {
+      const last = payload.history.player[payload.history.player.length - 1];
+      const copy = Object.assign({}, last);
+      copy.day = last.day + 30;
+      payload.history.player.push(copy);
+    }
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+  assert.ok(!result.reason.includes('undefined'), 'reason must not contain undefined text');
+});
+
+test('F2 history validation: empty list is rejected', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = mutateSaveAndReload(ser.text, (payload) => {
+    payload.history.player = [];
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.kind, 'corrupt');
+  assert.ok(result.reason.startsWith('The saved campaign history is damaged, so the save cannot be loaded: '),
+    'reason must start with exact prefix');
+  assert.ok(!result.reason.includes('undefined'), 'reason must not contain undefined text');
+});
+
+test('F2 history validation: unmutated real save still loads ok true with history deep equal', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const result = Save.deserializeSave(ser.text);
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.state.history, s.history, 'history deep equal after round trip');
+});
