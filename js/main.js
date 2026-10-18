@@ -760,6 +760,23 @@
         row.appendChild(textDiv('prod-note', note));
       }
 
+      // Cancel UI: show refund row, in progress note, and cancel buttons.
+      var inProgress = (line.progressDays > 0) || (line.work > 0);
+      var cancellable = line.queue - (inProgress ? 1 : 0);
+      if (cancellable < 0) cancellable = 0;
+      var refund = Sim.manpowerCost(line.template);
+
+      if (cancellable > 0) {
+        var word = cancellable === 1 ? 'order' : 'orders';
+        var verb = cancellable === 1 ? 'can be cancelled for a full refund of' : 'can be cancelled, each for a full refund of';
+        row.appendChild(textDiv('prod-row',
+          cancellable + ' queued ' + word + ' ' + verb + ' ' + refund + ' manpower.'));
+      }
+      if (inProgress) {
+        row.appendChild(textDiv('prod-note',
+          'The unit in progress cannot be cancelled. Retooling scraps it and its drained steel is lost.'));
+      }
+
       var btns = document.createElement('div');
       btns.className = 'prod-btns';
 
@@ -773,6 +790,19 @@
         render();
       });
       btns.appendChild(qBtn);
+
+      for (var c = 0; c < cancellable; c++) {
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn-cancel';
+        cancelBtn.textContent = 'Cancel one queued ' + t.label + ': refund ' + refund + ' manpower';
+        cancelBtn.addEventListener('click', function () {
+          var res = Sim.cancelProduction(state, 'player', line.id);
+          prodNotice = res && !res.ok ? res.reason : '';
+          render();
+        });
+        btns.appendChild(cancelBtn);
+      }
 
       otherTemplates.forEach(function (tpl) {
         var rBtn = document.createElement('button');
