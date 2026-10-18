@@ -33,7 +33,8 @@
    'btn-research-jamming', 'research-jamming-explain', 'prov-name', 'prov-details',
    'btn-factory', 'btn-fort', 'btn-agent', 'btn-flotilla', 'prov-notice', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
    'stat-enemy-provs', 'stat-enemy-units', 'stat-enemy-gen', 'stat-enemy-jamming',
-   'stat-enemy-interceptors', 'log', 'banner', 'rail-actions',
+   'stat-enemy-interceptors', 'log', 'banner', 'end-title', 'end-reason', 'end-day',
+   'end-scores', 'end-margin', 'end-explain', 'btn-end-new', 'rail-actions',
    'prod-summary', 'prod-notice', 'production-lines', 'stat-enemy-factories', 'stat-enemy-lines',
    'stat-enemy-manpower', 'stat-enemy-manpower-intake',
    'ex-player-destroyed', 'ex-player-lost', 'ex-player-forced', 'ex-player-suffered', 'ex-player-net',
@@ -102,10 +103,108 @@
     startTimer();
   }
 
+  // ---------- Campaign end screen (Cycle 15 step 2a) ----------
+  // Every figure on the end screen comes from the sim's own campaign
+  // result readout, and every weight is read live from the sim config
+  // object as a number, so retuning flows straight to the screen. The
+  // rows are plain English on purpose: the player sees counts, weights
+  // in plain words, and the points each piece produced, never a code
+  // name.
+
+  // "1 point" and "10 points", so a weight reads as English either way.
+  function pointWord(n) { return n === 1 ? 'point' : 'points'; }
+
+  // The six point values added up in plain words, so the player can
+  // check the total by eye. The exchange net can be a negative number,
+  // which reads as "minus N" instead of a bare signed figure.
+  function sumPhrase(vals) {
+    var out = String(vals[0]);
+    for (var i = 1; i < vals.length; i++) {
+      out += vals[i] < 0 ? ' minus ' + Math.abs(vals[i]) : ' plus ' + vals[i];
+    }
+    return out;
+  }
+
+  // One nation block: its title, then the seven rows in the fixed
+  // order, built by this one shared helper so both nations state the
+  // same rule in the same words. The rows are nation neutral by design
+  // and never say you or your, because the same rows serve both blocks.
+  function endNationBlock(title, s, w) {
+    var wrap = document.createElement('div');
+    wrap.className = 'end-nation';
+    wrap.appendChild(textDiv('end-nation-title', title));
+    wrap.appendChild(textDiv('end-row',
+      'Provinces held: ' + s.provinces + ', at ' + w.province + ' ' + pointWord(w.province) +
+      ' per province held = ' + s.provincePoints + ' points.'));
+    wrap.appendChild(textDiv('end-row',
+      'Factory levels: ' + s.factoryLevels + ', at ' + w.factory + ' ' + pointWord(w.factory) +
+      ' per factory level = ' + s.factoryPoints + ' points.'));
+    wrap.appendChild(textDiv('end-row',
+      'Army strength: ' + s.armyStrength + ', at ' + w.strength + ' ' + pointWord(w.strength) +
+      ' per strength point = ' + s.armyPoints + ' points.'));
+    wrap.appendChild(textDiv('end-row',
+      'Cost exchange net: ' + s.exchangeNet + ' steel, at 1 point per steel = ' +
+      s.exchangePoints + ' points. The net is destroyed plus launches forced, minus lost ' +
+      'plus launches suffered.'));
+    wrap.appendChild(textDiv('end-row',
+      'Own capital: ' + (s.ownCapitalHeld ? 'held' : 'not held') + ', at ' + w.ownCapital + ' ' +
+      pointWord(w.ownCapital) + ' for holding its own capital = ' + s.ownCapitalPoints + ' points.'));
+    wrap.appendChild(textDiv('end-row',
+      'Enemy capital: ' + (s.enemyCapitalHeld ? 'held' : 'not held') + ', at ' + w.enemyCapital + ' ' +
+      pointWord(w.enemyCapital) + ' for holding the other nation capital = ' +
+      s.enemyCapitalPoints + ' points.'));
+    var total = textDiv('end-row end-total',
+      'Total: ' + sumPhrase([s.provincePoints, s.factoryPoints, s.armyPoints, s.exchangePoints,
+        s.ownCapitalPoints, s.enemyCapitalPoints]) + ' = ' + s.total + ' points.');
+    wrap.appendChild(total);
+    return wrap;
+  }
+
+  // The margin line: who leads this scoreboard and by how much, with
+  // both totals. A level score says so and points at the campaign's own
+  // win conditions, because this score decides nothing.
+  function endMarginText(r) {
+    if (r.margin === 0) {
+      return 'The campaign score is level at ' + r.player.total + ' points each. ' +
+        'The winner was decided by the campaign win conditions, not by this score.';
+    }
+    return (r.margin > 0 ? 'The Vessari Compact' : 'The Khessite Dominion') + ' leads by ' +
+      Math.abs(r.margin) + ' points (' + r.player.total + ' to ' + r.enemy.total + ').';
+  }
+
+  // The explain paragraph: restates every weight in plain words, sums
+  // the idea, and says the score changes nothing.
+  function endExplainText(w) {
+    return 'Both nations are counted the same way. Provinces held are worth ' + w.province + ' ' +
+      pointWord(w.province) + ' each; factory levels are worth ' + w.factory + ' ' +
+      pointWord(w.factory) + ' each; army strength points are worth ' + w.strength + ' ' +
+      pointWord(w.strength) + ' each; the cost exchange net is worth one point per steel; holding ' +
+      'a nation own capital is worth ' + w.ownCapital + ' ' + pointWord(w.ownCapital) +
+      ' and holding the other nation capital is worth ' + w.enemyCapital + ' ' +
+      pointWord(w.enemyCapital) + '. Add those six pieces and that is the campaign score. ' +
+      'It does not change the result, and no rule in the game reads it.';
+  }
+
   function showBanner() {
+    var r = Sim.campaignResult(state);
+    var w = {
+      province: Sim.CFG.scorePerProvince,
+      factory: Sim.CFG.scorePerFactoryLevel,
+      strength: Sim.CFG.scorePerStrength,
+      ownCapital: Sim.CFG.scoreOwnCapital,
+      enemyCapital: Sim.CFG.scoreEnemyCapital
+    };
     el.banner.classList.remove('hidden');
-    el.banner.classList.toggle('lost', state.winner !== 'player');
-    el.banner.textContent = (state.winner === 'player' ? 'Victory. ' : 'Defeat. ') + state.endReason;
+    el.banner.classList.toggle('lost', r.winner !== 'player');
+    el.endTitle.textContent = r.winner === 'player' ? 'Victory' : 'Defeat';
+    el.endReason.textContent = r.endReason || '';
+    el.endDay.textContent = 'The campaign ended on day ' + r.day +
+      ', in a campaign that runs ' + Sim.CFG.campaignEndDay + ' days.';
+    el.endScores.innerHTML = '';
+    el.endScores.appendChild(endNationBlock('The Vessari Compact (you)', r.player, w));
+    el.endScores.appendChild(endNationBlock('The Khessite Dominion', r.enemy, w));
+    el.endMargin.textContent = endMarginText(r);
+    el.endExplain.textContent = endExplainText(w);
   }
 
   // ---------- Rendering ----------
@@ -1195,6 +1294,7 @@
     startTimer();
   });
   el.btnNew.addEventListener('click', newGame);
+  el.btnEndNew.addEventListener('click', newGame);
   el.btnResearch.addEventListener('click', function () {
     Sim.researchDroneGen2(state, 'player');
     render();

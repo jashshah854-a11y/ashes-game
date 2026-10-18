@@ -2727,3 +2727,28 @@ Claimed this run: Step 2 only, under the tightened brief from the first failure.
 
 ### Mission status
 Cycle 15 Step 1 remains complete and verified. Step 2 remains unbuilt and is now split into Steps 2a and 2b. Next run claims Step 2a under the half size brief above.
+
+## Cycle 15, Step 2a of 4: campaign end screen, banner structure and plain words content (2026-10-17)
+
+Claimed this run: Step 2a only, the first half of the split Step 2. Step 2b (layout CSS and the wide and narrow browser proof), Step 3 (tests and balance), and Step 4 (milestone judge) remain.
+
+### What the builder did
+- Builder: free OpenCode model opencode/deepseek-v4.1-flash-free, first in the prescribed rotation, accepted the call and completed in about 562 seconds. No other model was needed.
+- Three files, 122 insertions, 4 deletions. index.html: the banner div keeps id banner and classes banner hidden and gains five children in order (an end-head div holding the end-title heading, end-reason, and end-day; the empty end-scores container; end-margin; end-explain; and a btn-end-new New Game button). js/main.js: the seven new ids join the element list; showBanner is rewritten on one campaign result readout call with the five scoring weights read live as numbers, building both nation blocks through one shared helper with the seven rows in the fixed order (Provinces held, Factory levels, Army strength, Cost exchange net, Own capital, Enemy capital, Total), a margin line naming the leader with both totals (or stating a level score and that the win conditions decided), and an explain paragraph restating every weight in plain words and stating the score changes nothing and no rule reads it; the end screen New Game button is wired to the existing newGame. css/style.css: only the comment and the single rule #banner.hidden { display: none; }; the banner container sets no display property of its own, exactly as the half size brief prescribed.
+
+### Verification run by the orchestrator (not taken from the builder)
+- Full git diff reviewed: scope is exactly the three allowed files, no sim, test, tool, or doc change by the builder, and the only sim reads are the result readout and the config numbers. The weights reach the screen only as plain numbers with plain English units.
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 106 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle14.txt.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- Real browser check, orchestrator written and independent of the builder's own check (headless Chromium against the actual repo index.html, seed 1, passive play to the day 36 defeat): 77 of 77 pass. The banner computes to display none with a zero box at game start; at game over it shows Defeat with the sim's own end reason, the day line naming day 36, and both nation blocks with all seven rows in order whose numbers match a Node side campaignResult run on the same passive seed 1 campaign exactly (player total minus 15, enemy total 1161, margin minus 1176, every row figure equal). The exchange row in both blocks states the full net definition (destroyed plus launches forced, minus lost plus launches suffered); no nation block row uses you or your; the margin names the Dominion as leader with both totals; the explain paragraph restates the weights and the no effect statement. Vocabulary audit of the rendered banner text: none of the banned code tokens appears (no config object name, no readout or property names, no file names), and no parenthetical code pattern appears. The end screen New Game button hides the banner again and restarts the war. The builder also ran its own ad hoc browser check at 22 of 22; the numbers above are the orchestrator's, not the builder's.
+- Regression: the committed tools/browser-check.js passes 6 of 6 unchanged.
+- One wording note, recorded and not treated as a failure: the capital rows and the explain paragraph use apostrophe free phrasing (holding its own capital; a nation own capital), which reads slightly clipped. The brief for this half explicitly allowed apostrophe free wording, the meaning is unambiguous, and no code vocabulary reaches the player. Whether to polish the phrasing is a taste item for Jash's lore and copy pass, not a legibility defect under the rule that failed the previous attempt (code names printed as explanation).
+
+### Lessons applied and learned
+- Lessons applied: the half size re-brief after two verification failures (this half carried only structure and content, with layout deferred to Step 2b); the vocabulary audit runs on the rendered screen text, not only the source (the Cycle 15 step 2 second failure lesson); the hidden state is proven in a real browser in both states (the first failure lesson); the exchange row is checked word by word against the sim ledger definition.
+- New lesson recorded in LOOP_LESSONS.md: when a brief bans a surface (here, code names in player text), also state the allowed plain substitute shape (weights as plain numbers with English units), and allow the small grammatical cost of avoiding escapes explicitly, so the builder does not have to choose between the ban and broken strings.
+
+### Mission status
+Cycle 15 Steps 1 and 2a are complete and verified. Next run claims Step 2b (layout CSS for the end screen and the wide and narrow browser proof). No stop condition is met: no failed judge verdicts and no verification failure this run.

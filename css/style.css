@@ -258,3 +258,11 @@ button.linkish:hover { background: none; color: #fff2c4; }
 .river-bar.supported { background: #9fe08a; }
 .river-bar.r.supported { width: 5px; }
 .river-bar.b.supported { height: 5px; }
+
+/* Cycle 15 step 2a: the campaign end screen banner. The banner container
+   sets NO display property of its own, so the shared .hidden rule still
+   hides it and the empty banner never shows while the war runs or after
+   New Game. The id rule below pins the hidden state at id specificity,
+   so no later class or element style can reveal it. Layout styling for
+   the end screen is a later step. */
+#banner.hidden { display: none; }
