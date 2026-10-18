@@ -29,7 +29,7 @@
    'stat-drone-gen', 'stat-jamming-gen', 'stat-interceptors', 'interceptor-explain',
    'stat-intel-live', 'stat-agents', 'agent-explain',
    'stat-flotillas', 'stat-coastal-player', 'stat-coastal-enemy',
-   'stat-blockade-player', 'stat-blockade-enemy', 'navy-explain',
+   'stat-blockade-player', 'stat-blockade-enemy', 'blockade-status', 'navy-explain',
    'btn-research', 'research-explain', 'btn-research-gen3', 'research-gen3-explain',
    'btn-research-jamming', 'research-jamming-explain', 'prov-name', 'prov-details',
    'btn-factory', 'btn-fort', 'btn-agent', 'btn-flotilla', 'prov-notice', 'stat-enemy-forts', 'ai-fort-eq', 'prov-explain', 'unit-details',
@@ -508,6 +508,32 @@
     el.statCoastalEnemy.textContent = Sim.coastalControlCount(state, 'enemy');
     el.statBlockadePlayer.textContent = Sim.blockadeLoss(state, 'player');
     el.statBlockadeEnemy.textContent = Sim.blockadeLoss(state, 'enemy');
+    // One plain words blockade status line, built only from the same
+    // readouts above: who holds how many of whose home coastal ground,
+    // and what that costs the blockaded side in steel today.
+    var playerOnEnemy = Sim.homeCoastalProvinces(state, 'enemy').filter(function (pid) {
+      return Sim.coastalControl(state, pid) === 'player';
+    }).length;
+    var enemyOnPlayer = Sim.homeCoastalProvinces(state, 'player').filter(function (pid) {
+      return Sim.coastalControl(state, pid) === 'enemy';
+    }).length;
+    el.blockadeStatus.textContent =
+      (Sim.isBlockaded(state, 'enemy')
+        ? 'The Dominion is blockaded today: you control ' + playerOnEnemy +
+          ' of its home coastal provinces (' + Sim.CFG.blockadeCoastalThreshold +
+          ' needed to blockade it), so it loses ' + Sim.blockadeLoss(state, 'enemy') +
+          ' steel today, ' + Sim.CFG.blockadeSteelPct + ' percent of its daily steel income.'
+        : 'The Dominion is not blockaded today: you control ' + playerOnEnemy +
+          ' of its home coastal provinces (' + Sim.CFG.blockadeCoastalThreshold +
+          ' needed to blockade it).') + ' ' +
+      (Sim.isBlockaded(state, 'player')
+        ? 'You are blockaded today: the Dominion controls ' + enemyOnPlayer +
+          ' of your home coastal provinces (' + Sim.CFG.blockadeCoastalThreshold +
+          ' needed to blockade you), so you lose ' + Sim.blockadeLoss(state, 'player') +
+          ' steel today, ' + Sim.CFG.blockadeSteelPct + ' percent of your daily steel income.'
+        : 'You are not blockaded today: the Dominion controls ' + enemyOnPlayer +
+          ' of your home coastal provinces (' + Sim.CFG.blockadeCoastalThreshold +
+          ' needed to blockade you).');
     el.navyExplain.textContent =
       'Navy: flotillas are built on production lines (' + Sim.CFG.unitTypes.flotilla.steelCost +
       ' steel over ' + Sim.CFG.unitTypes.flotilla.buildDays + ' days, plus ' +
