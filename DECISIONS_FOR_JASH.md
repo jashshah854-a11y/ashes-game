@@ -953,3 +953,10 @@ item above.
       its work in progress and drains nothing until resumed).
     - Option D: no cancel and no pause. Cycle 19 Step 2 is skipped
       and recorded, and item 6 stays as the standing rule.
+
+    Cycle 19 closure note (2026-10-18, loop record, not a ruling):
+    Steps 2 and 3 of Cycle 19 are now recorded as skipped in
+    CYCLE_LOG, because no ruling on Q1 or Q4 above had arrived
+    through any channel the loop can read. Nothing above is decided
+    by that skip: Q1 to Q4 stay open, and a later ruling starts the
+    matching work in a later cycle.

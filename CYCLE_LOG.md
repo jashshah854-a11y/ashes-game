@@ -4004,3 +4004,29 @@ Cycle 19 Step 1 is executed as presentation and remains open for Jash's ruling: 
 
 ### Cycle 19 step 1 sync note
 - Sync out after commit 32e4a6c: the import script completed with exit 0 and sent this step's documentation commit to GitHub (jashshah854-a11y/ashes-game). Sync succeeded and did not block or alter the local commit. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 19, Steps 2 and 3: skipped and recorded, no ruling received (2026-10-18)
+
+Claimed this run: the skip recording for Steps 2 and 3 only, as the Step 1 mission status prescribed for continued silence. No code was built, changed, or briefed to a builder, and the ruling sheet was not presented a second time. This is a documentation closure, in the same orchestrator only shape as Step 1.
+
+### Ruling search, run before any writing
+- DECISIONS_FOR_JASH.md item 19 read again: Q1 to Q4 still record their questions as awaiting a ruling, with no ruling text added since the Step 1 commit 32e4a6c. Items 6, 16(b), 17(a), 17(b), and 17(d) remain undecided in their own entries.
+- Shared memory searched (three queries: history retention, equipment third spend and blockade, cancel or pause): no ruling on any of the four questions; the hits are the loop's own earlier state notes.
+- Today's daily log (~/memory/2026-10-18.md) read: no Ashes ruling entry after the Step 1 record. The only later entries are unrelated watches.
+- Working tree clean at HEAD 262e8af before any work (git status porcelain empty), so no ruling arrived as an uncommitted edit either.
+- Disposition on silence, per the prescriptions: no default was adopted, no option was treated as chosen, and no taste call was made by the loop.
+
+### The skips, recorded plainly
+- Step 2, production line cancel or pause: SKIPPED. Its step list condition is a ruling by Jash on DECISIONS_FOR_JASH.md item 6 at Step 1. No such ruling arrived, so no sim action, no UI control, and no save payload decision was started. Item 6 stays open exactly as parked.
+- Step 3, the first visible progression surface: SKIPPED. Its step list condition is the Step 1 history retention ruling landing. No such ruling arrived, so no comparison panel was built and, as the prescription requires, no speculative history storage was added anywhere in state or in the save payload.
+- Q2 (equipment third spend) and Q3 (blockade dormancy) were never Step 2 or Step 3 gates; they record for their own later cycles and also stay open, with Q3's recommended diagnostic still needing Jash's word before it is built.
+- Skipping these steps in Cycle 19 does not close any question. If Jash rules later, the matching work starts in a later cycle under that ruling, with its saveVersion decision made before code in the Cycle 18 Step 0 style where the ruling carries a save consequence.
+
+### Verification run by the orchestrator (state unchanged, as the skips require)
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 130 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle18.txt.
+- Python byte scan for em and en dashes across the whole repo: zero (rerun after the documentation edits in the commit verification).
+
+### Mission status
+Cycle 19 is complete: Step 0 sealed Cycle 18, Step 1 presented the four rulings, and Steps 2 and 3 are now recorded as skipped on silence, exactly as the step list prescribed. No stop condition is met (no judge verdict this run, no verification failure, no balance change). No new buildable step is offered by BACKLOG.md or by the latest Opus review without a ruling from Jash, because their remaining items are his parked taste questions; the next run therefore follows the loop fallback: check for a ruling first, and if none has landed, run the verification pass once and log it with no code change, and never two consecutive no-op verification runs.
