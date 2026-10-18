@@ -4,6 +4,7 @@
   'use strict';
   var Sim = window.AshesSim;
   var Lore = window.AshesLore;
+  var Save = window.AshesSave;
 
   var state = null;
   var selectedProvinceId = null;
@@ -40,7 +41,8 @@
    'ex-player-destroyed', 'ex-player-lost', 'ex-player-forced', 'ex-player-suffered', 'ex-player-net',
    'ex-enemy-destroyed', 'ex-enemy-lost', 'ex-enemy-forced', 'ex-enemy-suffered', 'ex-enemy-net',
    'ex-headline', 'ex-explain',
-   'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
+   'save-notice', 'btn-save-slot', 'btn-load-slot', 'btn-export', 'btn-import',
+   'save-file-input', 'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
@@ -101,6 +103,67 @@
     el.codexOverlay.classList.add('hidden');
     render();
     startTimer();
+  }
+
+  // ---------- Save and load (Cycle 16 step 3) ----------
+  // Serialization happens only in the click and file handlers wired at the
+  // bottom of this file, never inside the timer callback: the sim tick is
+  // synchronous, so a click or file event handler always runs between ticks,
+  // and the state it reads is always a complete tick, never half of one.
+  var SAVE_SLOT_KEY = 'ashes-save-slot-1';
+
+  // Writes one notice into the save card: green on a good outcome, red on a
+  // failure. The reasons from js/save.js are already plain words, so a
+  // failure reason is shown exactly as it comes.
+  function saveNotice(msg, ok) {
+    el.saveNotice.textContent = msg;
+    el.saveNotice.className = ok ? 'save-notice-ok' : 'save-notice-error';
+  }
+
+  // Builds the save text for the live state. On failure the plain reason is
+  // in the notice and null comes back, so a caller never stores a non save.
+  function saveText() {
+    var res = Save.serializeSave(state);
+    if (!res.ok) {
+      saveNotice(res.reason, false);
+      return null;
+    }
+    return res.text;
+  }
+
+  // Restores a save over the running game. On success every piece of UI held
+  // state is rebuilt from the saved state, the selections go back to none,
+  // the timer restarts at the pace the player already had, and the game
+  // never pauses for the swap. On failure the plain reason is in the notice
+  // and nothing at all changes: same state object, same timer, same
+  // selections, the game keeps running.
+  function loadFromText(text) {
+    var res = Save.deserializeSave(text);
+    if (!res.ok) {
+      saveNotice(res.reason, false);
+      return false;
+    }
+    state = res.state;
+    selectedProvinceId = null;
+    selectedUnitId = null;
+    paused = false;
+    el.btnPause.textContent = 'Pause';
+    shownBeats = {};
+    Object.keys(state.beats).forEach(function (id) { shownBeats[id] = true; });
+    cardQueue = [];
+    shownTextureCount = state.textures.length;
+    pauseBeforeOverlay = null;
+    codexEntryId = 'ashwater';
+    prodNotice = '';
+    provNotice = '';
+    urlSeed = null;
+    el.eventOverlay.classList.add('hidden');
+    el.codexOverlay.classList.add('hidden');
+    if (state.gameOver) showBanner();
+    else el.banner.classList.add('hidden');
+    startTimer();
+    render();
+    return true;
   }
 
   // ---------- Campaign end screen (Cycle 15 step 2a) ----------
@@ -1324,6 +1387,65 @@
     var res = Sim.deployFlotilla(state, 'player', selectedProvinceId);
     provNotice = res && !res.ok ? res.reason : '';
     render();
+  });
+  el.btnSaveSlot.addEventListener('click', function () {
+    var text = saveText();
+    if (text == null) return; // the reason is already in the notice
+    try {
+      localStorage.setItem(SAVE_SLOT_KEY, text);
+    } catch (e) {
+      saveNotice('This browser did not store the save.', false);
+      return;
+    }
+    saveNotice('Saved. Day ' + state.day + ', seed ' + state.seed + '.', true);
+  });
+  el.btnLoadSlot.addEventListener('click', function () {
+    var text;
+    try {
+      text = localStorage.getItem(SAVE_SLOT_KEY);
+    } catch (e) {
+      saveNotice('This browser would not read the slot.', false);
+      return;
+    }
+    if (text == null) {
+      saveNotice('The browser slot holds no save yet.', false);
+      return;
+    }
+    if (loadFromText(text)) {
+      saveNotice('Loaded. Day ' + state.day + ', seed ' + state.seed + '.', true);
+    }
+  });
+  el.btnExport.addEventListener('click', function () {
+    var text = saveText();
+    if (text == null) return;
+    // The file name is built here in the UI only, from the day and the seed
+    // at export time. It is never part of the save itself.
+    var name = 'ashes-save-day-' + state.day + '-seed-' + state.seed + '.json';
+    var blob = new Blob([text], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 100);
+    saveNotice('Exported ' + name + '.', true);
+  });
+  el.btnImport.addEventListener('click', function () {
+    el.saveFileInput.click();
+  });
+  el.saveFileInput.addEventListener('change', function () {
+    var file = el.saveFileInput.files && el.saveFileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      if (loadFromText(String(reader.result))) {
+        saveNotice('Loaded from file. Day ' + state.day + ', seed ' + state.seed + '.', true);
+      }
+    };
+    reader.readAsText(file);
   });
 
   newGame();

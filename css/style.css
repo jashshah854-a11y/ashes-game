@@ -324,3 +324,19 @@ button.linkish:hover { background: none; color: #fff2c4; }
 #btn-end-new {
   margin-top: 10px;
 }
+
+/* Cycle 16 step 3: the save and load card. The notice under the buttons
+   follows the established notice language of the production panel: green
+   for a good outcome, red for a failure, same palette and same left bar,
+   so a saved or loaded campaign and a refused one read the same way. */
+.save-notice-ok,
+.save-notice-error {
+  font-size: 13px; font-weight: bold; line-height: 1.5;
+  margin: 10px 0 0; padding: 4px 6px;
+}
+.save-notice-ok {
+  color: #9fe08a; border-left: 3px solid #9fe08a; background: rgba(40, 90, 40, 0.28);
+}
+.save-notice-error {
+  color: #ff9d9d; border-left: 3px solid #ff9d9d; background: rgba(120, 30, 30, 0.35);
+}
