@@ -3479,3 +3479,6 @@ Claimed this run: Step 0 only, audit only. No file under js/, css/, tests/, or t
 
 ### Mission status
 Cycle 16 is complete (judge PASS WITH FIX-NOW FLAGS, F1 closed). Cycle 17 Step 0 is complete; Step 1 is next. No stop condition is met: no failed judge verdict, no consecutive verification failures (the LongCat false completion produced no artifact to verify and the rotation continued in the same run), and no balance change.
+
+### Cycle 17 step 0 sync note
+- Sync out after commit 41cd4aa: the import script sent 2 commits to GitHub (4451561 and 41cd4aa; jashshah854-a11y/ashes-game, master now at remote 212cc21; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits.
