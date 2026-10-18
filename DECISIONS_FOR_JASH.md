@@ -809,3 +809,33 @@ item above.
     the judge so the ledger is complete. None of these was decided by
     the loop, and Cycle 18 is prescribed only from the spec items that
     remain once these are excluded.
+
+18. Cycle 18 judge taste items (Step 5, all undecided, blocking nothing).
+    The Cycle 18 judge returned PASS WITH FIX-NOW FLAGS (the three flags
+    are evidence and test items carried to Cycle 19 Step 0; they are not
+    taste) and parked five taste items: (a) Why line weighting: the per
+    battle Why line lists the fight's facts but does not say which one
+    decided it, and it omits the per round random multiplier by the
+    Step 0 spec's deliberate choice, so a player can read attack ahead
+    of defense and still see a loss with no on screen reason; whether
+    to add a closing clause naming the deciding factor, or naming luck
+    where the record supports it, is yours (any luck wording must come
+    from the record, never inferred at render time); (b) save size
+    growth: the battle record lengthens state.log inside the save
+    payload, and whether to measure a long campaign save and set a soft
+    ceiling (for example trimming records older than a set number of
+    days) is yours; (c) stacked order markers: two markers on one target
+    are correct by count but may read poorly, and a numeric badge is a
+    cosmetic option only after Cycle 19 Step 0 pins the exact counts;
+    (d) blockade distance to threshold: if you keep blockade rare, the
+    card could show how close each nation is (for example 2 of 3
+    needed) so the mechanic is learnable before it fires, which rides
+    with your dormancy ruling in item 17(d); (e) a deliberate lore
+    cycle: js/lore.js has not moved for several cycles, and the judge
+    suggests the EU5 axis get one deliberate cycle before the project's
+    identity drifts entirely toward systems. The same judge's Step 1
+    direction also puts three standing questions to you as explicit
+    decisions with recommended defaults recorded in CYCLE_LOG (history
+    retention for visible progression, item 16(b) and 17(a); the
+    equipment third spend, item 17(b); blockade dormancy, item 17(d));
+    the loop will present them and build nothing on silence.
