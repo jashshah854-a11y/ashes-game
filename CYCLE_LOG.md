@@ -4320,3 +4320,6 @@ Claimed this run: Step 4 only, the comparison panel under the Q1 ruling (DECISIO
 
 ### Mission status
 Cycle 20 Step 4 is complete: the history snapshots from Step 3 are now visible on screen as a day 1 beside later days comparison for both nations, in plain words, with every rendered number matched against the sim records in a real browser. The Q1 visible progression build (Steps 3 and 4) and the Q4 cancel build (Steps 1 and 2) are both landed. Next run claims Step 5 (tests and balance for the cycle: the full suite, the balance rerun against tools/baseline-cycle18.txt, and a new baseline file only if the rerun is byte identical, in the established pattern). No stop condition is met: no failed judge verdict, no verification failure on the final tree (the four batch flakes are recorded above with their rerun evidence), and no balance change.
+
+### Cycle 20 step 4 sync note
+- Sync out after commit c90a8ea: the import script completed with exit 0 and sent 3 commits to GitHub (a155eec, the Cycle 20 step 3 sync note carried over, plus this step's afac029 and c90a8ea; jashshah854-a11y/ashes-game, master now at remote 756174f; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
