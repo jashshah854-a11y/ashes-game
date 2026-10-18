@@ -41,7 +41,7 @@
    'ex-player-destroyed', 'ex-player-lost', 'ex-player-forced', 'ex-player-suffered', 'ex-player-net',
    'ex-enemy-destroyed', 'ex-enemy-lost', 'ex-enemy-forced', 'ex-enemy-suffered', 'ex-enemy-net',
    'ex-headline', 'ex-explain',
-   'save-notice', 'btn-save-slot', 'btn-load-slot', 'btn-export', 'btn-import',
+   'save-notice', 'save-slot-meta', 'btn-save-slot', 'btn-load-slot', 'btn-export', 'btn-import',
    'save-file-input', 'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close'
@@ -111,6 +111,52 @@
   // synchronous, so a click or file event handler always runs between ticks,
   // and the state it reads is always a complete tick, never half of one.
   var SAVE_SLOT_KEY = 'ashes-save-slot-1';
+  // Slot metadata lives in its own localStorage key, UI only and never part
+  // of the save payload: the day, the player nation name, and the local time
+  // text made at save time, so the save card can name what the slot holds
+  // without the player having to load it to find out.
+  var SAVE_SLOT_META_KEY = 'ashes-save-slot-1-meta';
+
+  // Writes the save-slot-meta line from whatever the slot holds right now.
+  // An empty slot says so in plain words. A slot with a save names its day,
+  // nation, and save time when the meta is present. When the meta is missing
+  // but a save is in the slot, the day and nation are derived by reading the
+  // save itself and the time is shown as unknown.
+  function updateSlotMeta() {
+    var slotText = null;
+    try {
+      slotText = localStorage.getItem(SAVE_SLOT_KEY);
+    } catch (e) {
+      slotText = null;
+    }
+    if (slotText == null) {
+      el.saveSlotMeta.textContent = 'Browser slot: empty. Nothing is saved in the browser slot yet.';
+      return;
+    }
+    var meta = null;
+    try {
+      var metaText = localStorage.getItem(SAVE_SLOT_META_KEY);
+      if (metaText != null) meta = JSON.parse(metaText);
+    } catch (e) {
+      meta = null;
+    }
+    var day = meta && typeof meta.day === 'number' ? meta.day : null;
+    var nation = meta && typeof meta.nation === 'string' && meta.nation ? meta.nation : null;
+    var time = meta && typeof meta.savedAt === 'string' && meta.savedAt ? meta.savedAt : null;
+    if (day == null || nation == null || time == null) {
+      var res = Save.deserializeSave(slotText);
+      if (res.ok) {
+        if (day == null) day = res.state.day;
+        if (nation == null && res.state.nations && res.state.nations.player) {
+          nation = res.state.nations.player.name;
+        }
+      }
+      if (day == null) day = 'unknown';
+      if (nation == null) nation = 'unknown nation';
+      if (time == null) time = 'unknown';
+    }
+    el.saveSlotMeta.textContent = 'Browser slot: Day ' + day + ', ' + nation + ', saved at ' + time + '.';
+  }
 
   // Writes one notice into the save card: green on a good outcome, red on a
   // failure. The reasons from js/save.js are already plain words, so a
@@ -1405,11 +1451,23 @@
     if (text == null) return; // the reason is already in the notice
     try {
       localStorage.setItem(SAVE_SLOT_KEY, text);
+      // UI meta only, stored beside the slot text in the same try block so
+      // the slot line never names a save the slot did not take.
+      localStorage.setItem(SAVE_SLOT_META_KEY, JSON.stringify({
+        day: state.day,
+        nation: state.nations.player.name,
+        savedAt: new Date().toLocaleString()
+      }));
     } catch (e) {
-      saveNotice('This browser did not store the save.', false);
+      if (e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014)) {
+        saveNotice('The browser slot is full, so this save was not stored. Export the save to a file instead.', false);
+      } else {
+        saveNotice('This browser did not store the save.', false);
+      }
       return;
     }
     saveNotice('Saved. Day ' + state.day + ', seed ' + state.seed + '.', true);
+    updateSlotMeta();
   });
   el.btnLoadSlot.addEventListener('click', function () {
     var text;
@@ -1417,15 +1475,18 @@
       text = localStorage.getItem(SAVE_SLOT_KEY);
     } catch (e) {
       saveNotice('This browser would not read the slot.', false);
+      updateSlotMeta();
       return;
     }
     if (text == null) {
       saveNotice('The browser slot holds no save yet.', false);
+      updateSlotMeta();
       return;
     }
     if (loadFromText(text)) {
-      saveNotice('Loaded. Day ' + state.day + ', seed ' + state.seed + '.', true);
+      saveNotice('Loaded. Day ' + state.day + ', ' + state.nations.player.name + ', seed ' + state.seed + '.', true);
     }
+    updateSlotMeta();
   });
   el.btnExport.addEventListener('click', function () {
     var text = saveText();
@@ -1451,14 +1512,28 @@
   el.saveFileInput.addEventListener('change', function () {
     var file = el.saveFileInput.files && el.saveFileInput.files[0];
     if (!file) return;
+    // Reset at once so the same file can be imported again later: a file
+    // input only fires change when what it holds differs from last time.
+    el.saveFileInput.value = '';
+    if (file.size === 0) {
+      saveNotice('That file is empty, so there is nothing to load. Your current game keeps running.', false);
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function () {
       if (loadFromText(String(reader.result))) {
-        saveNotice('Loaded from file. Day ' + state.day + ', seed ' + state.seed + '.', true);
+        saveNotice('Loaded from file. Day ' + state.day + ', ' + state.nations.player.name + ', seed ' + state.seed + '.', true);
       }
+    };
+    reader.onerror = function () {
+      saveNotice('The browser could not read that file, so nothing was loaded. Your current game keeps running.', false);
+    };
+    reader.onabort = function () {
+      saveNotice('The browser could not read that file, so nothing was loaded. Your current game keeps running.', false);
     };
     reader.readAsText(file);
   });
 
   newGame();
+  updateSlotMeta();
 })();

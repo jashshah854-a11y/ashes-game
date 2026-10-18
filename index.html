@@ -205,12 +205,19 @@
       time, and a save always captures a whole tick, never half of one. The browser slot
       keeps one save. Exporting a file keeps a copy even if the browser data is cleared.
       A save that cannot be read shows its reason here, and the current game keeps running.</p>
+      <p class="explain" id="save-contents">What a save contains: the day and the seed, both
+      nations with their provinces, units, factories, production lines and queues, research,
+      steel, equipment and manpower, the event and texture records, the intel snapshots,
+      and the cost exchange ledger.</p>
       <div class="btn-col">
         <button id="btn-save-slot" type="button">Save to browser slot</button>
         <button id="btn-load-slot" type="button">Load from browser slot</button>
         <button id="btn-export" type="button">Export to file</button>
         <button id="btn-import" type="button">Import from file</button>
       </div>
+      <div id="save-slot-meta" class="explain"></div>
+      <p class="explain" id="save-replace-warning">Loading a save replaces the current game.
+      The current campaign is lost unless it was saved or exported first.</p>
       <input id="save-file-input" type="file" accept=".json,application/json" hidden>
       <div id="save-notice" class="hidden"></div>
     </div>

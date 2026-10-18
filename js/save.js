@@ -215,7 +215,7 @@
       return {
         ok: false,
         kind: 'version',
-        reason: 'This save was written by version ' + String(envelope.saveVersion) + ' of the game, and this game reads only version ' + SAVE_VERSION + ' saves.'
+        reason: 'This save was made by a different version of the game (save version ' + String(envelope.saveVersion) + '). This game can only load version ' + SAVE_VERSION + ' saves, so nothing was loaded and your current game keeps running.'
       };
     }
     if (checksumFor(envelope.payload) !== envelope.checksum) {

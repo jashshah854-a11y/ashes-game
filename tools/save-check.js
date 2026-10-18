@@ -31,9 +31,9 @@
 //    equals savedSeed, and tick equals the saved tickCount; assert the
 //    envelope carries no filename or name field; deserialize in node is ok.
 //    Import through the real Import button and file chooser; poll for the
-//    notice and assert it equals 'Loaded from file. Day ' + savedDay + ', seed '
-//    + savedSeed + '.'; ensurePaused promptly and assert the day counter
-//    equals the saved day. In a comment, state the margin honestly: the notice
+//    notice and assert it equals 'Loaded from file. Day ' + savedDay + ', ' +
+//    savedNation + ', seed ' + savedSeed + '.'; ensurePaused promptly and
+//    assert the day counter equals the saved day. In a comment, state the margin honestly: the notice
 //    is written in the same handler that swaps the state, so it is exact; the
 //    day read happens after a prompt pause at speed 1, inside one 900 ms tick
 //    window.
@@ -149,6 +149,7 @@ async function clickWhenClear(page, selector) {
     const savedDay = savedState.day;
     const savedTick = savedState.tickCount;
     const savedSeed = savedState.seed;
+    const savedNation = savedState.nations.player.name;
     const savedSteel = savedState.nations.player.steel;
     const expectedSaveNotice = 'Saved. Day ' + savedDay + ', seed ' + savedSeed + '.';
     check('Save: notice says saved with artifact day and seed',
@@ -225,7 +226,7 @@ async function clickWhenClear(page, selector) {
     const importNoticed = await waitFor(page, async () =>
       (await page.textContent('#save-notice')).indexOf('Loaded from file') === 0, 3000);
     const importMsg = (await page.textContent('#save-notice')).trim();
-    const expectedImportNotice = 'Loaded from file. Day ' + savedDay + ', seed ' + savedSeed + '.';
+    const expectedImportNotice = 'Loaded from file. Day ' + savedDay + ', ' + savedNation + ', seed ' + savedSeed + '.';
     check('Import: the notice says loaded from file with saved day and seed',
       importNoticed && importMsg === expectedImportNotice, importMsg);
     await ensurePaused(page);
