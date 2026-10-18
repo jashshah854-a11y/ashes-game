@@ -3811,3 +3811,41 @@ Cycle 18 Step 3 is complete; Step 4 is next. No stop condition is met: no failed
 
 ### Cycle 18 step 3 sync note
 - Sync out after commit 44ac4ae: the import script sent 4 commits to GitHub (b514b54, the Cycle 18 step 2 sync note carried over, plus this step's 09d35d4, 3da73cf, and 44ac4ae; jashshah854-a11y/ashes-game, master now at remote f30595e; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 18, The Battle Explains Itself, Step 4 of 5: blockade legibility proof (2026-10-18)
+
+Prescription: Cycle 17 step 5 judge, Cycle 18 Step 4, planned in CYCLE_18_STEP0_SPEC.md section 5. Claimed this run: Step 4 only. Step 5 (cycle close and milestone review) is next and does not start this run.
+
+### Scope, stated before the brief was written
+- tools/navy-check.js already proves part of this step's ground: its Run 1 asserts the navy explain rule text on an unmodified game, and its Run 3 stages a blockade by flotilla control and asserts both blockade loss numbers and both coastal counts on the card against a node mirror. Quoting those again as this step's proof would have duplicated a claim.
+- What no surface proved, and what no screen stated: that a blockade is in effect, in words, at the moment it fires. The card showed a loss number and a general rule paragraph; nothing said the Dominion is blockaded today, how many of its home coastal provinces the player controls against the threshold, or the same facts for the player. Under the bible's legibility rule the firing state is the moment the system must explain itself.
+- The Step 0 plan (section 5.3) also prescribed two proofs navy-check does not contain: control by holding units rather than flotillas, and the income effect itself, one incomePhase paying exactly income minus the loss.
+- So this step builds exactly the missing surface and no more: one plain words status line on the nation card (UI only), plus a new browser check carrying the plan's node proofs and the firing state rendering proof. js/sim.js is untouched (the Cycle 18 standing rule confines sim change to Step 1), no tuning, and the counts the line needs come from two exported readouts (homeCoastalProvinces and coastalControl) composed in js/main.js, not from any new sim code.
+
+### What was built (commit cf5adf6)
+- `index.html` (1 insertion): one new paragraph, id blockade-status, in the nation card directly under the two blockade stat rows and above the navy explain paragraph.
+- `js/main.js` (27 insertions, 1 deletion): the id wired in the element list, and in renderNation the status line: two sentences, one per nation, every number from the readouts or CFG at render time. Blockaded shape, Dominion side: "The Dominion is blockaded today: you control 3 of its home coastal provinces (3 needed to blockade it), so it loses 10 steel today, 25 percent of its daily steel income." Not blockaded shape: the same frame with "is not blockaded today" and no loss clause. The player sentence mirrors it ("You are blockaded today: the Dominion controls M of your home coastal provinces ..."). No code identifier or function name appears in the rendered text.
+- `tools/blockade-check.js` (new, 214 lines): node mirror checks stage a seed 7 game per the Step 0 plan (the first three Dominion home coastal provinces, p5_0, p5_6, p6_0, flipped to the player and held by the first three player units), then a staged browser run through the createGame wrapper, a fresh browser run, a phone width run, and a page error check. Every expected number and string is computed from the sim readouts and CFG; the check's status string builder restates the sentence shapes, which is the one stated duplication.
+
+### Builder rotation and incidents
+- DeepSeek v4.1 flash free, GLM 5.3 flash free, and MiMo v2.6 flash free each refused instantly with "Rate limit exceeded"; LongCat 2.5 preview free accepted and built the step. Its own staging probe reproduced the orchestrator's pre brief prototype exactly (targets p5_0, p5_6, p6_0; unit ids 1, 2, 3; loss 10 from income 40; income delta 30).
+- Two builder side incidents, neither touching the deliverable's correctness: (1) its first check run errored on a variable shadowing bug in its own check (a local named statusText hid the statusText builder), which it found and fixed itself; (2) it spent much of its session hunting a node Playwright install (the npm registry is blocked here; it extracted playwright-core 1.64.1 from the npm cache into /tmp/pwcore), and its final summary call then rate limited, ending the session at exit 1 after all three files were written and its own verification had passed (blockade 16 of 16, navy 29 of 29, lore 116 of 116, browser 6 of 6, suite fail 0). The orchestrator treated the exit code as no evidence either way and reran the full battery below on the final tree.
+
+### Verification (orchestrator, on the final tree)
+- Full git diff reviewed line by line: scope is exactly the three files above; js/sim.js, js/save.js, js/lore.js, tests/sim.test.js, and css/style.css are untouched.
+- `node --check` on js/main.js, js/sim.js, and tools/blockade-check.js: pass.
+- `node --test tests/sim.test.js`: 130 pass, 0 fail.
+- `node tools/balance.js all`: byte identical to tools/baseline-cycle17.txt.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- tools/blockade-check.js standalone in a real browser: 16 of 16, exit 0. The staged blockaded game renders the status line exactly as built from the mirror ("The Dominion is blockaded today: you control 3 of its home coastal provinces (3 needed to blockade it), so it loses 10 steel today, 25 percent of its daily steel income. You are not blockaded today: the Dominion controls 0 of your home coastal provinces (3 needed to blockade you)."), and the fresh game renders the not blockaded pair with counts 0 and 0. The node mirror pins the plan's two new proofs: control by holding units fires isBlockaded for the Dominion only, the loss equals the floor formula (10 from income 40 at 25 percent), and one incomePhase raises Dominion steel by exactly 30 (income 40 minus loss 10).
+- Non vacuity, measured: in a scratch copy with index.html and js/main.js restored to the pre step HEAD, tools/blockade-check.js exits 2 on an element timeout at #blockade-status, which does not exist pre step, after the 6 node mirror checks and the 3 pre existing number checks pass. Recorded honestly in the Cycle 11 step 2 shape: the error is the evidence, and the 3 passing DOM checks pin only what navy-check already proved; the pin for this step is the status element assertions.
+- All seventeen browser checks standalone with per check logs: browser 6, lore 116, fort 17, efficiency 15, manpower 15, drone-ew 28, intel 31, navy 29, end-screen 29, first-touch 75, core-loop 29, battle-systems 56, save 19, save-hardening 30, battle-why 29, order-marker 16, blockade 16; 556 assertions, 0 failures.
+
+### Frequency finding (recorded at the prescription's direction)
+- Blockade fires in 0 of the 32 standard harness campaigns. Evidence this step: the balance rerun is byte identical to tools/baseline-cycle17.txt, so the 32 campaigns play out exactly as the Cycle 14 step 3 and judge tallies measured (0 of 32); and an orchestrator tally on current HEAD across the 8 standard seeds of passive campaigns found 0 blockaded nation days in 289 days checked. No tuning was made; whether a mechanic players almost never see is working as intended stays parked for Jash under DECISIONS_FOR_JASH.md item 17(d).
+
+### Disposition
+- The step passes verification and is committed (cf5adf6). Step 4 is complete: blockade now explains itself in words on the nation card at the moment it fires, the explanation is proven in a real browser against a staged blockade reached the way real play reaches it (ground taken and held), and the income effect is proven through the one phase that applies it. Step 5 (cycle close: full audit rerun, diff reconciliation, milestone review) is next and does not start this run.
+
+### Mission status
+Cycle 18 Step 4 is complete; Step 5 is next. No stop condition is met: no failed judge verdict, no verification failure on the final tree, and no balance change.
