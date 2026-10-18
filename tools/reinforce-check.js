@@ -29,6 +29,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const assert = require('assert');
 
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
@@ -195,6 +196,31 @@ const lineD = 'Reinforce: ' + reasonD;
 const saveTextD = Save.serializeSave(sD).text;
 fs.writeFileSync('/tmp/reinforce-D.json', saveTextD);
 
+// ---------- Scenario E: Dominion reinforce in war log ----------
+const sE = Sim.createGame(1);
+const enemyCapitalId = sE.nations.enemy.capitalId;
+const uE = sE.units.find(u => u.nation === 'enemy' && u.type === 'infantry' && u.provinceId === enemyCapitalId && u.strength > 0);
+assert.ok(uE, 'need a Dominion infantry on its capital for Scenario E');
+uE.strength = 5;
+sE.nations.enemy.equipment = 500;
+const resE = Sim.reinforceUnit(sE, uE.id);
+assert.strictEqual(resE.ok, true, 'Scenario E node reinforce must succeed');
+const expectedLogMsgE = sE.log[sE.log.length - 1].msg;
+// Serialize and write
+const saveTextE = Save.serializeSave(sE).text;
+fs.writeFileSync('/tmp/reinforce-E.json', saveTextE);
+// Read back in node to verify save round trip
+const desE = Save.deserializeSave(saveTextE);
+let scenarioESkipBrowser = false;
+if (!desE.ok) {
+  check('Scenario E: node deserialize ok', false, 'deserialize failed: ' + desE.reason);
+  scenarioESkipBrowser = true;
+} else {
+  check('Scenario E: node deserialize ok', desE.ok, 'deserialize ok');
+  const restoredLogMsgE = desE.state.log[desE.state.log.length - 1].msg;
+  check('Scenario E: restored state log contains exact message', restoredLogMsgE === expectedLogMsgE, 'expected: ' + expectedLogMsgE + ' got: ' + restoredLogMsgE);
+}
+
 // ---------- Browser checks ----------
 
 (async () => {
@@ -357,6 +383,10 @@ fs.writeFileSync('/tmp/reinforce-D.json', saveTextD);
     const vocabAllC = checkVocabulary(allTextC);
     check('Scenario C: full reinforce text vocabulary clean', vocabAllC.ok, vocabAllC.hits.join(', ') || 'clean');
 
+    // Scenario C addition: line states the day the unit can be reinforced again
+    const expectedEligibilityDay = 'It can be reinforced again on day ' + (infoC.lastCombatDay + 2) + '.';
+    check('Scenario C: line states the day the unit can be reinforced again', pageLineC.indexOf(expectedEligibilityDay) !== -1, 'expected: ' + expectedEligibilityDay + ' in: ' + pageLineC);
+
     await page.close();
 
     // ---------- Scenario D: not enough equipment ----------
@@ -399,6 +429,34 @@ fs.writeFileSync('/tmp/reinforce-D.json', saveTextD);
     check('Scenario D: full reinforce text vocabulary clean', vocabAllD.ok, vocabAllD.hits.join(', ') || 'clean');
 
     await page.close();
+
+    // ---------- Scenario E: Dominion reinforce in war log ----------
+    if (!scenarioESkipBrowser) {
+      page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.goto(URL);
+      await ensurePaused(page);
+      await dismissBurst(page);
+
+      // Import save E
+      const [fileChooserE] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        page.click('#btn-import')
+      ]);
+      await fileChooserE.setFiles('/tmp/reinforce-E.json');
+      await waitFor(page, async () => {
+        const notice = (await page.textContent('#save-notice')).trim();
+        return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
+      }, 5000);
+      await dismissBurst(page);
+
+      // Read war log element #log text and check it contains the exact expected message
+      const logText = await page.textContent('#log');
+      check('Scenario E: Dominion reinforce line renders in the war log', logText.indexOf(expectedLogMsgE) !== -1, 'expected message not found in log');
+      check('Scenario E: war log message contains no underscore', !expectedLogMsgE.includes('_'), 'message: ' + expectedLogMsgE);
+
+      await page.close();
+    }
 
     // ---------- Page errors ----------
     check('No page errors', errors.length === 0, errors.join('; ') || 'none');

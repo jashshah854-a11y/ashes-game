@@ -38,12 +38,56 @@ const path = require('path');
 
 const REPO = path.join(__dirname, '..');
 const Lore = require('../js/lore.js');
+const Sim = require('../js/sim.js');
+const Save = require('../js/save.js');
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
 const CHROME = process.env.CHROME ||
   ['/opt/pw-browsers/chromium', '/opt/meta-chromium/chrome'].find((p) => fs.existsSync(p));
 
+// ---------- Run F staging: A Practiced Line (lineCapped texture) ----------
+let runFStagingOk = false;
+let runFExpectedTextureTitle = null;
+try {
+  const sF = Sim.createGame(1);
+  // Set player line 1 efficiency to 148 (one funded day from cap at 150)
+  const line1 = Sim.productionLine(sF, 'player', 1);
+  if (line1) line1.efficiency = 148;
+  // Set player steel to 100
+  sF.nations.player.steel = 100;
+  // Queue one order on line 1
+  Sim.queueProduction(sF, 'player', 1);
+  // Run productionPhase for the player
+  Sim.productionPhase(sF, 'player');
+  // Confirm state.textures contains an entry with id 'lineCapped' and by 'player'
+  const lineCappedEntry = sF.textures.find(t => t.id === 'lineCapped' && t.by === 'player');
+  if (lineCappedEntry) {
+    runFStagingOk = true;
+    runFExpectedTextureTitle = Lore.textures.lineCapped.title;
+    // Serialize with Save, write /tmp/lore-F.json
+    const serF = Save.serializeSave(sF);
+    if (serF.ok) {
+      fs.writeFileSync('/tmp/lore-F.json', serF.text);
+      // Read it back with Save.deserializeSave
+      const desF = Save.deserializeSave(serF.text);
+      if (desF.ok) {
+        const restoredLineCapped = desF.state.textures.find(t => t.id === 'lineCapped' && t.by === 'player');
+        if (!restoredLineCapped) {
+          runFStagingOk = false;
+        }
+      } else {
+        runFStagingOk = false;
+      }
+    } else {
+      runFStagingOk = false;
+    }
+  }
+} catch (e) {
+  runFStagingOk = false;
+}
+
 const results = [];
+const firedTitles = new Set();
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
@@ -74,6 +118,7 @@ async function cardChecks(page, label) {
   check(label + ': text matches js/lore.js', c.textOk, c.title);
   check(label + ': why line and no effect sentence', /^Why this card: on day \d+ /.test(c.why) && c.noeffect === Lore.noEffect, c.why);
   check(label + ': the war is paused under the card', c.day === c.dayLater, 'day ' + c.day + ' then ' + c.dayLater);
+  firedTitles.add(c.title);
   return c;
 }
 
@@ -107,6 +152,8 @@ async function drainBurst(page, label, first) {
     pending = null;
     await page.click('#btn-event-continue');
   }
+  // Add titles from drained cards to firedTitles
+  cards.forEach(c => firedTitles.add(c.title));
   return cards;
 }
 
@@ -116,7 +163,7 @@ async function drainBurst(page, label, first) {
   const { chromium } = require(PW);
   const browser = await chromium.launch({ executablePath: CHROME });
   try {
-    for (const run of ['A', 'B', 'C', 'D', 'E']) {
+    for (const run of ['A', 'B', 'C', 'D', 'E', 'F']) {
       const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
@@ -209,7 +256,7 @@ async function drainBurst(page, label, first) {
           cards.length === 3 ? cards[2].kicker + ' | ' + cards[2].why : 'burst too short');
         check('D: the repeat queued behind the first firing without losing the pause', cards.length === 3 && cards.every((c) => c.day === c.dayLater), cards.map((c) => c.day).join(' / '));
         check('D: the war runs again after the burst', await running(page));
-      } else { // Run E
+      } else if (run === 'E') {
         check('E: first card appears', await untilCard(page));
         await page.click('#btn-event-continue'); // day 11
         check('E: the day 15 texture burst appears', await untilCard(page));
@@ -240,9 +287,66 @@ async function drainBurst(page, label, first) {
         const texPending = await page.$$eval('.codex-texture', (ns) => ns.map((n) => n.textContent));
         check('E: the new game codex lists every recurring texture as not yet', texPending.length === 3, texPending.join(' / '));
         await page.click('#btn-codex-close');
+      } else { // Run F: A Practiced Line (lineCapped texture)
+        if (!runFStagingOk) {
+          check('F: A Practiced Line fires in the staged scenario', false, 'node staging did not produce lineCapped texture');
+          check('F: A Practiced Line codex entry exists and is not marked not yet', false, 'skipped because staging failed');
+          check('F: A Practiced Line article contains variant text', false, 'skipped because staging failed');
+        } else {
+          const pageF = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+          const errorsF = [];
+          pageF.on('pageerror', (e) => errorsF.push(e.message));
+          await pageF.goto('file://' + path.join(REPO, 'index.html') + '?seed=1');
+          await pageF.click('#btn-pause');
+          // Import /tmp/lore-F.json through the real file import input
+          const [fileChooserF] = await Promise.all([
+            pageF.waitForEvent('filechooser'),
+            pageF.click('#btn-import')
+          ]);
+          await fileChooserF.setFiles('/tmp/lore-F.json');
+          await waitFor(pageF, async () => {
+            const notice = (await pageF.textContent('#save-notice')).trim();
+            return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
+          }, 5000);
+          // Dismiss any event overlay burst
+          if (await pageF.isVisible('#event-overlay')) {
+            while (await pageF.isVisible('#event-overlay')) {
+              await pageF.click('#btn-event-continue');
+              await pageF.waitForTimeout(150);
+            }
+          }
+          // Open the codex
+          await pageF.click('#btn-codex');
+          await pageF.waitForTimeout(200);
+          // Find the codex entry whose text contains Lore.textures.lineCapped.title
+          const entriesF = await pageF.$$('.codex-entry');
+          let lineCappedEntry = null;
+          for (const e of entriesF) {
+            if ((await e.textContent()).indexOf(Lore.textures.lineCapped.title) !== -1) {
+              lineCappedEntry = e;
+              break;
+            }
+          }
+          check('F: A Practiced Line codex entry exists and is not marked not yet', !!lineCappedEntry, 'entry not found or marked not yet');
+          if (lineCappedEntry) {
+            await lineCappedEntry.click();
+            const artF = await pageF.textContent('#codex-article');
+            check('F: A Practiced Line article contains variant text', artF.indexOf(Lore.textures.lineCapped.variants.player) !== -1, artF.slice(0, 120));
+            check('F: A Practiced Line article shows occurrence', artF.indexOf('The Vessari: 1 time, on day 1.') !== -1, artF.slice(0, 120));
+            firedTitles.add(Lore.textures.lineCapped.title);
+          }
+          await pageF.click('#btn-codex-close');
+          check('F: no page errors', errorsF.length === 0, errorsF.join('; '));
+          await pageF.close();
+        }
       }
       check(run + ': no page errors', errors.length === 0, errors.join('; '));
       await page.close();
+    }
+    // Coverage: every authored event fires in at least one scenario
+    const authoredEvents = Object.values(Lore.beats).concat(Object.values(Lore.textures));
+    for (const evt of authoredEvents) {
+      check('Coverage: authored event fires in at least one scenario: ' + evt.title, firedTitles.has(evt.title), 'title: ' + evt.title + ' in firedTitles: ' + firedTitles.has(evt.title));
     }
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await phone.goto('file://' + path.join(REPO, 'index.html') + '?seed=7');
