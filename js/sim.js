@@ -180,6 +180,7 @@
     fortBuildDays: 5,             // days of construction per level
     fortDefensePctPerLevel: 25,   // percent defense for units defending their own fortified province
     aiFortifyEquipment: 300,      // the Dominion fortifies only while holding at least this much equipment
+    reinforceEquipmentPerPoint: 15, // equipment cost per whole strength point restored by reinforce
     unitTypes: {
       // cost is the steel cost per unit, paid as a daily drain over
       // buildDays while the line works (steelPerDay = cost / buildDays,
@@ -1011,6 +1012,224 @@
     return CFG.riverCrossingPct;
   }
 
+  // ---------- Reinforce (Cycle 21) ----------
+  // Equipment restores strength at 15 equipment per whole strength point.
+  // The price is the only tuning knob. Every reinforce cost computes
+  // through this one helper so no other place multiplies by 15.
+  function reinforceCost(points) {
+    return points * CFG.reinforceEquipmentPerPoint;
+  }
+
+  // Check if a unit is eligible for reinforce and return the refusal
+  // reason if not. The checks run in the exact order specified in the
+  // binding rulings.
+  function reinforceEligibility(state, unit) {
+    var label = CFG.unitTypes[unit.type] ? CFG.unitTypes[unit.type].label : 'Unit';
+    // (1) Not destroyed: unit must be present in state.units and strength over 0
+    var found = false;
+    for (var i = 0; i < state.units.length; i++) {
+      if (state.units[i].id === unit.id) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return label + ' in ' + state.provinces[unit.provinceId].name + ' no longer exists. It cannot be reinforced.';
+    }
+    if (unit.strength <= 0) {
+      return label + ' in ' + state.provinces[unit.provinceId].name + ' is destroyed. It cannot be reinforced.';
+    }
+
+    // (2) Owned ground
+    var prov = state.provinces[unit.provinceId];
+    if (!prov || prov.owner !== unit.nation) {
+      return label + ' in ' + prov.name + ' stands on ground you do not own. Reinforce requires owned ground.';
+    }
+
+    // (3) Engaged: refuse when lastCombatDay is a number at least state.day minus 1
+    var lcd = typeof unit.lastCombatDay === 'number' ? unit.lastCombatDay : null;
+    if (lcd !== null && lcd >= state.day - 1) {
+      return label + ' in ' + prov.name + ' fought in the battle of day ' + lcd + '. Units can be reinforced after a full day out of combat.';
+    }
+
+    // (4) Supplied ground
+    var supply = computeSupply(state, unit.nation);
+    var supplyInfo = supply[unit.provinceId];
+    if (!supplyInfo || !supplyInfo.supplied) {
+      var reason = supplyInfo && supplyInfo.reason ? supplyInfo.reason : 'no supply line';
+      return label + ' in ' + prov.name + ' is not supplied (' + reason + '). Reinforce requires supplied ground.';
+    }
+
+    // (5) Full strength
+    var missing = unit.maxStrength - unit.strength;
+    if (missing <= 0) {
+      return label + ' in ' + prov.name + ' is already at full strength (' + unit.strength + ' of ' + unit.maxStrength + '). No reinforce needed.';
+    }
+
+    // (6) Not enough equipment
+    var nation = state.nations[unit.nation];
+    var equip = nation.equipment;
+    var affordable = Math.floor(equip / CFG.reinforceEquipmentPerPoint);
+    if (affordable <= 0) {
+      return 'Not enough equipment to reinforce ' + label + ' in ' + prov.name + '. Cost is ' + CFG.reinforceEquipmentPerPoint + ' equipment per point, you have ' + equip + '.';
+    }
+
+    return null; // eligible
+  }
+
+  // The reinforce command. unitRef may be a unit id number or a unit
+  // object; resolve an object by its id against state.units. Points
+  // bought: if requestedPoints is undefined or null, buy the maximum
+  // buyable; otherwise buy the smallest of requestedPoints (positive
+  // whole number), missing strength, and floor(equipment / 15).
+  function reinforceUnit(state, unitRef, requestedPoints) {
+    // Resolve unit reference
+    var unit = null;
+    if (typeof unitRef === 'number') {
+      for (var i = 0; i < state.units.length; i++) {
+        if (state.units[i].id === unitRef) {
+          unit = state.units[i];
+          break;
+        }
+      }
+      if (!unit) {
+        return { ok: false, reason: 'no such unit' };
+      }
+    } else if (unitRef && typeof unitRef === 'object' && typeof unitRef.id === 'number') {
+      // Resolve object by id against state.units (stale reference detection)
+      for (var j = 0; j < state.units.length; j++) {
+        if (state.units[j].id === unitRef.id) {
+          unit = state.units[j];
+          break;
+        }
+      }
+      if (!unit) {
+        var label = CFG.unitTypes[unitRef.type] ? CFG.unitTypes[unitRef.type].label : 'Unit';
+        var provName = state.provinces[unitRef.provinceId] ? state.provinces[unitRef.provinceId].name : 'unknown province';
+        return { ok: false, reason: label + ' in ' + provName + ' no longer exists. It cannot be reinforced.' };
+      }
+    } else {
+      return { ok: false, reason: 'invalid unit reference' };
+    }
+
+    // Check eligibility
+    var reason = reinforceEligibility(state, unit);
+    if (reason) {
+      return { ok: false, reason: reason };
+    }
+
+    // Compute buyable points
+    var missing = unit.maxStrength - unit.strength;
+    var nation = state.nations[unit.nation];
+    var equip = nation.equipment;
+    var affordable = Math.floor(equip / CFG.reinforceEquipmentPerPoint);
+    var buyable = missing < affordable ? missing : affordable;
+
+    var points = 0;
+    if (requestedPoints === undefined || requestedPoints === null) {
+      points = buyable;
+    } else {
+      var req = Math.floor(requestedPoints);
+      if (req <= 0) {
+        return { ok: false, reason: 'Requested points must be a positive whole number.' };
+      }
+      points = req;
+      if (points > buyable) points = buyable;
+    }
+
+    if (points <= 0) {
+      return { ok: false, reason: 'No strength can be restored.' };
+    }
+
+    var cost = reinforceCost(points);
+    nation.equipment -= cost;
+    unit.strength += points;
+
+    var t = CFG.unitTypes[unit.type];
+    logEvent(state, (unit.nation === 'player' ? 'Vessari' : 'Khessite') + ' reinforce ' + t.label + ' in ' + state.provinces[unit.provinceId].name + ' by ' + points + ' strength (' + cost + ' equipment).');
+
+    return {
+      ok: true,
+      unitId: unit.id,
+      points: points,
+      cost: cost,
+      strength: unit.strength,
+      maxStrength: unit.maxStrength
+    };
+  }
+
+  // The per unit readout the UI will read without recomputing.
+  function reinforceInfo(state, unitRef) {
+    var unit = null;
+    if (typeof unitRef === 'number') {
+      for (var i = 0; i < state.units.length; i++) {
+        if (state.units[i].id === unitRef) {
+          unit = state.units[i];
+          break;
+        }
+      }
+    } else if (unitRef && typeof unitRef === 'object' && typeof unitRef.id === 'number') {
+      for (var j = 0; j < state.units.length; j++) {
+        if (state.units[j].id === unitRef.id) {
+          unit = state.units[j];
+          break;
+        }
+      }
+    }
+
+    var lcd = typeof unitRef?.lastCombatDay === 'number' ? unitRef.lastCombatDay : null;
+    if (unit) {
+      lcd = typeof unit.lastCombatDay === 'number' ? unit.lastCombatDay : null;
+    }
+
+    var nation = state.nations[unit?.nation];
+    var equip = nation ? nation.equipment : 0;
+
+    var strength = unit ? unit.strength : (unitRef && typeof unitRef.strength === 'number' ? unitRef.strength : 0);
+    var maxStrength = unit ? unit.maxStrength : (unitRef && typeof unitRef.maxStrength === 'number' ? unitRef.maxStrength : 0);
+    var missingStrength = maxStrength - strength;
+    var costPerPoint = CFG.reinforceEquipmentPerPoint;
+    var affordablePoints = Math.floor(equip / costPerPoint);
+    var eligible = false;
+    var reason = null;
+
+    if (unit) {
+      reason = reinforceEligibility(state, unit);
+      if (!reason) {
+        var buyable = missingStrength < affordablePoints ? missingStrength : affordablePoints;
+        if (buyable > 0) {
+          eligible = true;
+        } else {
+          // Eligible but nothing buyable (should not happen if reason is null, but guard)
+          eligible = false;
+          reason = 'No strength can be restored.';
+        }
+      }
+      eligible = !reason;
+    } else if (unitRef) {
+      // Stale reference
+      reason = (CFG.unitTypes[unitRef.type] ? CFG.unitTypes[unitRef.type].label : 'Unit') + ' in ' + (state.provinces[unitRef.provinceId] ? state.provinces[unitRef.provinceId].name : 'unknown province') + ' no longer exists. It cannot be reinforced.';
+    } else {
+      reason = 'no such unit';
+    }
+
+    var buyablePoints = eligible ? (missingStrength < affordablePoints ? missingStrength : affordablePoints) : 0;
+
+    return {
+      unitId: unit ? unit.id : (unitRef && typeof unitRef.id === 'number' ? unitRef.id : null),
+      eligible: eligible,
+      reason: reason,
+      strength: strength,
+      maxStrength: maxStrength,
+      missingStrength: missingStrength,
+      costPerPoint: costPerPoint,
+      equipment: equip,
+      affordablePoints: affordablePoints,
+      buyablePoints: buyablePoints,
+      lastCombatDay: lcd
+    };
+  }
+
   // ---------- Manpower (Cycle 11) ----------
   // The one readout family every manpower number comes from, in the
   // line efficiency pattern: queueProduction charges through these,
@@ -1351,7 +1570,8 @@
       order: null,
       daysOut: 0,          // consecutive days out of supply
       supplyPenalty: 0,    // current percent penalty, 0..CFG.supplyPenaltyMax
-      attritionCarry: 0    // fractional attrition accumulator
+      attritionCarry: 0,   // fractional attrition accumulator
+      lastCombatDay: null  // day the unit last fought; null means never fought
     };
     state.units.push(u);
     return u;
@@ -1853,6 +2073,7 @@
     return {
       id: u.id, nation: u.nation, type: u.type, strength: u.strength,
       maxStrength: u.maxStrength, supplyPenalty: u.supplyPenalty || 0, provinceId: u.provinceId
+      // lastCombatDay is intentionally NOT copied; only the real unit gets stamped
     };
   }
 
@@ -2022,7 +2243,10 @@
     });
     engagements.forEach(function (e) {
       if (e.kind === 'move') return;
-      e.aClones.concat(e.bClones).forEach(function (c) { unitById[c.id].strength = c.strength; });
+      e.aClones.concat(e.bClones).forEach(function (c) {
+        unitById[c.id].strength = c.strength;
+        unitById[c.id].lastCombatDay = state.day;
+      });
     });
 
     // Arrival candidates from post-battle strengths.
@@ -2786,7 +3010,10 @@
     engagementKey: engagementKey,
     engagementRng: engagementRng,
     hashString: hashString,
-    provinceId: provinceId
+    provinceId: provinceId,
+    reinforceCost: reinforceCost,
+    reinforceUnit: reinforceUnit,
+    reinforceInfo: reinforceInfo
   };
 
   if (typeof module !== 'undefined' && module.exports) {

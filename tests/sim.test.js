@@ -4397,3 +4397,531 @@ test('F2 history validation: unmutated real save still loads ok true with histor
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(result.state.history, s.history, 'history deep equal after round trip');
 });
+
+// ---------- Cycle 21 Step 2: reinforce command ----------
+
+test('reinforce: CFG has reinforceEquipmentPerPoint at 15 and reinforceCost helper is exported', () => {
+  assert.strictEqual(Sim.CFG.reinforceEquipmentPerPoint, 15);
+  assert.strictEqual(typeof Sim.reinforceCost, 'function');
+  assert.strictEqual(Sim.reinforceCost(3), 45);
+  assert.strictEqual(Sim.reinforceCost(0), 0);
+  assert.strictEqual(Sim.reinforceCost(1), 15);
+});
+
+test('reinforce: eligibility refuses destroyed unit (strength 0 in state)', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  inf.strength = 0; // destroyed but still in list
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('destroyed'));
+  assert.ok(res.reason.includes('cannot be reinforced'));
+});
+
+test('reinforce: eligibility refuses stale object reference after removal', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  const staleRef = { id: inf.id, type: inf.type, provinceId: inf.provinceId, strength: inf.strength, maxStrength: inf.maxStrength, nation: inf.nation };
+  // Remove the unit from state
+  s.units = s.units.filter(u => u.id !== inf.id);
+  const res = Sim.reinforceUnit(s, staleRef, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('no longer exists'));
+  assert.ok(res.reason.includes('cannot be reinforced'));
+});
+
+test('reinforce: eligibility refuses not owned ground', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  // Move unit to enemy province
+  const enemyProv = Object.values(s.provinces).find(p => p.owner === 'enemy');
+  inf.provinceId = enemyProv.id;
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('do not own'));
+  assert.ok(res.reason.includes('Reinforce requires owned ground'));
+});
+
+test('reinforce: eligibility refuses engaged unit (lastCombatDay >= state.day - 1)', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  // Damage it so it can be reinforced
+  inf.strength = 6;
+  // Stamp as fought yesterday (state.day - 1)
+  inf.lastCombatDay = s.day - 1;
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('fought in the battle of day ' + (s.day - 1)));
+  assert.ok(res.reason.includes('Units can be reinforced after a full day out of combat'));
+});
+
+test('reinforce: eligibility refuses not supplied ground', () => {
+  const s = Sim.createGame(42);
+  // Use the infantry at p4_3 which will be cut off when p3_3 is taken
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === 'p4_3');
+  inf.strength = 6;
+  // Cut supply by taking the rail province p3_3
+  s.provinces['p3_3'].owner = 'enemy';
+  Sim.supplyPhase(s); // update supply state
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('not supplied') || res.reason.includes('no supply') || res.reason.includes('line cut'));
+  assert.ok(res.reason.includes('Reinforce requires supplied ground'));
+});
+
+test('reinforce: eligibility control - supplied owned ground allows reinforce', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.points, 1);
+  assert.strictEqual(res.cost, 15);
+  assert.strictEqual(res.strength, 7);
+  assert.strictEqual(res.maxStrength, 12);
+  assert.strictEqual(s.nations.player.equipment, 85);
+});
+
+test('reinforce: exact equipment deduction and strength gain for 1 point', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  const equipBefore = s.nations.player.equipment;
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.points, 1);
+  assert.strictEqual(res.cost, 15);
+  assert.strictEqual(s.nations.player.equipment, equipBefore - 15);
+  assert.strictEqual(inf.strength, 7);
+});
+
+test('reinforce: partial fill limited by equipment (equipment for exactly 2 points buys exactly 2)', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6; // missing 6
+  s.nations.player.equipment = 30; // exactly 2 points worth
+  const res = Sim.reinforceUnit(s, inf.id, 99); // request more than possible
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.points, 2);
+  assert.strictEqual(res.cost, 30);
+  assert.strictEqual(res.strength, 8);
+  assert.strictEqual(s.nations.player.equipment, 0);
+});
+
+test('reinforce: partial fill limited by missing strength (request 99 buys only missing points)', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 10; // missing 2
+  s.nations.player.equipment = 1000;
+  const res = Sim.reinforceUnit(s, inf.id, 99);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.points, 2);
+  assert.strictEqual(res.cost, 30);
+  assert.strictEqual(res.strength, 12);
+  assert.strictEqual(s.nations.player.equipment, 970);
+});
+
+test('reinforce: never above maxStrength and never a partial 15 charge', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 11; // missing 1
+  s.nations.player.equipment = 100;
+  const res = Sim.reinforceUnit(s, inf.id, 5); // request 5, only 1 missing
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.points, 1);
+  assert.strictEqual(res.cost, 15);
+  assert.strictEqual(res.strength, 12);
+  assert.strictEqual(res.maxStrength, 12);
+  assert.strictEqual(s.nations.player.equipment, 85);
+  // Equipment spent is always multiple of 15
+  assert.strictEqual(res.cost % 15, 0);
+});
+
+test('reinforce: manpower pool byte identical before and after success', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  const mpBefore = Sim.manpowerPool(s, 'player');
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), mpBefore);
+});
+
+test('reinforce: manpower pool byte identical before and after equipment partial', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 30; // exactly 2 points
+  const mpBefore = Sim.manpowerPool(s, 'player');
+  const res = Sim.reinforceUnit(s, inf.id, 99);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.points, 2);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), mpBefore);
+});
+
+test('reinforce: manpower pool byte identical before and after refusal', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry');
+  inf.strength = 6;
+  // Not supplied
+  s.provinces['p3_3'].owner = 'enemy';
+  Sim.supplyPhase(s);
+  const mpBefore = Sim.manpowerPool(s, 'player');
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(Sim.manpowerPool(s, 'player'), mpBefore);
+});
+
+test('reinforce: stackPower unchanged after successful reinforce', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  const stack = Sim.unitsIn(s, s.nations.player.capitalId).filter(u => u.nation === 'player');
+  const atkBefore = Sim.stackPower(s, stack, 'attack');
+  const defBefore = Sim.stackPower(s, stack, 'defense');
+  const res = Sim.reinforceUnit(s, inf.id, 3);
+  assert.strictEqual(res.ok, true);
+  const atkAfter = Sim.stackPower(s, stack, 'attack');
+  const defAfter = Sim.stackPower(s, stack, 'defense');
+  assert.strictEqual(atkAfter, atkBefore, 'attack stackPower unchanged');
+  assert.strictEqual(defAfter, defBefore, 'defense stackPower unchanged');
+  // But total strength rose
+  const totalStrBefore = stack.reduce((sum, u) => sum + u.strength, 0) - 3; // before reinforce
+  const totalStrAfter = stack.reduce((sum, u) => sum + u.strength, 0);
+  assert.ok(totalStrAfter > totalStrBefore, 'total strength rose');
+});
+
+test('reinforce: stamping coverage - unit that fights in province battle is stamped', () => {
+  const s = Sim.createGame(42);
+  // Stage a battle: player infantry attacks enemy infantry at p5_3
+  const atkProv = s.provinces['p4_3'];
+  const defProv = s.provinces['p5_3'];
+  s.units = s.units.filter(u => u.provinceId !== defProv.id);
+  const atk = Sim.unitsOf(s, 'player').find(u => u.provinceId === atkProv.id && u.type === 'infantry');
+  const defState = { id: 999, nation: 'enemy', type: 'infantry', provinceId: defProv.id, strength: 1, maxStrength: 12, order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0, lastCombatDay: null };
+  s.units.push(defState);
+  Sim.issueOrder(s, atk.id, defProv.id);
+  Sim.movementPhase(s);
+  // The attacker should be stamped with the day the tick began (state.day before increment)
+  const dayOfBattle = s.day;
+  assert.strictEqual(atk.lastCombatDay, dayOfBattle, 'attacker stamped with battle day');
+  assert.strictEqual(defState.lastCombatDay, dayOfBattle, 'defender stamped with battle day');
+});
+
+test('reinforce: stamping coverage - meeting battle participant is stamped', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.interceptors = 0;
+  s.nations.enemy.interceptors = 0;
+  const aId = Sim.provinceId(4, 3);
+  const bId = Sim.provinceId(5, 3);
+  s.units = s.units.filter(u => (u.provinceId === aId && u.nation === 'player' && u.type === 'infantry') || (u.provinceId === bId && u.nation === 'enemy' && u.type === 'infantry'));
+  const mine = s.units.find(u => u.nation === 'player');
+  const theirs = s.units.find(u => u.nation === 'enemy');
+  theirs.strength = 1;
+  Sim.issueOrder(s, mine.id, bId);
+  Sim.issueOrder(s, theirs.id, aId);
+  Sim.movementPhase(s);
+  const dayOfBattle = s.day;
+  assert.strictEqual(mine.lastCombatDay, dayOfBattle, 'meeting attacker stamped');
+  assert.strictEqual(theirs.lastCombatDay, dayOfBattle, 'meeting defender stamped');
+});
+
+test('reinforce: stamping coverage - clash participant is stamped', () => {
+  const s = Sim.createGame(42);
+  s.nations.player.interceptors = 0;
+  s.nations.enemy.interceptors = 0;
+  // Clear all units, stage only two converging on empty p4_4
+  s.units = [];
+  const mk = (id, nation, prov) => ({ id, nation, type: 'infantry', provinceId: prov, strength: 12, maxStrength: 12, order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0, lastCombatDay: null });
+  s.units.push(mk(1, 'player', 'p3_4'));
+  s.units.push(mk(2, 'enemy', 'p5_4'));
+  s.nextUnitId = 3;
+  Sim.issueOrder(s, 1, 'p4_4');
+  Sim.issueOrder(s, 2, 'p4_4');
+  Sim.movementPhase(s);
+  const dayOfBattle = s.day;
+  const u1 = s.units.find(u => u.id === 1);
+  const u2 = s.units.find(u => u.id === 2);
+  assert.strictEqual(u1.lastCombatDay, dayOfBattle, 'clash player stamped');
+  assert.strictEqual(u2.lastCombatDay, dayOfBattle, 'clash enemy stamped');
+});
+
+test('reinforce: stamping coverage - drone destroyed by interceptor launch is stamped', () => {
+  const s = Sim.createGame(42);
+  // Stage a defense at p5_3 with enemy interceptors
+  s.nations.enemy.interceptors = 2;
+  const drone = Sim.unitsOf(s, 'player').find(u => u.type === 'drone' && u.provinceId === Sim.provinceId(4, 3));
+  const def = Sim.unitsOf(s, 'enemy').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(5, 3));
+  Sim.issueOrder(s, drone.id, Sim.provinceId(5, 3));
+  Sim.movementPhase(s);
+  const dayOfBattle = s.day;
+  assert.strictEqual(drone.lastCombatDay, dayOfBattle, 'drone destroyed by interceptor is stamped');
+});
+
+test('reinforce: stamping coverage - uncontested mover is NOT stamped', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === Sim.provinceId(3, 2));
+  const target = Sim.provinceId(3, 3);
+  Sim.issueOrder(s, inf.id, target);
+  Sim.movementPhase(s);
+  assert.strictEqual(inf.lastCombatDay, null, 'uncontested mover not stamped');
+});
+
+test('reinforce: stamping coverage - adjacent bystander is NOT stamped', () => {
+  const s = Sim.createGame(42);
+  // Stage a battle at p5_3, check unit at adjacent p5_2 is not stamped
+  const atkProv = s.provinces['p4_3'];
+  const defProv = s.provinces['p5_3'];
+  const bystanderProv = s.provinces['p5_2'];
+  s.units = s.units.filter(u => u.provinceId !== defProv.id);
+  const atk = Sim.unitsOf(s, 'player').find(u => u.provinceId === atkProv.id && u.type === 'infantry');
+  const defState = { id: 999, nation: 'enemy', type: 'infantry', provinceId: defProv.id, strength: 1, maxStrength: 12, order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0, lastCombatDay: null };
+  s.units.push(defState);
+  // Add a bystander at p5_2
+  const bystander = { id: 1000, nation: 'enemy', type: 'infantry', provinceId: bystanderProv.id, strength: 12, maxStrength: 12, order: null, daysOut: 0, supplyPenalty: 0, attritionCarry: 0, lastCombatDay: null };
+  s.units.push(bystander);
+  Sim.issueOrder(s, atk.id, defProv.id);
+  Sim.movementPhase(s);
+  const dayOfBattle = s.day;
+  assert.strictEqual(atk.lastCombatDay, dayOfBattle, 'attacker stamped');
+  assert.strictEqual(defState.lastCombatDay, dayOfBattle, 'defender stamped');
+  assert.strictEqual(bystander.lastCombatDay, null, 'adjacent bystander not stamped');
+});
+
+test('reinforce: refusal window exact - unit stamped on day D refuses when state.day is D+1', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  // Manually stamp as fought on day 5
+  inf.lastCombatDay = 5;
+  // Set state.day to 6 (D+1, the between-ticks day)
+  s.day = 6;
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('fought in the battle of day 5'));
+  assert.ok(res.reason.includes('Units can be reinforced after a full day out of combat'));
+});
+
+test('reinforce: refusal window exact - unit eligible again when state.day is D+2', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  // Manually stamp as fought on day 5
+  inf.lastCombatDay = 5;
+  // Set state.day to 7 (D+2)
+  s.day = 7;
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.points, 1);
+});
+
+test('reinforce: save round trip - serialize state with stamped damaged unit, deserialize, field survives, engaged refusal still fires', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  inf.lastCombatDay = 5; // fought on day 5
+  s.day = 6; // D+1, should refuse
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const des = Save.deserializeSave(ser.text);
+  assert.strictEqual(des.ok, true);
+  const loaded = des.state;
+  const loadedInf = Sim.unitsOf(loaded, 'player').find(u => u.id === inf.id);
+  assert.ok(loadedInf, 'unit exists after load');
+  assert.strictEqual(loadedInf.lastCombatDay, 5, 'lastCombatDay survives save round trip');
+  assert.strictEqual(loadedInf.strength, 6, 'strength survives');
+  // Engaged refusal should still fire
+  const res = Sim.reinforceUnit(loaded, loadedInf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('fought in the battle of day 5'));
+});
+
+test('reinforce: save round trip - version 3 style state without lastCombatDay reads as never fought and can be reinforced', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const envelope = JSON.parse(ser.text);
+  const payload = JSON.parse(envelope.payload);
+  // Remove lastCombatDay from all units (simulate old save)
+  payload.units.forEach(u => { delete u.lastCombatDay; });
+  envelope.payload = JSON.stringify(payload);
+  envelope.checksum = Save.checksumFor(envelope.payload);
+  const des = Save.deserializeSave(JSON.stringify(envelope));
+  assert.strictEqual(des.ok, true);
+  const loaded = des.state;
+  const loadedInf = Sim.unitsOf(loaded, 'player').find(u => u.id === inf.id);
+  assert.ok(loadedInf);
+  // The raw property is missing (undefined), but reinforceInfo normalizes it to null via typeof fallback
+  const info = Sim.reinforceInfo(loaded, loadedInf);
+  assert.strictEqual(info.lastCombatDay, null, 'reinforceInfo normalizes missing lastCombatDay to null (never fought)');
+  // Should be able to reinforce
+  const res = Sim.reinforceUnit(loaded, loadedInf.id, 1);
+  assert.strictEqual(res.ok, true, 'unit without lastCombatDay can be reinforced');
+  assert.strictEqual(res.points, 1);
+});
+
+test('reinforce: reinforceInfo on unit without lastCombatDay field', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  // Manually delete the field
+  delete inf.lastCombatDay;
+  const info = Sim.reinforceInfo(s, inf);
+  assert.strictEqual(info.lastCombatDay, null);
+  assert.strictEqual(info.eligible, true);
+  assert.strictEqual(info.reason, null);
+  assert.strictEqual(info.missingStrength, 6);
+  assert.strictEqual(info.affordablePoints, 6); // 100/15 = 6
+  assert.strictEqual(info.buyablePoints, 6);
+  assert.strictEqual(info.costPerPoint, 15);
+});
+
+test('reinforce: determinism - two identical games with same orders produce identical lastCombatDay', () => {
+  const a = Sim.createGame(1234);
+  const b = Sim.createGame(1234);
+  // Issue same orders
+  const atkA = Sim.unitsOf(a, 'player').find(u => u.type === 'infantry' && u.provinceId === 'p4_3');
+  const atkB = Sim.unitsOf(b, 'player').find(u => u.type === 'infantry' && u.provinceId === 'p4_3');
+  Sim.issueOrder(a, atkA.id, 'p5_3');
+  Sim.issueOrder(b, atkB.id, 'p5_3');
+  Sim.movementPhase(a);
+  Sim.movementPhase(b);
+  // Compare lastCombatDay for all units
+  for (const ua of a.units) {
+    const ub = b.units.find(u => u.id === ua.id);
+    assert.ok(ub, 'unit ' + ua.id + ' exists in both');
+    assert.strictEqual(ua.lastCombatDay, ub.lastCombatDay, 'lastCombatDay matches for unit ' + ua.id);
+  }
+});
+
+test('reinforce: readout accuracy - eligible damaged unit has exact fields', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 8; // missing 4
+  s.nations.player.equipment = 100; // affordable 6
+  const info = Sim.reinforceInfo(s, inf);
+  assert.strictEqual(info.unitId, inf.id);
+  assert.strictEqual(info.eligible, true);
+  assert.strictEqual(info.reason, null);
+  assert.strictEqual(info.strength, 8);
+  assert.strictEqual(info.maxStrength, 12);
+  assert.strictEqual(info.missingStrength, 4);
+  assert.strictEqual(info.costPerPoint, 15);
+  assert.strictEqual(info.equipment, 100);
+  assert.strictEqual(info.affordablePoints, 6);
+  assert.strictEqual(info.buyablePoints, 4); // limited by missing strength
+  assert.strictEqual(info.lastCombatDay, null);
+});
+
+test('reinforce: readout accuracy - engaged unit reason equals reinforceUnit refusal reason', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 8;
+  s.nations.player.equipment = 100;
+  inf.lastCombatDay = s.day - 1; // engaged
+  const info = Sim.reinforceInfo(s, inf);
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(info.eligible, false);
+  assert.strictEqual(info.reason, res.reason);
+  assert.ok(info.reason.includes('fought in the battle of day'));
+});
+
+test('reinforce: full strength refuses with numbers', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  s.nations.player.equipment = 100;
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('full strength'));
+  assert.ok(res.reason.includes('12 of 12'));
+});
+
+test('reinforce: not enough equipment refuses with exact numbers', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 10; // less than 15
+  const res = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.reason.includes('Not enough equipment'));
+  assert.ok(res.reason.includes('Cost is 15 equipment per point'));
+  assert.ok(res.reason.includes('you have 10'));
+});
+
+test('reinforce: requestedPoints 0 or less refuses with plain reason', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  const res0 = Sim.reinforceUnit(s, inf.id, 0);
+  assert.strictEqual(res0.ok, false);
+  assert.ok(res0.reason.includes('positive whole number'));
+  const resNeg = Sim.reinforceUnit(s, inf.id, -5);
+  assert.strictEqual(resNeg.ok, false);
+  assert.ok(resNeg.reason.includes('positive whole number'));
+});
+
+test('reinforce: requestedPoints undefined or null buys maximum buyable', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6; // missing 6
+  s.nations.player.equipment = 45; // affordable 3
+  const resUndef = Sim.reinforceUnit(s, inf.id, undefined);
+  assert.strictEqual(resUndef.ok, true);
+  assert.strictEqual(resUndef.points, 3);
+  assert.strictEqual(resUndef.cost, 45);
+  // Reset
+  inf.strength = 6;
+  s.nations.player.equipment = 45;
+  const resNull = Sim.reinforceUnit(s, inf.id, null);
+  assert.strictEqual(resNull.ok, true);
+  assert.strictEqual(resNull.points, 3);
+  assert.strictEqual(resNull.cost, 45);
+});
+
+test('reinforce: log event names unit label, province name, points restored, and equipment cost', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  const logLen = s.log.length;
+  const res = Sim.reinforceUnit(s, inf.id, 2);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(s.log.length, logLen + 1);
+  const entry = s.log[s.log.length - 1];
+  assert.ok(entry.msg.includes('Infantry Division'));
+  assert.ok(entry.msg.includes('Vesskar City'));
+  assert.ok(entry.msg.includes('2 strength'));
+  assert.ok(entry.msg.includes('30 equipment'));
+});
+
+test('reinforce: Cycle 21 step 2 exact refusal reason text for engaged and destroyed units', () => {
+  const s = Sim.createGame(42);
+  const inf = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.provinceId === s.nations.player.capitalId);
+  inf.strength = 6;
+  s.nations.player.equipment = 100;
+  inf.lastCombatDay = s.day - 1;
+  const provName = s.provinces[inf.provinceId].name;
+  const D = inf.lastCombatDay;
+  const resEngaged = Sim.reinforceUnit(s, inf.id, 1);
+  assert.strictEqual(resEngaged.ok, false);
+  assert.strictEqual(resEngaged.reason, Sim.CFG.unitTypes.infantry.label + ' in ' + provName + ' fought in the battle of day ' + D + '. Units can be reinforced after a full day out of combat.');
+
+  const inf2 = Sim.unitsOf(s, 'player').find(u => u.type === 'infantry' && u.id !== inf.id);
+  inf2.strength = 0;
+  const resDestroyed = Sim.reinforceUnit(s, inf2.id, 1);
+  assert.strictEqual(resDestroyed.ok, false);
+  assert.ok(resDestroyed.reason.includes(Sim.CFG.unitTypes.infantry.label));
+  assert.ok(!resDestroyed.reason.includes('undefined'));
+});
