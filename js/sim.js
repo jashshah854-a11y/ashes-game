@@ -1643,6 +1643,25 @@
     return h >>> 0;
   }
 
+  // The one canonical engagement key builder. Meeting keys sort their two
+  // endpoints so the order the two groups are visited cannot change the key.
+  // Battle and clash keys are the target province; clashes carry the clash
+  // prefix so they cannot collide with a battle key for the same province.
+  function engagementKey(kind, a, b) {
+    if (kind === 'meeting') return [a, b].sort().join('|');
+    if (kind === 'clash') return 'clash:' + a;
+    return a;
+  }
+
+  // Cycle 16 Step 1 audit: the rng derivation inputs are state.seed and
+  // state.tickCount, both integers already stored in state. The createGame
+  // generator is a local variable, discarded when createGame returns, with
+  // its outputs stored in the provinces. No module level or long lived rng
+  // stream exists, so no stream position needs saving. The module level
+  // constants CFG, NAME_A, NAME_B, START_RAIL, BEAT_TESTS, BEAT_IDS, and
+  // TEXTURE_IDS are never mutated and cannot influence an outcome beyond
+  // their constant values. No sim path reads a wall clock or an unseeded
+  // random source.
   // Each engagement gets its own rng, independent of every other engagement.
   function engagementRng(state, key) {
     return makeRng(hashString(state.seed + '|' + state.tickCount + '|' + key));
@@ -1718,7 +1737,7 @@
           g.used = true; h.used = true;
           mark(g.ids); mark(h.ids);
           engagements.push({
-            kind: 'meeting', key: [g.origin, g.target].sort().join('|'), a: g, b: h,
+            kind: 'meeting', key: engagementKey('meeting', g.origin, g.target), a: g, b: h,
             aClones: clonesOf(g.ids), bClones: clonesOf(h.ids), cands: []
           });
           return;
@@ -1761,7 +1780,7 @@
       });
       mark(atkIds); mark(defIds);
       engagements.push({
-        kind: 'battle', key: g.target, nation: g.nation, target: g.target,
+        kind: 'battle', key: engagementKey('battle', g.target), nation: g.nation, target: g.target,
         atkIds: atkIds, defIds: defIds, aClones: clonesOf(atkIds), bClones: clonesOf(defIds), cands: []
       });
     });
@@ -1795,7 +1814,7 @@
       // (Folded in from the branch Cycle 8 judge flag 1 fix, 975e8fa.)
       var defClones = clonesOf(defIds).map(function (c) { c.provinceId = t; return c; });
       engagements.push({
-        kind: 'clash', key: 'clash:' + t, target: t, defNation: defNation,
+        kind: 'clash', key: engagementKey('clash', t), target: t, defNation: defNation,
         atkIds: atkIds, defIds: defIds, aClones: clonesOf(atkIds), bClones: defClones, cands: []
       });
     });
@@ -2572,6 +2591,9 @@
     steelIncome: steelIncome,
     factoryLevels: factoryLevels,
     makeRng: makeRng,
+    engagementKey: engagementKey,
+    engagementRng: engagementRng,
+    hashString: hashString,
     provinceId: provinceId
   };
 
