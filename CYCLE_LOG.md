@@ -3540,3 +3540,6 @@ Claimed this run: Step 2 only. Step 3 does not start this run. Standing rules he
 
 ### Mission status
 Cycle 17 Step 2 is complete; Step 3 is next. No stop condition is met: no failed judge verdict, no verification failure (the three rate limited builder heads are builder unavailability within one run's rotation, resolved by the fourth model in the same run), and no balance change.
+
+### Cycle 17 step 2 sync note
+- Sync out after commit 08ffaff: the first sync attempt was interrupted by a service restart with its outcome unknown; the orchestrator checked before retrying (local tree clean, both Step 2 commits intact) and re-ran the import script, which is safe to re-run because it skips commits already on the remote. The re-run showed the remote still at the Step 1 log commit (39b16f2, matching local 74c7289 by tree), so the interrupted attempt had sent nothing, and it sent 3 commits to GitHub (e9c8ed8, the Cycle 17 step 1 sync note carried over, plus 76492b2 and 08ffaff; jashshah854-a11y/ashes-game, master now at remote d0c692c; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits.
