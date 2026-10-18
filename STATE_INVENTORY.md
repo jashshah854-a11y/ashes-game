@@ -8,9 +8,9 @@ and load cycle. It covers the state object returned by `createGame` in
 `js/sim.js`, its province and nation subobjects, its production lines, its
 units, and the edge alias pair.
 
-Deferred to Step 0b: the rng audit, the UI held state table, the hazards
-table, and the wall clock grep. Those four are named here only and are not
-written in this file.
+Step 0b is now included. The rng audit, the UI held state table, the
+hazards table, and the wall clock and randomness grep are written below as
+Sections 8 through 11.
 
 Later Cycle 16 steps, defined once for reference: Step 0b is the deferred audit
 parts named above; Step 1 is rng state into state; Step 2 is serialize and
@@ -30,14 +30,14 @@ at creation.
 |-----|------|--------|-------------|
 | day | number | authoritative | Current campaign day, starts at 1 and advances once per tick. |
 | seed | number | authoritative | Rng seed, the only input to map and start generation. |
-| tickCount | number | authoritative | Total ticks run, used for AI and pacing. |
+| tickCount | number | authoritative | Total ticks run. Its load bearing use is the per engagement rng derivation from seed, tickCount, and the canonical engagement key. |
 | mapW | number | authoritative | Province columns, from CFG at creation. |
 | mapH | number | authoritative | Province rows, from CFG at creation. |
 | provinces | object | authoritative | Province subobjects keyed by province id. |
 | edges | object | alias | Edge lookup keyed by the two province ids joined with a vertical bar. |
 | edgeList | array | alias | Edge array, references the same edge objects as edges. |
 | units | array | authoritative | Live units, each a unit subobject. |
-| nextUnitId | number | authoritative | Next unit id to hand out, starts at 1. |
+| nextUnitId | number | authoritative | Next unit id to hand out, starts at 1 in the constructor, and a fresh createGame returns 15 after the starting units are handed out. |
 | gameOver | boolean | authoritative | True once a win condition is met. |
 | winner | null | authoritative | Winning nation id, null until the war ends. |
 | endReason | null | authoritative | Why the war ended, null until the war ends. |
@@ -184,3 +184,101 @@ rebuild the other from it on load, so the lookup and the array can never
 disagree. Saving only one representation and regenerating the other from
 scratch would lose the exact edge object identity that the sim and any future
 reader rely on.
+
+## 8. Rng Audit
+
+All randomness in the sim comes from one generator, `makeRng` in `js/sim.js`
+at line 207. It is a mulberry32 generator: a closure variable holds the
+internal state, seeded by `seed >>> 0`, and the call returns a draw function.
+No rng object or function is stored in the game state. Method: node scan of a
+fresh `createGame(1)` for function valued fields at any depth. Result: 0.
+`makeRng` is exported once for the tests, at api line 2574.
+
+`createGame` at line 1133 makes one local rng at line 1134,
+`makeRng(seed == null ? 1234 : seed)`, so a null seed means 1234. It spends
+that generator only during creation, in three uses per province: province
+steel at line 1183, floor of rng times 3; province names at line 1188; and
+factory levels at line 1190, rng below 0.22. The generator is then discarded.
+It is a local variable and the returned state holds no reference to it, which
+the function field scan above confirms.
+
+Battles spend no creation rng. `movementPhase` at line 1670 gives each
+engagement its own rng at line 1813, through `engagementRng` at line 1647,
+which returns `makeRng(hashString(state.seed + '|' + state.tickCount + '|' +
+key))`: the seed, the tick count, and the canonical engagement key joined with
+vertical bars. `hashString` at line 1637 is FNV-1a style, initial value
+2166136261 and multiplier 16777619. `fightRounds` at line 1560 draws rng
+twice per round, the side A roll before the side B roll at lines 1600 and
+1601, for at most 12 rounds at line 1589. `resolveBattle` at line 1618 takes
+an rng as its fourth parameter and creates none.
+
+Method: node, `Sim.makeRng(42)()` drawn twice, then `Sim.makeRng(43)()`.
+Result: the two 42 draws are identical and the 43 draw differs. So a battle
+history is a pure function of seed, tickCount, and the engagement keys, and
+the rng is savable as those derivation inputs and nothing else.
+
+## 9. UI Held State in js/main.js
+
+`js/main.js` holds the browser side of the game in module level variables.
+Each one below lists its type or shape, what `newGame` does to it, and what a
+load must do.
+
+| Variable | Type or shape | newGame | A load must do |
+|----------|---------------|---------|----------------|
+| state | object, the live sim state object | Replaces it with a fresh createGame, seeded from urlSeed or a random seed | Replaces it with the deserialized saved state |
+| selectedProvinceId | string or null, a province id | Sets it to null | Sets it to null |
+| selectedUnitId | number or null, a unit id | Sets it to null | Sets it to null |
+| paused | boolean | Sets it to false | Sets it to false |
+| speed | number, 1 or 2 | Does not reset it | Does not reset it |
+| timer | setInterval handle or null, not serializable | Restarts it through startTimer, 900 ms at speed 1 and 300 ms at speed 2 | Restarts it the same way; the old handle is never saved |
+| shownBeats | object, beat ids whose card has been shown this game | Resets it to an empty object | Rebuilds it from state.beats, with every recorded beat id counted as shown |
+| cardQueue | array of waiting card entries, each with kind beat or texture | Resets it to an empty array | Rebuilds it empty, so nothing waits |
+| shownTextureCount | number, an index into state.textures | Resets it to 0 | Rebuilds it from state.textures, set to the saved length so no recorded texture is re-shown |
+| pauseBeforeOverlay | boolean or null, the pause flag to restore when the last overlay closes | Sets it to null | Sets it to null; no overlay is pending |
+| codexEntryId | string, the open codex entry | Sets it to 'ashwater' | Sets it to 'ashwater' |
+| prodNotice | string, the last refused queue or retool reason | Sets it to an empty string | Sets it to an empty string |
+| provNotice | string, the last refused province card action reason | Sets it to an empty string | Sets it to an empty string |
+| el | object, the DOM element cache, not serializable | Leaves it untouched | Leaves it untouched; the same document keeps the cached nodes valid |
+| urlSeed | number or null, the seed parsed from the address | Consumes it, sets it to null | Consumes it, sets it to null; the seed now comes from the saved state |
+
+Three rules cover the table. `newGame` does not reset `speed`, so the player
+keeps the chosen pace across a new game and a load keeps it too.
+`shownBeats`, `cardQueue`, and `shownTextureCount` are derivable from
+`state.beats` and `state.textures`, so they are never saved. The timer handle
+and the `el` cache are not serializable and must never be saved. A failed
+load must leave the current game running: old state, old timer, old selection,
+with the failure reported.
+
+## 10. Save and Load Hazards
+
+Owners below use the recorded Cycle 16 definitions from the Scope section.
+
+| Hazard | Detail | Owner |
+|--------|-------|-------|
+| The rng closure cannot be serialized | The derivation inputs seed and tickCount plus the canonical engagement keys are what must be persisted instead | Step 1 is rng state into state |
+| The edges and edgeList alias loses object identity | A plain JSON round trip breaks the shared reference. Node check: 123 of 123 entries alias the same objects before, 0 of 123 after | Step 2 is serialize and deserialize |
+| Fractional numbers must stay exact | Unit attritionCarry and every other fraction must be preserved exactly, never rounded. Node check: JSON returns 0.14 and one third bit identical. Proof in Step 4 | Step 2 is serialize and deserialize, proof in Step 4 is tests and balance |
+| Nested optional objects | fortBuild with keys toLevel and daysLeft; rail with keys owner and daysLeft plus a converting object with keys to and daysLeft; unit order with key target | Step 2 is serialize and deserialize |
+| Null fields must stay null | winner, endReason, fortBuild, flotilla, order, and rail are null at creation, and a round trip must leave them null | Step 2 is serialize and deserialize |
+| Record families must be restored exactly | The beats, textures, exchange, and intel snapshots and agents are records; load them as saved, with no recomputation. Proof in Step 4 | Step 2 is serialize and deserialize, proof in Step 4 is tests and balance |
+| UI held state is not game state | Discard and rebuild it on load, and a failed load must leave the current game running | Step 3 is UI save and load controls |
+| Determinism and save integrity need tests | Inspection proves nothing; only the tests prove a saved game replays identically | Step 4 is tests and balance |
+
+## 11. Wall Clock and Randomness Grep
+
+Wall clock method: grep for `Date.now`, `new Date`, and `performance.now`
+across `js/` and `index.html`. Result: zero matches. The sim header says the
+same in words: no DOM, no timers, at `js/sim.js` line 2. The only timer in the
+codebase is in `js/main.js`. `startTimer` at line 64 sets `setInterval` at
+900 ms for speed 1 and 300 ms for speed 2, at line 66, calling `Sim.tick`
+when not paused and not game over, and `stopTimer` at line 75 clears it.
+Nothing in the game waits on wall clock time, so the state object is the
+whole game and a save captures it completely.
+
+Randomness method: grep for `Math.random` and `makeRng` across `js/`.
+Result: `makeRng` lives only in `js/sim.js`, defined at line 207, called at
+line 1134 in `createGame` and at line 1648 in `engagementRng`, exported at
+line 2574. `Math.random` appears once in the whole js folder, at
+`js/main.js` line 85 in `newGame`, choosing a fresh seed as floor of
+`Math.random` times 100000 when no url seed is present. `js/lore.js` holds no
+randomness. No other randomness exists in `js/sim.js` or `js/lore.js`.
