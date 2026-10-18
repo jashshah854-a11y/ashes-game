@@ -3169,3 +3169,606 @@ test('scoring: mirrored parity of the formula for both nations on fresh games', 
   assert.strictEqual(ef.armyStrength, Math.round(rawE));
   assert.strictEqual(ef.armyPoints, Math.round(rawE) * Sim.CFG.scorePerStrength);
 });
+
+// ---------- Cycle 16: save integrity and time step determinism ----------
+// These tests pin the save and load round trip at the byte level, the
+// rejection taxonomy, forbidden values, the engagement RNG stream, the
+// behavioral continuation equivalence across a save boundary, specific
+// record pins, chained saves, batching determinism, texture flag zero
+// mechanical effect, and the golden passive outcomes.
+
+const Save = require('../js/save.js');
+
+function stateHash(s) {
+  return Sim.hashString(JSON.stringify(s));
+}
+function mechanicalHash(s) {
+  const clone = JSON.parse(JSON.stringify(s));
+  delete clone.textures;
+  return Sim.hashString(JSON.stringify(clone));
+}
+function passiveToEnd(s) {
+  let guard = 0;
+  while (!s.gameOver && guard < 300) {
+    Sim.tick(s);
+    guard++;
+  }
+  assert.ok(guard < 300, 'passive campaign exceeded tick guard');
+}
+function tickTo(s, targetTickCount) {
+  while (!s.gameOver && s.tickCount < targetTickCount) {
+    Sim.tick(s);
+  }
+}
+
+test('save and load: byte idempotence and alias identity', () => {
+  const seedsAndTicks = [
+    { seed: 42, ticks: 0 },
+    { seed: 7, ticks: 25 }
+  ];
+  for (const { seed, ticks } of seedsAndTicks) {
+    const orig = Sim.createGame(seed);
+    for (let i = 0; i < ticks; i++) Sim.tick(orig);
+    const ser = Save.serializeSave(orig);
+    assert.strictEqual(ser.ok, true, 'serialize ok for seed ' + seed);
+    const des = Save.deserializeSave(ser.text);
+    assert.strictEqual(des.ok, true, 'deserialize ok for seed ' + seed);
+    const restored = des.state;
+    const ser2 = Save.serializeSave(restored);
+    assert.strictEqual(ser2.ok, true, 'second serialize ok');
+    assert.strictEqual(ser2.text, ser.text, 'second save text equals first for seed ' + seed);
+    assert.strictEqual(JSON.stringify(restored), JSON.stringify(orig), 'JSON round trip identical for seed ' + seed);
+    // Alias identity: every edges entry is the very same object as its edgeList entry
+    for (const e of restored.edgeList) {
+      const key = e.a < e.b ? e.a + '|' + e.b : e.b + '|' + e.a;
+      assert.strictEqual(restored.edges[key], e, 'edges[' + key + '] is the edgeList object for seed ' + seed);
+    }
+    // No shared objects with original
+    assert.notStrictEqual(restored, orig);
+    assert.notStrictEqual(restored.units[0], orig.units[0], 'a unit object differs for seed ' + seed);
+    assert.notStrictEqual(restored.provinces.p0_3, orig.provinces.p0_3, 'a province object differs for seed ' + seed);
+    // Mutation isolation
+    const origSteel = orig.nations.player.steel;
+    restored.nations.player.steel = 9999;
+    assert.strictEqual(orig.nations.player.steel, origSteel, 'mutating restored does not affect original for seed ' + seed);
+  }
+});
+
+test('save and load: rejection kinds leave live state untouched', () => {
+  const live = Sim.createGame(42);
+  for (let i = 0; i < 10; i++) Sim.tick(live);
+  const liveHash = stateHash(live);
+  const goodSer = Save.serializeSave(live);
+  assert.strictEqual(goodSer.ok, true);
+  // empty string
+  let r = Save.deserializeSave('');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'not-a-save');
+  assert.strictEqual(stateHash(live), liveHash);
+  // garbage text
+  r = Save.deserializeSave('garbage');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'not-a-save');
+  assert.strictEqual(stateHash(live), liveHash);
+  // truncated envelope text
+  r = Save.deserializeSave(goodSer.text.slice(0, Math.floor(goodSer.text.length / 2)));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'not-a-save');
+  assert.strictEqual(stateHash(live), liveHash);
+  // payload field deleted (shipped behavior: not-a-save)
+  const noPayload = JSON.parse(goodSer.text);
+  delete noPayload.payload;
+  r = Save.deserializeSave(JSON.stringify(noPayload));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'not-a-save', 'missing payload field returns not-a-save per shipped behavior');
+  assert.strictEqual(stateHash(live), liveHash);
+  // version changed to 2
+  const badVersion = JSON.parse(goodSer.text);
+  badVersion.saveVersion = 2;
+  r = Save.deserializeSave(JSON.stringify(badVersion));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'version');
+  assert.strictEqual(stateHash(live), liveHash);
+  // tick field deleted
+  const noTick = JSON.parse(goodSer.text);
+  delete noTick.tick;
+  r = Save.deserializeSave(JSON.stringify(noTick));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'missing');
+  assert.strictEqual(r.field, 'tick');
+  assert.strictEqual(stateHash(live), liveHash);
+  // beats key deleted from payload, checksum repaired
+  const noBeats = JSON.parse(goodSer.text);
+  const pay = JSON.parse(noBeats.payload);
+  delete pay.beats;
+  noBeats.payload = JSON.stringify(pay);
+  noBeats.checksum = Save.checksumFor(noBeats.payload);
+  r = Save.deserializeSave(JSON.stringify(noBeats));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'missing');
+  assert.strictEqual(r.field, 'beats');
+  assert.strictEqual(stateHash(live), liveHash);
+  // one character changed in payload, checksum NOT repaired
+  const badChar = JSON.parse(goodSer.text);
+  const pay2 = JSON.parse(badChar.payload);
+  pay2.day = pay2.day + 1;
+  badChar.payload = JSON.stringify(pay2);
+  // do not repair checksum
+  r = Save.deserializeSave(JSON.stringify(badChar));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'checksum');
+  assert.strictEqual(stateHash(live), liveHash);
+  // seed rewritten in payload, checksum repaired
+  const badSeed = JSON.parse(goodSer.text);
+  const pay3 = JSON.parse(badSeed.payload);
+  pay3.seed = pay3.seed + 1;
+  badSeed.payload = JSON.stringify(pay3);
+  badSeed.checksum = Save.checksumFor(badSeed.payload);
+  r = Save.deserializeSave(JSON.stringify(badSeed));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'corrupt');
+  assert.strictEqual(stateHash(live), liveHash);
+  // payload truncated JSON text, checksum repaired
+  const trunc = JSON.parse(goodSer.text);
+  const pay4 = JSON.parse(trunc.payload);
+  // make payload invalid JSON by truncating its string form
+  const payText = JSON.stringify(pay4);
+  trunc.payload = payText.slice(0, payText.length - 5);
+  trunc.checksum = Save.checksumFor(trunc.payload);
+  r = Save.deserializeSave(JSON.stringify(trunc));
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'corrupt');
+  assert.strictEqual(stateHash(live), liveHash);
+});
+
+test('save and load: forbidden values at serialize time', () => {
+  // function at nations.player.name
+  let s = Sim.createGame(42);
+  s.nations.player.name = function () { };
+  let r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'nations.player.name');
+  // NaN at units[0].attritionCarry
+  s = Sim.createGame(42);
+  s.units[0].attritionCarry = NaN;
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'units[0].attritionCarry');
+  // Infinity at nations.enemy.steel
+  s = Sim.createGame(42);
+  s.nations.enemy.steel = Infinity;
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'nations.enemy.steel');
+  // negative Infinity at nations.player.steel
+  s = Sim.createGame(42);
+  s.nations.player.steel = -Infinity;
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'nations.player.steel');
+  // undefined at state.log
+  s = Sim.createGame(42);
+  s.log = undefined;
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'log');
+  // symbol at nations.player.name
+  s = Sim.createGame(42);
+  s.nations.player.name = Symbol('test');
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'nations.player.name');
+  // BigInt at nations.player.steel
+  s = Sim.createGame(42);
+  s.nations.player.steel = BigInt(5);
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'nations.player.steel');
+  // circular reference at nations.player.self -> nations.player
+  s = Sim.createGame(42);
+  s.nations.player.self = s.nations.player;
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'nations.player.self', 'circular reference field path is named exactly');
+  // Good state does not mutate on serialize
+  s = Sim.createGame(42);
+  const hBefore = stateHash(s);
+  r = Save.serializeSave(s);
+  assert.strictEqual(r.ok, true);
+  const hAfter = stateHash(s);
+  assert.strictEqual(hAfter, hBefore, 'serializeSave does not mutate a good state');
+});
+
+test('save and load: negative zero probe and conditional fix', () => {
+  // Branch note: this run hit the real gap branch. The shipped checkValue
+  // accepted negative zero and JSON silently wrote it as 0, so the smallest
+  // fix was applied to js/save.js: checkValue now refuses a number that is
+  // negative zero. If serializeSave ever accepts negative zero again, the
+  // first assertion below names the missing fix.
+  const s = Sim.createGame(42);
+  s.nations.player.steel = -0;
+  const r = Save.serializeSave(s);
+  if (r.ok) {
+    assert.fail('negative zero was accepted; the checkValue fix in js/save.js is missing');
+  }
+  assert.strictEqual(r.ok, false, 'serializeSave refuses negative zero');
+  assert.strictEqual(r.kind, 'unserializable');
+  assert.strictEqual(r.field, 'nations.player.steel');
+});
+
+test('save and load: canonical engagement key and draws survive a round trip', () => {
+  // engagementKey symmetry
+  assert.strictEqual(
+    Sim.engagementKey('meeting', 'p4_3', 'p5_3'),
+    Sim.engagementKey('meeting', 'p5_3', 'p4_3'),
+    'meeting key is symmetric'
+  );
+  const battleKey = Sim.engagementKey('battle', 'p5_3');
+  const clashKey = Sim.engagementKey('clash', 'p5_3');
+  assert.notStrictEqual(battleKey, clashKey, 'battle key differs from clash key for same province');
+  // Draw stability across save/load
+  const seedsAndTicks = [
+    { seed: 42, ticks: 0 },
+    { seed: 42, ticks: 10 },
+    { seed: 42, ticks: 25 }
+  ];
+  for (const { seed, ticks } of seedsAndTicks) {
+    const s = Sim.createGame(seed);
+    for (let i = 0; i < ticks; i++) Sim.tick(s);
+    const keys = [
+      Sim.engagementKey('battle', 'p5_3'),
+      Sim.engagementKey('meeting', 'p4_3', 'p5_3'),
+      Sim.engagementKey('clash', 'p5_3')
+    ];
+    const draws = {};
+    for (const k of keys) {
+      const rng = Sim.engagementRng(s, k);
+      const arr = [];
+      for (let d = 0; d < 5; d++) arr.push(rng());
+      draws[k] = arr;
+    }
+    const ser = Save.serializeSave(s);
+    assert.strictEqual(ser.ok, true);
+    const des = Save.deserializeSave(ser.text);
+    assert.strictEqual(des.ok, true);
+    const restored = des.state;
+    for (const k of keys) {
+      const rng = Sim.engagementRng(restored, k);
+      const arr = [];
+      for (let d = 0; d < 5; d++) arr.push(rng());
+      assert.deepStrictEqual(arr, draws[k], 'draws match for key ' + k + ' at seed ' + seed + ' ticks ' + ticks);
+    }
+  }
+});
+
+test('save and load: behavioral continuation equivalence', () => {
+  const seeds = [1, 7, 42, 99, 2024];
+  for (const seed of seeds) {
+    // Probe run to discover dynamic points
+    const probe = Sim.createGame(seed);
+    let endTick = null;
+    let firstBeatTick = null;
+    let firstLedgerTick = null;
+    let guard = 0;
+    while (!probe.gameOver && guard < 300) {
+      Sim.tick(probe);
+      guard++;
+      if (endTick === null && probe.gameOver) {
+        endTick = probe.tickCount;
+      }
+      if (firstBeatTick === null && Object.keys(probe.beats).length > 0) {
+        firstBeatTick = probe.tickCount;
+      }
+      const pRec = Sim.exchangeRecord(probe, 'player');
+      const eRec = Sim.exchangeRecord(probe, 'enemy');
+      const anyNonZero = pRec.destroyed || pRec.lost || pRec.forced || pRec.suffered ||
+        eRec.destroyed || eRec.lost || eRec.forced || eRec.suffered;
+      if (firstLedgerTick === null && anyNonZero) {
+        firstLedgerTick = probe.tickCount;
+      }
+    }
+    assert.ok(endTick !== null, 'probe found endTick for seed ' + seed);
+    // Sample points
+    const sampleSet = new Set([0, 10, 25, firstBeatTick, firstLedgerTick, endTick - 1].filter(x => x !== null && x >= 0 && x < endTick));
+    const sampleTicks = Array.from(sampleSet).sort((a, b) => a - b);
+    // For each sample point, run A with save/load at that tick
+    for (const T of sampleTicks) {
+      // Run B: a fresh uninterrupted campaign to the end
+      const runB = Sim.createGame(seed);
+      passiveToEnd(runB);
+      const bHash = stateHash(runB);
+      const bLog = JSON.parse(JSON.stringify(runB.log));
+      const bBeats = JSON.parse(JSON.stringify(runB.beats));
+      const bTextures = JSON.parse(JSON.stringify(runB.textures));
+      const bIntel = JSON.parse(JSON.stringify(runB.intel));
+      const bExP = JSON.parse(JSON.stringify(Sim.exchangeRecord(runB, 'player')));
+      const bExE = JSON.parse(JSON.stringify(Sim.exchangeRecord(runB, 'enemy')));
+      const runA = Sim.createGame(seed);
+      tickTo(runA, T);
+      const ser = Save.serializeSave(runA);
+      assert.strictEqual(ser.ok, true, 'serialize ok at T=' + T + ' seed ' + seed);
+      const des = Save.deserializeSave(ser.text);
+      assert.strictEqual(des.ok, true, 'deserialize ok at T=' + T + ' seed ' + seed);
+      const restored = des.state;
+      // JSON equality at the save point
+      assert.strictEqual(JSON.stringify(restored), JSON.stringify(runA), 'JSON equal at save point T=' + T + ' seed ' + seed);
+      passiveToEnd(restored);
+      // Final equality assertions
+      assert.strictEqual(stateHash(restored), bHash, 'final hash matches at T=' + T + ' seed ' + seed);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(restored.log)), bLog, 'final log matches at T=' + T + ' seed ' + seed);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(restored.beats)), bBeats, 'final beats matches at T=' + T + ' seed ' + seed);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(restored.textures)), bTextures, 'final textures matches at T=' + T + ' seed ' + seed);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(restored.intel)), bIntel, 'final intel matches at T=' + T + ' seed ' + seed);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(Sim.exchangeRecord(restored, 'player'))), bExP, 'final player exchange matches at T=' + T + ' seed ' + seed);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(Sim.exchangeRecord(restored, 'enemy'))), bExE, 'final enemy exchange matches at T=' + T + ' seed ' + seed);
+    }
+  }
+});
+
+test('save and load: record specific pins', () => {
+  const seed = 42;
+  // (a) Beats fire exactly once across the boundary
+  // Discover firstBeatTick
+  const probe = Sim.createGame(seed);
+  let firstBeatTick = null;
+  while (!probe.gameOver) {
+    Sim.tick(probe);
+    if (firstBeatTick === null && Object.keys(probe.beats).length > 0) {
+      firstBeatTick = probe.tickCount;
+    }
+  }
+  assert.ok(firstBeatTick !== null, 'firstBeatTick discovered');
+  // Save at firstBeatTick - 1
+  const runA1 = Sim.createGame(seed);
+  tickTo(runA1, firstBeatTick - 1);
+  const ser1 = Save.serializeSave(runA1);
+  assert.strictEqual(ser1.ok, true);
+  const des1 = Save.deserializeSave(ser1.text);
+  assert.strictEqual(des1.ok, true);
+  passiveToEnd(des1.state);
+  // Save at firstBeatTick
+  const runA2 = Sim.createGame(seed);
+  tickTo(runA2, firstBeatTick);
+  const ser2 = Save.serializeSave(runA2);
+  assert.strictEqual(ser2.ok, true);
+  const des2 = Save.deserializeSave(ser2.text);
+  assert.strictEqual(des2.ok, true);
+  passiveToEnd(des2.state);
+  // Uninterrupted
+  const runB = Sim.createGame(seed);
+  passiveToEnd(runB);
+  // Both continuation runs must have beats deep equal to uninterrupted
+  assert.deepStrictEqual(des1.state.beats, runB.beats, 'save at firstBeatTick-1 beats equal uninterrupted');
+  assert.deepStrictEqual(des2.state.beats, runB.beats, 'save at firstBeatTick beats equal uninterrupted');
+  // First beat id appears exactly once
+  const firstBeatId = Object.keys(runB.beats)[0];
+  const count1 = Object.keys(des1.state.beats).filter(k => k === firstBeatId).length;
+  const count2 = Object.keys(des2.state.beats).filter(k => k === firstBeatId).length;
+  assert.strictEqual(count1, 1, 'first beat id appears once in save at firstBeatTick-1');
+  assert.strictEqual(count2, 1, 'first beat id appears once in save at firstBeatTick');
+
+  // (b) Intel snapshots are stored, not recomputed
+  const s = Sim.createGame(seed);
+  tickTo(s, 10);
+  const savedIntel = JSON.parse(JSON.stringify(s.intel));
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const des = Save.deserializeSave(ser.text);
+  assert.strictEqual(des.ok, true);
+  assert.deepStrictEqual(des.state.intel, savedIntel, 'restored intel deep equals saved intel');
+  // Mutate a province factoryLevel for a province with a player snapshot
+  const snapProv = Object.keys(des.state.intel.player.snapshots)[0];
+  if (snapProv) {
+    des.state.provinces[snapProv].factoryLevel = 99;
+    // The stored snapshot JSON must be unchanged
+    assert.deepStrictEqual(des.state.intel.player.snapshots[snapProv], savedIntel.player.snapshots[snapProv],
+      'intel snapshot unchanged after province mutation');
+  }
+
+  // (c) Ledger never double counts
+  const s2 = Sim.createGame(seed);
+  tickTo(s2, 20);
+  const exBefore = {
+    player: JSON.parse(JSON.stringify(Sim.exchangeRecord(s2, 'player'))),
+    enemy: JSON.parse(JSON.stringify(Sim.exchangeRecord(s2, 'enemy')))
+  };
+  // Three chained serialize/deserialize cycles
+  let current = s2;
+  for (let i = 0; i < 3; i++) {
+    const ser = Save.serializeSave(current);
+    assert.strictEqual(ser.ok, true);
+    const des = Save.deserializeSave(ser.text);
+    assert.strictEqual(des.ok, true);
+    current = des.state;
+  }
+  const exAfter = {
+    player: Sim.exchangeRecord(current, 'player'),
+    enemy: Sim.exchangeRecord(current, 'enemy')
+  };
+  assert.deepStrictEqual(exAfter.player, exBefore.player, 'player exchangeRecord unchanged after 3 cycles');
+  assert.deepStrictEqual(exAfter.enemy, exBefore.enemy, 'enemy exchangeRecord unchanged after 3 cycles');
+  // Compare with uninterrupted at tick 20
+  const uninterrupted = Sim.createGame(seed);
+  tickTo(uninterrupted, 20);
+  assert.deepStrictEqual(exAfter.player, Sim.exchangeRecord(uninterrupted, 'player'), 'player exchangeRecord equals uninterrupted at tick 20');
+  assert.deepStrictEqual(exAfter.enemy, Sim.exchangeRecord(uninterrupted, 'enemy'), 'enemy exchangeRecord equals uninterrupted at tick 20');
+
+  // (d) Texture sequence
+  const s3 = Sim.createGame(seed);
+  tickTo(s3, 15);
+  const ser3 = Save.serializeSave(s3);
+  assert.strictEqual(ser3.ok, true);
+  const des3 = Save.deserializeSave(ser3.text);
+  assert.strictEqual(des3.ok, true);
+  passiveToEnd(des3.state);
+  const uninterrupted3 = Sim.createGame(seed);
+  passiveToEnd(uninterrupted3);
+  assert.deepStrictEqual(des3.state.textures, uninterrupted3.textures, 'texture sequence deep equal after save/load at tick 15');
+});
+
+test('save and load: chained save and load', () => {
+  for (const seed of [42, 7]) {
+    let runA = Sim.createGame(seed);
+    // tick to 5, save/load
+    tickTo(runA, 5);
+    let ser = Save.serializeSave(runA);
+    assert.strictEqual(ser.ok, true);
+    let des = Save.deserializeSave(ser.text);
+    assert.strictEqual(des.ok, true);
+    runA = des.state;
+    // tick to 12, save/load
+    tickTo(runA, 12);
+    ser = Save.serializeSave(runA);
+    assert.strictEqual(ser.ok, true);
+    des = Save.deserializeSave(ser.text);
+    assert.strictEqual(des.ok, true);
+    runA = des.state;
+    // tick to 20, save/load
+    tickTo(runA, 20);
+    ser = Save.serializeSave(runA);
+    assert.strictEqual(ser.ok, true);
+    des = Save.deserializeSave(ser.text);
+    assert.strictEqual(des.ok, true);
+    runA = des.state;
+    // run to end
+    passiveToEnd(runA);
+    // Uninterrupted
+    const runB = Sim.createGame(seed);
+    passiveToEnd(runB);
+    assert.strictEqual(stateHash(runA), stateHash(runB), 'chained final hash matches for seed ' + seed);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(runA.log)), JSON.parse(JSON.stringify(runB.log)), 'chained final log matches for seed ' + seed);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(runA.beats)), JSON.parse(JSON.stringify(runB.beats)), 'chained final beats matches for seed ' + seed);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(runA.textures)), JSON.parse(JSON.stringify(runB.textures)), 'chained final textures matches for seed ' + seed);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(runA.intel)), JSON.parse(JSON.stringify(runB.intel)), 'chained final intel matches for seed ' + seed);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(Sim.exchangeRecord(runA, 'player'))), JSON.parse(JSON.stringify(Sim.exchangeRecord(runB, 'player'))), 'chained final player exchange matches for seed ' + seed);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(Sim.exchangeRecord(runA, 'enemy'))), JSON.parse(JSON.stringify(Sim.exchangeRecord(runB, 'enemy'))), 'chained final enemy exchange matches for seed ' + seed);
+  }
+});
+
+test('save and load: time step determinism across batching', () => {
+  // The sim accepts tick counts only. Speed and pausing live in the UI,
+  // and no sim path reads a wall clock, so batching cannot change an
+  // outcome. This test pins that.
+  // The one batching helper: run n ticks, stopping at game over.
+  function advance(state, n) {
+    for (let i = 0; i < n && !state.gameOver; i++) Sim.tick(state);
+  }
+  for (const seed of [42, 99]) {
+    // Schedule (i): plain loop, one tick per iteration
+    const run1 = Sim.createGame(seed);
+    passiveToEnd(run1);
+    const hash1 = stateHash(run1);
+    const log1 = JSON.parse(JSON.stringify(run1.log));
+    // Schedule (ii): batched, batch sizes [7, 3, 11, 5, 13] repeating
+    const run2 = Sim.createGame(seed);
+    const batches2 = [7, 3, 11, 5, 13];
+    let bi2 = 0;
+    while (!run2.gameOver) {
+      advance(run2, batches2[bi2 % batches2.length]);
+      bi2++;
+    }
+    const hash2 = stateHash(run2);
+    const log2 = JSON.parse(JSON.stringify(run2.log));
+    assert.strictEqual(hash2, hash1, 'batched schedule hash matches plain for seed ' + seed);
+    assert.deepStrictEqual(log2, log1, 'batched schedule log matches plain for seed ' + seed);
+    // Schedule (iii): irregular batches [1, 2, 9, 4] repeating with a save
+    // and load inserted at tickCount 15. The batch boundaries land on ticks
+    // 1, 3, 12, 16, so the save and load fires at the first boundary at or
+    // after 15, tick 16, the closest the pattern can place it.
+    let run3 = Sim.createGame(seed);
+    const batches3 = [1, 2, 9, 4];
+    let bi3 = 0;
+    let saved = false;
+    while (!run3.gameOver) {
+      if (!saved && run3.tickCount >= 15) {
+        const ser = Save.serializeSave(run3);
+        assert.strictEqual(ser.ok, true);
+        const des = Save.deserializeSave(ser.text);
+        assert.strictEqual(des.ok, true);
+        run3 = des.state;
+        saved = true;
+      }
+      advance(run3, batches3[bi3 % batches3.length]);
+      bi3++;
+    }
+    const hash3 = stateHash(run3);
+    const log3 = JSON.parse(JSON.stringify(run3.log));
+    assert.strictEqual(hash3, hash1, 'irregular batched with save/load hash matches plain for seed ' + seed);
+    assert.deepStrictEqual(log3, log1, 'irregular batched with save/load log matches plain for seed ' + seed);
+  }
+});
+
+test('save and load: widened zero mechanical effect for textures', () => {
+  for (const seed of [1, 7, 42, 99, 2024]) {
+    // Textures ON: one passive campaign to the end, sampled at tick 15 and at the end
+    Sim.CFG.campaignTextures = true;
+    const onRun = Sim.createGame(seed);
+    tickTo(onRun, 15);
+    const mechOn15 = mechanicalHash(onRun);
+    passiveToEnd(onRun);
+    const mechOnEnd = mechanicalHash(onRun);
+    assert.ok(onRun.textures.length > 0, 'textures array not empty at end with textures on for seed ' + seed);
+    // Textures OFF: the same one campaign shape with the flag down
+    Sim.CFG.campaignTextures = false;
+    try {
+      const offRun = Sim.createGame(seed);
+      tickTo(offRun, 15);
+      const mechOff15 = mechanicalHash(offRun);
+      passiveToEnd(offRun);
+      const mechOffEnd = mechanicalHash(offRun);
+      assert.strictEqual(offRun.textures.length, 0, 'textures array empty at end with textures off for seed ' + seed);
+      assert.strictEqual(mechOff15, mechOn15, 'mechanical hash at tick 15 matches textures on/off for seed ' + seed);
+      assert.strictEqual(mechOffEnd, mechOnEnd, 'mechanical hash at end matches textures on/off for seed ' + seed);
+    } finally {
+      Sim.CFG.campaignTextures = true;
+    }
+  }
+  // Across the boundary case on seed 42 only
+  Sim.CFG.campaignTextures = true;
+  const on42a = Sim.createGame(42);
+  tickTo(on42a, 15);
+  const serOn = Save.serializeSave(on42a);
+  assert.strictEqual(serOn.ok, true);
+  const desOn = Save.deserializeSave(serOn.text);
+  assert.strictEqual(desOn.ok, true);
+  passiveToEnd(desOn.state);
+  const mechOnFinal = mechanicalHash(desOn.state);
+  Sim.CFG.campaignTextures = false;
+  try {
+    const off42a = Sim.createGame(42);
+    tickTo(off42a, 15);
+    const serOff = Save.serializeSave(off42a);
+    assert.strictEqual(serOff.ok, true);
+    const desOff = Save.deserializeSave(serOff.text);
+    assert.strictEqual(desOff.ok, true);
+    passiveToEnd(desOff.state);
+    const mechOffFinal = mechanicalHash(desOff.state);
+    assert.strictEqual(mechOffFinal, mechOnFinal, 'mechanical hash after save/load at tick 15 matches textures on/off for seed 42');
+  } finally {
+    Sim.CFG.campaignTextures = true;
+  }
+});
+
+test('save and load: golden outcomes unchanged', () => {
+  const expectations = [
+    { seed: 1, day: 36 },
+    { seed: 7, day: 36 },
+    { seed: 42, day: 36 },
+    { seed: 99, day: 36 },
+    { seed: 2024, day: 42 }
+  ];
+  for (const exp of expectations) {
+    const s = Sim.createGame(exp.seed);
+    passiveToEnd(s);
+    assert.strictEqual(s.gameOver, true, 'gameOver true for seed ' + exp.seed);
+    assert.strictEqual(s.day, exp.day, 'day ' + exp.day + ' for seed ' + exp.seed);
+  }
+});

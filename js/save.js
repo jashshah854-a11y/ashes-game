@@ -88,6 +88,9 @@
     if (t === 'number' && value === -Infinity) {
       return unserializable(path, 'holds negative Infinity, an infinite number a save file cannot store');
     }
+    if (t === 'number' && Object.is(value, -0)) {
+      return unserializable(path, 'holds negative zero, a value a save file cannot store faithfully');
+    }
     if (t === 'object' && value !== null) {
       if (ancestors.indexOf(value) !== -1) {
         return unserializable(path, 'points back to an earlier part of the save, forming a circular loop a save file cannot store');
