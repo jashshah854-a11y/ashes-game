@@ -1055,3 +1055,112 @@ item above.
     order). The Cycle 21 step list in CYCLE_LOG at the Cycle 20
     Step 6 entry governs. Ruled by Claude under Jash's 2026-10-18
     autopilot order.
+
+22. Cycle 21 Step 0 rulings (2026-10-18, the judge's eight Step 0
+    questions answered from the code; each ruling carries the words
+    the autopilot order requires). Ruled by Claude under Jash's
+    2026-10-18 autopilot order.
+
+    Ruling 1, engaged in combat that day: there is NO existing
+    source of truth. addUnit gives a unit id, nation, type,
+    provinceId, strength, maxStrength, order, daysOut,
+    supplyPenalty, and attritionCarry, and no combat day field.
+    The battle record from fightRounds carries nation ids, powers,
+    penalties, launch counts, and destroyed counts, and no unit
+    ids. movementPhase holds participant id sets only in local
+    variables and discards them on return; state.log is capped at
+    60 entries and no rule reads it. New state is therefore
+    required, and it was ruled by consultation in the same run
+    (Opus 5.5 through the anthropic.py route, usage in 1987, out
+    3661): Option A, sub choice A1. One saved per unit field,
+    lastCombatDay, initialized to null in addUnit and read through
+    a typeof fallback, where null means never fought. saveVersion
+    stays 3 with no bump and no load migration, because units is
+    already a required key whose contents are not shape validated
+    on load and a missing field has the safe meaning never fought
+    (the manpower pool and line efficiency fallbacks are the
+    codebase precedent; the version 2 to 3 bump was for a new
+    required top level key, which this is not). movementPhase
+    stamps lastCombatDay with the day the tick began, on the real
+    unit by id in the same writeback pass as strength, for every
+    participant on both sides of every battle, meeting, and clash
+    engagement, including a drone destroyed by an interceptor
+    launch; uncontested movers, adjacent bystanders, and undrawn
+    units are not stamped, and battleClone does not copy the
+    field. The shared refusal check refuses when lastCombatDay is
+    a number at least state.day minus 1, evaluated after the not
+    destroyed and owned checks and before the cost computation,
+    and the refusal text names the day of the fight and never says
+    "today", in the shape: fought in the battle of day D, units
+    can be reinforced after a full day out of combat. Options B
+    (transient unsaved field), C (dropping the rule), D (a proxy),
+    and E (participant ids in the capped log) were rejected with
+    reasons in the consultation. This ruling amends item 20 Q2's
+    "no per unit state" for this single field only; every other
+    Q2 constraint stands. Ruled by Claude under Jash's 2026-10-18
+    autopilot order.
+
+    Ruling 2, supplied ground: the supply function is
+    computeSupply(state, nationId) in js/sim.js, the function
+    supplyPhase calls for both nations. It returns, for every
+    province the nation owns, supplied, hops, and reason.
+    Reinforce calls computeSupply(state, unit.nation) and reads
+    the entry for unit.provinceId. No new approximation of supply
+    is allowed. Ruled by Claude under Jash's 2026-10-18 autopilot
+    order.
+
+    Ruling 3, owned ground: the tile owner field is
+    state.provinces[unit.provinceId].owner and the rule is owner
+    equals unit.nation. Captures apply at the end of movementPhase
+    in canonical province order, setting prov.owner to the
+    capturing nation before onProvinceCaptured runs, so a unit
+    that captures a province stands on owned ground from the
+    moment that tick completes, on the day of capture. A blocked
+    or contested arrival does not move and changes nothing.
+    Ruled by Claude under Jash's 2026-10-18 autopilot order.
+
+    Ruling 4, not destroyed: destroyed units are removed from
+    state at the end of tick by the strength over 0 filter after
+    movementPhase; inside a tick a dead unit sits at strength 0
+    until that filter. The rule is strength over 0 AND the unit
+    still present in state.units. A stale reference to a removed
+    unit is refused. Ruled by Claude under Jash's 2026-10-18
+    autopilot order.
+
+    Ruling 5, strength ceiling and granularity: the ceiling field
+    is unit.maxStrength, set in addUnit from
+    CFG.unitTypes[type].strength (infantry 12, drone 6; the
+    interceptor, agent, and flotilla templates are stockpiles and
+    never take the field, so they are never reinforce targets).
+    Reinforce buys whole strength points only, at 15 equipment
+    each, capped by maxStrength minus strength and by the whole
+    points the equipment on hand affords. No fractional points
+    and no partial equipment charge. Ruled by Claude under Jash's
+    2026-10-18 autopilot order.
+
+    Ruling 6, timing inside the tick: a player command resolves
+    immediately when issued, matching queueProduction,
+    cancelProduction, and assignLineTemplate, which mutate inside
+    the call and are invoked from js/main.js click handlers
+    between ticks. Reinforce follows that convention. The AI
+    reinforce decision in Step 4 sits inside aiTakeTurn, which
+    tick calls after supplyPhase and before movementPhase, so the
+    AI decides on the same state the player sees between ticks,
+    with the most recent combat still the previous tick's. Ruled
+    by Claude under Jash's 2026-10-18 autopilot order.
+
+    Ruling 7, stackPower: stackPower in js/sim.js is not edited
+    for reinforce. It sums per unit attack or defense for living
+    units, gating on strength over 0 and never scaling by the
+    strength value; strength is the damage pool applyDamage soaks
+    into. A reinforced unit's benefit is durability and the full
+    strength totals in campaignScore and historySnapshot, not a
+    stackPower change, and no later run is to "fix" stackPower to
+    scale by strength under this cycle. Ruled by Claude under
+    Jash's 2026-10-18 autopilot order.
+
+    Ruling 8, manpower: reinforce reads and writes no manpower
+    field. Its only spend is state.nations[nationId].equipment.
+    Step 2 tests assert the manpower pool is byte identical
+    before and after every reinforce call, refused or accepted.
+    Ruled by Claude under Jash's 2026-10-18 autopilot order.
