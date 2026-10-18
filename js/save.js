@@ -2,7 +2,7 @@
 // Turns the sim state from createGame in js/sim.js into one JSON save string
 // and back again, touching no game rule on either trip. A save is an
 // envelope, an object with five fields in this order: saveVersion (this
-// format is version 1), seed (the campaign seed), tick (the tick count), and
+// format is version 2), seed (the campaign seed), tick (the tick count), and
 // checksum, a guard over the payload, then the payload itself, the whole
 // saved game state written as one JSON string. checksumFor computes that
 // guard: an FNV-1a hash over the payload string, with the same starting
@@ -21,7 +21,7 @@
 // cannot carry faithfully: a function, an undefined value, a symbol, a
 // bigint, NaN, Infinity, negative Infinity, or a circular reference.
 // deserializeSave never throws either. It refuses text that is not a save
-// at all, a header with a field missing, a version other than 1, a payload
+// at all, a header with a field missing, a version other than 2, a payload
 // that does not match its checksum, or a payload that is damaged or does
 // not agree with its header, each with a plain reason naming what is
 // wrong.
@@ -31,7 +31,7 @@
 (function (global) {
   'use strict';
 
-  var SAVE_VERSION = 1;
+  var SAVE_VERSION = 2;
 
   // The 18 top level keys of a saved state: the createGame keys minus edges,
   // in createGame order. edges is omitted because edgeList carries every

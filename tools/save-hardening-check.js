@@ -326,7 +326,7 @@ function checkTextNoBrokenLabels(text) {
     }, 5000);
     const versionMsg = await getSaveNotice(page);
     const versionClass = await getSaveNoticeClass(page);
-    const expectedVersionMsg = 'This save was made by a different version of the game (save version 99). This game can only load version 1 saves, so nothing was loaded and your current game keeps running.';
+    const expectedVersionMsg = 'This save was made by a different version of the game (save version 99). This game can only load version 2 saves, so nothing was loaded and your current game keeps running.';
     check('Version: notice matches exact version rejection message with 99', versionMsg === expectedVersionMsg,
       'got: ' + versionMsg);
     check('Version: notice is styled as error', versionClass === 'save-notice-error', versionClass);

@@ -3262,9 +3262,9 @@ test('save and load: rejection kinds leave live state untouched', () => {
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.kind, 'not-a-save', 'missing payload field returns not-a-save per shipped behavior');
   assert.strictEqual(stateHash(live), liveHash);
-  // version changed to 2
+  // version changed to 99
   const badVersion = JSON.parse(goodSer.text);
-  badVersion.saveVersion = 2;
+  badVersion.saveVersion = 99;
   r = Save.deserializeSave(JSON.stringify(badVersion));
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.kind, 'version');
@@ -3387,7 +3387,7 @@ test('save and load: forbidden values at serialize time', () => {
   assert.strictEqual(hAfter, hBefore, 'serializeSave does not mutate a good state');
 });
 
-test('save and load: negative zero probe and conditional fix', () => {
+test('save and load: serializeSave refuses negative zero because JSON would write it as 0', () => {
   // Branch note: this run hit the real gap branch. The shipped checkValue
   // accepted negative zero and JSON silently wrote it as 0, so the smallest
   // fix was applied to js/save.js: checkValue now refuses a number that is
@@ -3771,4 +3771,212 @@ test('save and load: golden outcomes unchanged', () => {
     assert.strictEqual(s.gameOver, true, 'gameOver true for seed ' + exp.seed);
     assert.strictEqual(s.day, exp.day, 'day ' + exp.day + ' for seed ' + exp.seed);
   }
+});
+
+// ---------- Cycle 18 step 1: the battle record ----------
+// Battle outcome log entries carry a plain data field named battle,
+// holding values the sim already computes at resolution (first round
+// powers, per side modifier facts, interceptor launches, and losses),
+// so a later UI step can explain each battle. These tests pin the
+// record's shape on every engagement kind, that the launch line and the
+// other lines carry no record, that no rule reads the record, and that
+// it survives the version 2 save round trip. No recorded value changes:
+// every expected power is computed with Sim.stackPower before the phase
+// runs, never copied from the record itself.
+
+test('battle record: a province battle records powers, the river crossing, and losses', () => {
+  const s = Sim.createGame(233);
+  const aId = Sim.provinceId(4, 3);
+  const bId = Sim.provinceId(5, 3);
+  s.units = s.units.filter(u =>
+    (u.provinceId === aId && u.nation === 'player' && u.type === 'infantry') ||
+    (u.provinceId === bId && u.nation === 'enemy' && u.type === 'infantry'));
+  assert.strictEqual(s.units.length, 2);
+  s.nations.player.interceptors = 0;
+  s.nations.enemy.interceptors = 0;
+  const attacker = s.units.find(u => u.nation === 'player');
+  const defender = s.units.find(u => u.nation === 'enemy');
+  const expA = Sim.stackPower(s, [attacker], 'attack', { toId: bId });
+  const expB = Sim.stackPower(s, [defender], 'defense');
+  assert.strictEqual(Sim.issueOrder(s, attacker.id, bId).ok, true);
+  Sim.movementPhase(s);
+  const name = s.provinces[bId].name;
+  const entry = s.log.find(e => e.msg && new RegExp('(destroyed at|attack on|capture) ' + name).test(e.msg));
+  assert.ok(entry, 'a province battle outcome was logged at ' + name);
+  const b = entry.battle;
+  assert.ok(b, 'the outcome entry carries a battle field');
+  assert.strictEqual(b.kind, 'battle');
+  assert.strictEqual(b.targetId, bId);
+  assert.strictEqual(b.aNation, 'player');
+  assert.strictEqual(b.bNation, 'enemy');
+  assert.strictEqual(b.aPower, expA, 'aPower is the first round attacker power');
+  assert.strictEqual(b.bPower, expB, 'bPower is the first round defender power');
+  assert.strictEqual(b.aSupplyPenaltyPct, 0);
+  assert.strictEqual(b.bSupplyPenaltyPct, 0);
+  assert.strictEqual(b.aFortBonusPct, 0);
+  assert.strictEqual(b.bFortBonusPct, 0);
+  assert.strictEqual(b.aRiverPenaltyPct, 25, 'p4_3 to p5_3 crosses the river with no flotilla staged');
+  assert.strictEqual(b.bRiverPenaltyPct, 0);
+  assert.strictEqual(b.aDroneEffectivenessPct, null);
+  assert.strictEqual(b.bDroneEffectivenessPct, null);
+  assert.strictEqual(b.launches, 0);
+  assert.strictEqual(b.launchSteelEach, Sim.interceptorCost());
+  assert.strictEqual(b.aDestroyed, attacker.strength === 0 ? 1 : 0);
+  assert.strictEqual(b.bDestroyed, defender.strength === 0 ? 1 : 0);
+});
+
+test('battle record: supply and walls are recorded as facts, and the powers agree', () => {
+  const s = Sim.createGame(233);
+  const aId = Sim.provinceId(4, 3);
+  const bId = Sim.provinceId(5, 3);
+  s.units = s.units.filter(u =>
+    (u.provinceId === aId && u.nation === 'player' && u.type === 'infantry') ||
+    (u.provinceId === bId && u.nation === 'enemy' && u.type === 'infantry'));
+  assert.strictEqual(s.units.length, 2);
+  s.nations.player.interceptors = 0;
+  s.nations.enemy.interceptors = 0;
+  const attacker = s.units.find(u => u.nation === 'player');
+  const defender = s.units.find(u => u.nation === 'enemy');
+  attacker.supplyPenalty = 30;
+  s.provinces[bId].fortLevel = 2;
+  const expA = Sim.stackPower(s, [attacker], 'attack', { toId: bId });
+  const expB = Sim.stackPower(s, [defender], 'defense');
+  assert.strictEqual(Sim.issueOrder(s, attacker.id, bId).ok, true);
+  Sim.movementPhase(s);
+  const name = s.provinces[bId].name;
+  const entry = s.log.find(e => e.msg && new RegExp('(destroyed at|attack on|capture) ' + name).test(e.msg));
+  assert.ok(entry, 'a province battle outcome was logged at ' + name);
+  const b = entry.battle;
+  assert.ok(b, 'the outcome entry carries a battle field');
+  assert.strictEqual(b.aSupplyPenaltyPct, 30);
+  assert.strictEqual(b.bFortBonusPct, 50);
+  assert.strictEqual(b.aPower, expA);
+  assert.strictEqual(b.bPower, expB);
+});
+
+test('battle record: an interceptor kill is counted once, and the launch line carries no record', () => {
+  const s = Sim.createGame(233);
+  const aId = Sim.provinceId(4, 3);
+  const bId = Sim.provinceId(5, 3);
+  s.units = s.units.filter(u =>
+    (u.provinceId === aId && u.nation === 'player' && u.type === 'drone') ||
+    (u.provinceId === bId && u.nation === 'enemy' && u.type === 'infantry'));
+  assert.strictEqual(s.units.length, 2);
+  // The enemy interceptor stock is left at its starting value.
+  const drone = s.units.find(u => u.nation === 'player');
+  const defender = s.units.find(u => u.nation === 'enemy');
+  const expB = Sim.stackPower(s, [defender], 'defense');
+  assert.strictEqual(Sim.issueOrder(s, drone.id, bId).ok, true);
+  Sim.movementPhase(s);
+  const launch = s.log.find(e => e.msg && e.msg.indexOf('launch') !== -1);
+  assert.ok(launch, 'the interceptor launch is logged');
+  assert.ok(!('battle' in launch), 'the launch line carries no battle field');
+  const name = s.provinces[bId].name;
+  const entry = s.log.find(e => e.msg && new RegExp('(destroyed at|attack on|capture) ' + name).test(e.msg));
+  assert.ok(entry, 'a province battle outcome was logged at ' + name);
+  const b = entry.battle;
+  assert.ok(b, 'the outcome entry carries a battle field');
+  assert.strictEqual(b.launches, 1);
+  assert.strictEqual(b.launchSteelEach, Sim.interceptorCost());
+  assert.strictEqual(b.aDestroyed, 1);
+  assert.strictEqual(b.aPower, 0, 'the only attacker died before the rounds, so the fallback power is the empty living list');
+  assert.strictEqual(b.bPower, expB);
+});
+
+test('battle record: a surviving drone wing records the drone effectiveness readout', () => {
+  const s = Sim.createGame(233);
+  const aId = Sim.provinceId(4, 3);
+  const bId = Sim.provinceId(5, 3);
+  const keep = u =>
+    (u.provinceId === aId && u.nation === 'player' && u.type === 'drone') ||
+    (u.provinceId === bId && u.nation === 'enemy' && u.type === 'infantry');
+  const firstDrone = s.units.find(keep);
+  const secondDrone = Object.assign({}, firstDrone, { id: s.nextUnitId++ });
+  s.units = s.units.filter(keep);
+  s.units.push(secondDrone);
+  assert.strictEqual(s.units.length, 3, 'two staged drone wings and the defending infantry');
+  s.nations.enemy.interceptors = 1;
+  const expEff = Sim.droneEffectiveness(s, 'player');
+  assert.strictEqual(expEff, 125);
+  assert.strictEqual(Sim.issueOrder(s, firstDrone.id, bId).ok, true);
+  assert.strictEqual(Sim.issueOrder(s, secondDrone.id, bId).ok, true);
+  Sim.movementPhase(s);
+  const name = s.provinces[bId].name;
+  const entry = s.log.find(e => e.msg && new RegExp('(destroyed at|attack on|capture) ' + name).test(e.msg));
+  assert.ok(entry, 'a province battle outcome was logged at ' + name);
+  const b = entry.battle;
+  assert.ok(b, 'the outcome entry carries a battle field');
+  assert.strictEqual(b.launches, 1, 'the lowest id drone dies to the single interceptor');
+  assert.ok(b.aDestroyed >= 1, 'the launch victim and any round deaths are each counted once');
+  assert.strictEqual(b.aDroneEffectivenessPct, expEff);
+  assert.strictEqual(b.bDroneEffectivenessPct, null);
+});
+
+test('battle record: a meeting and a clash carry their kind, and every recorded power is numeric', () => {
+  const s = busyScenario(false);
+  const meeting = s.log.find(e => e.msg && e.msg.indexOf('meet on the road') !== -1);
+  assert.ok(meeting, 'the meeting is logged');
+  assert.strictEqual(meeting.battle.kind, 'meeting');
+  assert.strictEqual(meeting.battle.targetId, null);
+  const clash = s.log.find(e => e.msg && /Columns clash at|win the clash for/.test(e.msg));
+  assert.ok(clash, 'the clash is logged');
+  assert.strictEqual(clash.battle.kind, 'clash');
+  const p53 = s.provinces.p5_3.name;
+  const battle = s.log.find(e => e.msg && new RegExp('(destroyed at|attack on|capture) ' + p53).test(e.msg));
+  assert.ok(battle, 'the province battle is logged');
+  assert.strictEqual(battle.battle.kind, 'battle');
+  const recorded = s.log.filter(e => e.battle);
+  assert.ok(recorded.length >= 3, 'every fighting outcome carries a record');
+  recorded.forEach(e => {
+    assert.strictEqual(typeof e.battle.aPower, 'number', 'aPower is numeric: ' + e.msg);
+    assert.strictEqual(typeof e.battle.bPower, 'number', 'bPower is numeric: ' + e.msg);
+  });
+});
+
+test('battle record: no rule reads the record, so deleting it changes nothing', () => {
+  const runA = Sim.createGame(42);
+  for (let i = 0; i < 40; i++) Sim.tick(runA);
+  const runB = Sim.createGame(42);
+  for (let i = 0; i < 40; i++) {
+    Sim.tick(runB);
+    runB.log.forEach(e => { delete e.battle; });
+  }
+  assert.ok(runA.log.some(e => e.battle), 'the first run produced at least one battle entry');
+  // Strip the battle key from copies of the first run log and compare.
+  const logA = JSON.parse(JSON.stringify(runA.log));
+  logA.forEach(e => { delete e.battle; });
+  assert.deepStrictEqual(runB.log, logA, 'the two logs are identical without the record');
+  // A full state comparison with the log battle keys stripped.
+  const normalize = st => {
+    const c = JSON.parse(JSON.stringify(st));
+    c.log.forEach(e => { delete e.battle; });
+    return JSON.stringify(c);
+  };
+  assert.strictEqual(normalize(runB), normalize(runA), 'the two full states are identical without the record');
+});
+
+test('battle record: save version 2 carries the record through a round trip', () => {
+  const fresh = Sim.createGame(42);
+  const ser = Save.serializeSave(fresh);
+  assert.strictEqual(ser.ok, true);
+  const envelope = JSON.parse(ser.text);
+  assert.strictEqual(envelope.saveVersion, 2, 'the envelope reads saveVersion 2');
+  assert.strictEqual(Save.SAVE_VERSION, 2);
+  const stale = JSON.parse(ser.text);
+  stale.saveVersion = 1;
+  const rejected = Save.deserializeSave(JSON.stringify(stale));
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.kind, 'version');
+  const s = Sim.createGame(1);
+  let guard = 0;
+  while (!s.log.some(e => e.battle) && guard < 60) {
+    Sim.tick(s);
+    guard++;
+  }
+  assert.ok(s.log.some(e => e.battle), 'a battle entry appeared within 60 ticks');
+  const campaignSer = Save.serializeSave(s);
+  assert.strictEqual(campaignSer.ok, true);
+  const des = Save.deserializeSave(campaignSer.text);
+  assert.strictEqual(des.ok, true);
+  assert.deepStrictEqual(des.state.log, s.log, 'the restored log deep equals the original, battle fields included');
 });

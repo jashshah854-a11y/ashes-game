@@ -1262,8 +1262,10 @@
     return u;
   }
 
-  function logEvent(state, msg) {
-    state.log.push({ day: state.day, msg: msg });
+  function logEvent(state, msg, battle) {
+    var entry = { day: state.day, msg: msg };
+    if (battle !== undefined) entry.battle = battle;
+    state.log.push(entry);
     if (state.log.length > 60) state.log.shift();
   }
 
@@ -1541,6 +1543,38 @@
   // ---------- Combat ----------
   function aliveList(list) { return list.filter(function (u) { return u.strength > 0; }); }
 
+  // The recorded facts of one side at the moment the rounds start, for
+  // the battle record: all pure readouts computed on the living units
+  // after any interceptor launches, so computing them draws no rng and
+  // changes nothing about the fight itself. supplyPenaltyPct is the
+  // worst supply penalty among the living units (the clone field
+  // supplyPenalty, the same value unitStats reports), fortBonusPct the
+  // fort bonus of the defense, riverPenaltyPct the river crossing
+  // penalty against the named foe province for an attack, and
+  // droneEffectivenessPct the shared EW readout for the living drone
+  // owner nation, or null when no drone of the side is living.
+  function fightFacts(state, side, mode, foeProvinceId) {
+    var living = aliveList(side);
+    var supplyPenaltyPct = 0;
+    var fortBonusPct = 0;
+    var riverPenaltyPct = 0;
+    var droneNation = null;
+    living.forEach(function (u) {
+      supplyPenaltyPct = Math.max(supplyPenaltyPct, u.supplyPenalty || 0);
+      if (mode === 'defense') fortBonusPct = Math.max(fortBonusPct, fortBonusFor(state, u));
+      if (mode === 'attack' && foeProvinceId != null) {
+        riverPenaltyPct = Math.max(riverPenaltyPct, riverCrossingPenaltyFor(state, u, foeProvinceId));
+      }
+      if (droneNation === null && u.type === 'drone') droneNation = u.nation;
+    });
+    return {
+      supplyPenaltyPct: supplyPenaltyPct,
+      fortBonusPct: fortBonusPct,
+      riverPenaltyPct: riverPenaltyPct,
+      droneEffectivenessPct: droneNation === null ? null : droneEffectiveness(state, droneNation)
+    };
+  }
+
   // The shared round math. Side A deals damage from its modeA power,
   // side B from its modeB power. Simultaneous rounds until one side is
   // gone or 12 rounds pass. A's roll is drawn before B's every round.
@@ -1558,12 +1592,13 @@
   // never again in the battle deaths below. Meeting battles, where
   // both sides fight in attack mode, launch nothing.
   function fightRounds(state, sideA, sideB, modeA, modeB, rng) {
+    var launches = 0;
     if (modeB === 'defense' && sideA.length > 0 && sideB.length > 0 && sideA[0].nation !== sideB[0].nation) {
       var defNation = sideB[0].nation;
       var atkNation = sideA[0].nation;
       var targets = aliveList(sideA).filter(function (u) { return u.type === 'drone'; })
         .sort(function (a, b) { return a.id - b.id; });
-      var launches = Math.min(interceptorStock(state, defNation), targets.length);
+      launches = Math.min(interceptorStock(state, defNation), targets.length);
       for (var li = 0; li < launches; li++) {
         var victim = targets[li];
         victim.strength = 0;
@@ -1581,11 +1616,24 @@
           ' before the battle.');
       }
     }
+    // The fighting forces at the moment the rounds start, after any
+    // launches: the units whose facts the battle record carries. A drone
+    // killed by an interceptor is not part of the force that fights the
+    // rounds; its loss is carried by launches and aDestroyed.
+    var livingA = aliveList(sideA);
+    var livingB = aliveList(sideB);
+    // Capture the facts for the battle record at the moment the rounds
+    // start, before any rounds mutate the living lists.
+    var factsA = fightFacts(state, livingA, modeA, sideB.length ? sideB[0].provinceId : null);
+    var factsB = fightFacts(state, livingB, modeB, sideA.length ? sideA[0].provinceId : null);
     // Battle deaths are priced from the strengths the rounds start
     // with, after any launches, so an interceptor kill is not counted
     // a second time as a battle death.
-    var startStrengths = sideA.concat(sideB).map(function (u) { return { u: u, before: u.strength }; });
+    var startStrengths = sideA.map(function (u) { return { u: u, before: u.strength, side: 'a' }; })
+      .concat(sideB.map(function (u) { return { u: u, before: u.strength, side: 'b' }; }));
     var round = 0;
+    var firstA = null;
+    var firstB = null;
     while (aliveList(sideA).length > 0 && aliveList(sideB).length > 0 && round < 12) {
       round++;
       // River crossings are priced inside stackPower from each side's
@@ -1597,20 +1645,59 @@
         sideB.length ? { toId: sideB[0].provinceId } : null);
       var powB = stackPower(state, aliveList(sideB), modeB,
         modeB === 'attack' && sideA.length ? { toId: sideA[0].provinceId } : null);
+      if (firstA === null) { firstA = powA; firstB = powB; }
       var dmgToB = Math.max(1, Math.round(powA * (0.7 + rng() * 0.6)));
       var dmgToA = Math.max(1, Math.round(powB * (0.7 + rng() * 0.6)));
       applyDamage(sideB, dmgToB);
       applyDamage(sideA, dmgToA);
     }
+    if (firstA === null) {
+      // The rounds never ran (a side lost every unit to the
+      // interceptors): record the powers the first round would have
+      // been fought with, the exact stackPower calls the loop makes on
+      // the post launch living lists, readouts only after the fight is
+      // decided.
+      firstA = stackPower(state, livingA, modeA,
+        sideB.length ? { toId: sideB[0].provinceId } : null);
+      firstB = stackPower(state, livingB, modeB,
+        modeB === 'attack' && sideA.length ? { toId: sideA[0].provinceId } : null);
+    }
+    var aDestroyed = launches;
+    var bDestroyed = 0;
     startStrengths.forEach(function (rec) {
       if (rec.before > 0 && rec.u.strength <= 0) {
         var foe = opposingNation(rec.u.nation);
         var value = CFG.unitTypes[rec.u.type] ? CFG.unitTypes[rec.u.type].steelCost : 0;
         recordExchange(state, rec.u.nation, 'lost', value);
         recordExchange(state, foe, 'destroyed', value);
+        if (rec.side === 'a') aDestroyed++; else bDestroyed++;
       }
     });
-    return { aAlive: aliveList(sideA).length, bAlive: aliveList(sideB).length };
+    // The battle record, built only from values already computed and
+    // pure readouts, after the pricing loop, so nothing about the
+    // fight itself can be affected by it.
+    return {
+      aAlive: aliveList(sideA).length,
+      bAlive: aliveList(sideB).length,
+      battle: {
+        aNation: sideA[0] ? sideA[0].nation : null,
+        bNation: sideB[0] ? sideB[0].nation : null,
+        launches: launches,
+        launchSteelEach: interceptorCost(),
+        aPower: firstA,
+        bPower: firstB,
+        aSupplyPenaltyPct: factsA.supplyPenaltyPct,
+        bSupplyPenaltyPct: factsB.supplyPenaltyPct,
+        aFortBonusPct: factsA.fortBonusPct,
+        bFortBonusPct: factsB.fortBonusPct,
+        aRiverPenaltyPct: factsA.riverPenaltyPct,
+        bRiverPenaltyPct: factsB.riverPenaltyPct,
+        aDroneEffectivenessPct: factsA.droneEffectivenessPct,
+        bDroneEffectivenessPct: factsB.droneEffectivenessPct,
+        aDestroyed: aDestroyed,
+        bDestroyed: bDestroyed
+      }
+    };
   }
 
   // One engagement: attacking units hit the defenders of a province.
@@ -1831,6 +1918,12 @@
       if (e.kind === 'move') return;
       var rng = engagementRng(state, e.key);
       e.result = fightRounds(state, e.aClones, e.bClones, 'attack', e.kind === 'meeting' ? 'attack' : 'defense', rng);
+      // The battle record for the later UI step: the engagement kind and
+      // target first, then every fact fightRounds recorded, in its
+      // order. e.result itself is not mutated.
+      e.battle = { kind: e.kind, targetId: e.kind === 'meeting' ? null : e.target };
+      var facts = e.result.battle;
+      Object.keys(facts).forEach(function (k) { e.battle[k] = facts[k]; });
     });
     engagements.forEach(function (e) {
       if (e.kind === 'move') return;
@@ -1907,11 +2000,11 @@
       if (e.kind === 'battle') {
         if (anyOk(e)) return;
         if (e.cands.length) {
-          logEvent(state, sh(e.nation) + ' clear ' + nm(e.target) + ' but cannot advance. Enemy troops still hold the ground.');
+          logEvent(state, sh(e.nation) + ' clear ' + nm(e.target) + ' but cannot advance. Enemy troops still hold the ground.', e.battle);
         } else if (!e.atkAlive.length) {
-          logEvent(state, 'A ' + sh(e.nation) + ' attack group is destroyed at ' + nm(e.target) + '.');
+          logEvent(state, 'A ' + sh(e.nation) + ' attack group is destroyed at ' + nm(e.target) + '.', e.battle);
         } else {
-          logEvent(state, sh(e.nation) + ' attack on ' + nm(e.target) + ' is repelled.');
+          logEvent(state, sh(e.nation) + ' attack on ' + nm(e.target) + ' is repelled.', e.battle);
         }
       } else if (e.kind === 'meeting') {
         var msg = sh(e.a.nation) + ' and ' + sh(e.b.nation) + ' columns meet on the road between ' +
@@ -1925,13 +2018,13 @@
         } else {
           msg += ' Neither side breaks, and both fall back.';
         }
-        logEvent(state, msg);
+        logEvent(state, msg, e.battle);
       } else if (e.kind === 'clash') {
         if (anyOk(e)) return;
         if (e.cands.length) {
-          logEvent(state, sh(e.cands[0].nation) + ' win the clash for ' + nm(e.target) + ' but cannot move in.');
+          logEvent(state, sh(e.cands[0].nation) + ' win the clash for ' + nm(e.target) + ' but cannot move in.', e.battle);
         } else {
-          logEvent(state, 'Columns clash at ' + nm(e.target) + '. Neither side takes it.');
+          logEvent(state, 'Columns clash at ' + nm(e.target) + '. Neither side takes it.', e.battle);
         }
       } else {
         e.cands.forEach(function (c) {
@@ -1950,7 +2043,7 @@
       if (kind === 'battle') {
         prov.owner = c.nation;
         onProvinceCaptured(state, prov, c.nation);
-        logEvent(state, sh(c.nation) + ' capture ' + prov.name + ' after a hard fight.');
+        logEvent(state, sh(c.nation) + ' capture ' + prov.name + ' after a hard fight.', c.eng.battle);
         checkCapital(state, prov);
       } else if (kind === 'meeting') {
         if (prov.owner !== c.nation) {
@@ -1962,10 +2055,10 @@
         if (prov.owner !== c.nation) {
           prov.owner = c.nation;
           onProvinceCaptured(state, prov, c.nation);
-          logEvent(state, sh(c.nation) + ' win the clash for ' + prov.name + ' and take it.');
+          logEvent(state, sh(c.nation) + ' win the clash for ' + prov.name + ' and take it.', c.eng.battle);
           checkCapital(state, prov);
         } else {
-          logEvent(state, sh(c.nation) + ' win the clash for ' + prov.name + ' and hold it.');
+          logEvent(state, sh(c.nation) + ' win the clash for ' + prov.name + ' and hold it.', c.eng.battle);
         }
       } else if (prov.owner !== c.nation) {
         prov.owner = c.nation;
