@@ -742,3 +742,24 @@ item above.
     how badly a campaign went? And do the weights themselves feel
     right when you see the end screen in step 2? Nothing is blocked;
     the readout ships as built until you rule.
+
+15. Cycle 15 judge taste items (Step 4, all undecided, blocking nothing).
+    The Cycle 15 judge returned PASS with no fix-now flags and parked five
+    taste items beside item 14: (a) whether the end screen should show a
+    start versus end comparison of the nation next to the final snapshot,
+    since the core fantasy is starting weak and becoming visibly powerful
+    and the screen currently shows the end only; (b) whether a short lore
+    epilogue should accompany the final numbers, and how much text the end
+    screen should carry; (c) whether the end screen should say explicitly,
+    and in what voice, when a player wins on the victory conditions but
+    trails on score (the margin line already states the facts; this is
+    only about naming the case); (d) whether the cost exchange values
+    should be rescaled so the numbers read more naturally to a player (a
+    display scale question, not a change to what the ledger computes);
+    (e) whether the exchange component should gain a uniform named scoring
+    weight (it is currently the raw net at one point per steel, the only
+    component with no CFG weight), which sits with item 14 weights
+    question. The judge also noted, without making it a defect, that the
+    exchange component scale across drone heavy sensible play is
+    unmeasured; a readout only tally across the standard seeds and paths
+    would answer it if you want the number before ruling.

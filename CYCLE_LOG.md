@@ -2813,3 +2813,293 @@ Cycle 15 Steps 1, 2a, 2b, and 3 are complete and verified. Next run is Step 4, t
 
 ### Cycle 15 step 3 sync note
 - Sync out after commit be02ed9: the import script sent 2 commits to GitHub (the step 2b sync note commit 30f6176 and this step's be02ed9; jashshah854-a11y/ashes-game, master now at remote acdadea; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit.
+
+## Cycle 15, Step 4 of 4: milestone judge (2026-10-18)
+
+Claimed this run: Step 4 only, the milestone run. No new cycle work starts before it, per the loop rule. Cycle 15 is judged whole here; Cycle 16 work begins on the next run.
+
+### Pre judge verification, run fresh by the orchestrator for the package
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 112 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle14.txt.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- tools/end-screen-check.js run standalone (playwright-core reinstalled into /tmp/pwcore first, per the standing lesson that /tmp installs do not persist): 29 of 29 pass, exit 0, narrow page measured inner width 390 beside the requested 390 under Playwright.
+
+### The judge call
+- Judge: Claude Opus 5.5 through the direct Anthropic line, fresh context, graded against the DESIGN_BIBLE compass from the assembled package (the cycle log entries, the cycle diff stat of 10 files changed and 1074 insertions, test counts, the balance result, and the compass text). The prompt itself was byte scanned before sending: zero em or en dashes.
+- Main call: [usage: in=4507, out=8000]. The reply hit the 8000 token cap and was cut mid heading inside Section 4, the Cycle 2 pattern. A completion call continued from the exact cut point without repeating anything: [usage: in=712, out=6202]. Step 4 total: in=5219, out=14202. No fallback route was needed. Both parts scanned zero for em and en dashes before recording, and nothing was written or committed until the complete report was in hand (the full report rule).
+- VERDICT: PASS, no fix-now flags. Compass grades: HOI4 war heart unchanged (recorded as correct for a readout cycle), Civ visible progression a small gain off the map, EU5 lore unchanged, legibility a real gain and the cycle main contribution.
+- The judge named two carry items, neither a flag: read and confirm the rendered exchange conversion wording once, assigned to Cycle 16 Step 0; and widen the zero mechanical effect coverage beyond one passive seed, folded into Cycle 16 Step 4. Both ride in the Cycle 16 prescription recorded in the review below.
+
+### The judge claims check, verified by the orchestrator before acceptance
+1. Package arithmetic: seed 1 day 1 player total 350 plus 70 plus 72 plus 0 plus 50 plus 0 equals 542, and suite 106 plus 6 new tests equals 112. Both match the Step 1 and Step 3 records. VERIFIED.
+2. The judge list of claims it cannot independently verify (commit contents, the grep caller result, every pass count, the balance byte identity, the dash scan, the rendered wording, the diff stat, builder attributions) is accurate about its package only position and is accepted as stated. Every one of those numbers was produced by the orchestrator own runs in Steps 1 to 3, and the package numbers were rerun fresh above.
+3. Prescription grounding corrections for Cycle 16, recorded so no step brief quotes them ungrounded: the judge Step 3 names js/ui.js, which does not exist in this repo (the UI is js/main.js), and its determinism text says tick where this sim day field is state.day. The substance maps cleanly: per engagement rng is in fact derived from the game seed, the day count, and a canonical engagement key (Cycle 6 step 2), and the records it names (beats, textures, intel snapshots, exchange ledger) are the records this state holds. Where the judge says Cycle 15 golden replays, read tools/baseline-cycle14.txt plus the recorded campaign spot numbers.
+4. The judge exchange wording concern is well formed: the exchange component has no CFG weight, so its one point per steel conversion is the one conversion the explain paragraph cannot restate as a weight. It is recorded as taste item 15(e) in DECISIONS_FOR_JASH.md and as the Cycle 16 Step 0 read and confirm item, exactly as the judge assigned.
+
+### Full judge review (verbatim, the two calls joined at the cap cut)
+
+# Cycle 15 Milestone Judgment: Campaign End Screen with Scoring
+
+## 1. Verdict: PASS
+
+I find no fix-now flags. Every prescription step has a shipped artifact and a verification claim that matches its exit criterion:
+
+| Prescription item | Package evidence | Status |
+|---|---|---|
+| Step 1: readouts in js/sim.js only, no rule reads them | 63 insertions in js/sim.js only; grep shows the only callers are campaignResult and the api export; tick never calls either | Met |
+| Step 1: no change to win conditions, prices, odds, AI, tick | Balance output byte identical to tools/baseline-cycle14.txt; the zero mechanical effect test shows a passive seed 42 campaign is JSON identical with and without readout calls | Met |
+| Step 2: result, day, full breakdown for both nations, plain words, New Game, how each number is earned | Seven fixed rows per nation through one shared helper; weights read live; nation neutral exchange definition; explain paragraph; vocabulary audit finds no code identifiers; New Game hides the banner | Met |
+| Step 3: arithmetic, capital cases, determinism, zero effect, mirrored parity | 6 appended tests, no existing line touched; 112 pass; a mutant swapping capital weights fails exactly one test and is clean against the pre-step suite, so the capital test is not vacuous | Met |
+| Step 3: committed browser check | tools/end-screen-check.js, 29 of 29, drives a real game to the day 36 defeat | Met |
+| Step 3: balance byte identical | Rerun fresh for this package, byte identical | Met |
+| Hard format rule | Python byte scan finds zero em or en dashes | Met |
+
+**Process.** The loop worked as designed. Both failed Step 2 attempts were caught by the orchestrator, not the builder, and were fully reverted:
+
+- Attempt 1 had a specificity bug that made the screen unhideable.
+- Attempt 2 printed config property names on screen eleven times. Ruling that a legibility failure under the bible was correct.
+
+The half size re-brief (2a structure and words, 2b layout) then landed cleanly. The arithmetic I can check from the package is internally consistent:
+
+- Seed 1 day 1 player total: 350 + 70 + 72 + 0 + 50 + 0 = 542.
+- Test count: 106 + 6 = 112.
+- Mutant run: 111 pass plus 1 fail.
+
+**Claims I cannot independently verify.** I have no repo access, so all of the following are accepted on the orchestrator's report:
+
+- All commit hashes and their contents.
+- The grep caller result.
+- Every test and browser pass count, including all eight regression checks.
+- The byte identity of the balance output.
+- The dash scan.
+- The rendered wording of the end screen. I have descriptions of the text, not the text itself.
+- The diff stat.
+- The builder model attributions.
+
+Two specific points are unverifiable from the package:
+
+- **Exchange conversion wording.** I cannot confirm the rendered screen says the exchange net converts to points one for one. The explain paragraph is described as restating "every weight," but exchange has no CFG weight, so its conversion is implicit. The numbers match, so this is not a defect. Cycle 16 Step 0 should read the rendered string once and confirm it.
+- **Zero mechanical effect coverage.** The test covers one seed on the passive path. It does not exercise a sensible path with player drone launches. The grep plus a pure function design make a hidden effect unlikely, but the coverage is narrow. Cycle 16 should widen it at no extra cost, as prescribed below.
+
+## 2. Grade Against the Compass
+
+**HOI4 war heart: unchanged.**
+- No production, division, frontline, or combat rule moved.
+- The byte identical balance output proves it.
+- This is correct for a readout cycle, and I record it as zero movement, not a gain.
+
+**Civ VII visible progression: small gain, off the map.**
+- The end screen makes the compounding loop countable: provinces, factory levels, and surviving army strength are the loop's own nouns.
+- Nothing changed on the map itself, and the bible's progression test is a map test.
+- The screen shows a final snapshot only. It never shows where the nation started.
+- The core fantasy is "start weak, become visibly powerful," and a start versus end comparison would serve it directly.
+- The prescription did not require that comparison, so it is a parked owner item, not a flag.
+
+**EU5 lore: unchanged.**
+- The end screen has no epilogue, no reference to national history, and no grudge resolution.
+- Whether it should is a taste question. It is parked below.
+
+**Legibility: real gain. This is the cycle's main contribution.**
+- The run used to end on a one line banner. It now ends on a surface that says who won, why, on what day, how each number was earned, and that the score changes nothing.
+- The loop enforced the bible's strictest clause twice, rejecting code vocabulary as an explanation and rejecting an incomplete exchange definition.
+- The remaining copy issue, the clipped capital phrasing, is correctly recorded as taste.
+
+## 3. Ruling on the Scoring Design as a Readout
+
+**Component set: right for the bible.**
+- Provinces, factory levels, and army strength are the three nouns of the compounding loop.
+- Capitals are the existing decisive objectives.
+- The exchange net is the scoreboard for the drone cost exchange, a signature mechanic: the bible literally says "the scoreboard tracks who bleeds money faster."
+- The set leaves out the EW arms race, rail supply, and intel. That is acceptable. Those mechanics act through the other components, and scoring them separately would double count.
+
+**Exchange at raw signed weight: it belongs, and signed is correct.**
+- A cost exchange is a net by definition. Flooring it per component would hide exactly the bleeding the bible wants tracked.
+- Shipping it raw rather than inventing a weight was the right call for the loop, since a weight is a balance and taste decision.
+
+I note two concerns for the owner and decide neither:
+
+1. **Unit scale.** The exchange net is in cost units while every other component is in authored points. In the passive seed 1 campaign its magnitude is evidently modest, since the player ends at minus 15. The package gives no distribution for drone heavy sensible play, where it could dominate the total or be noise. A readout only tool that prints per component scores across the 8 standard seeds and 3 paths would answer this without touching balance.
+2. **Missing weight.** Exchange is the only component without a CFG weight. Adding scorePerExchange at 1 would change no number and make the weight set uniform. That is hygiene the owner may want, not a defect.
+
+**Capital weighting: legible as described.**
+- Own capital is worth 50 held. Enemy capital is worth 100 held.
+- Each row states held or not held and the points.
+- The asymmetry reads naturally: defending is expected, taking is exceptional.
+- Losing your capital produces a 150 point swing between the two totals. That is visible as two separate rows, which is the legible way to show it.
+
+**Does the screen explain itself at the moment the player reaches it: yes.** It shows:
+- The result and the end reason.
+- The day.
+- Labelled rows with their earning rule.
+- A margin line naming the leader with both totals.
+- A statement that the win conditions, not the score, decided the outcome.
+
+That meets "every system explains itself on screen at the moment the player touches it." One residual risk, parked below: a player who wins on conditions but trails on score. The margin line handles this factually, but the owner may want explicit wording for that case.
+
+## 4. Cycle 16 Prescription: Save and Load
+
+Ordering is owner directed: Cycle 16 save and load, then Cycle 17 playability. Loop rules apply: verify every step, revert on failure, and re-brief at half size on a second failure.
+
+**Determinism facts the cycle must respect:**
+- The sim draws seeded rng inside movement engagements.
+- State holds records that a save must restore exactly: beats, textures, intel snapshots, and the exchange ledger.
+- Therefore the save must capture the rng's internal position, not just the seed.
+- The proof standard must be behavioral (continuation equivalence), not merely structural (roundtrip equality).
+
+### Step 0, audit (no code; documentation only)
+
+Produce STATE_INVENTORY.md listing every field reachable from state:
+- Its type.
+- Whether it is authoritative or derived (cache, index, adjacency).
+- Whether it is aliased: the same object reachable by two paths, for example a unit referenced from a province and from a unit list.
+- Every non-JSON value: Map, Set, undefined, NaN, Infinity, negative zero, functions, and class instances.
+
+Locate the rng:
+- State whether its internal state lives in state or in a module closure.
+- Grep js/sim.js for Math.random, Date.now, performance.now, and any wall clock or frame time read.
+- Confirm the Cycle 15 exchange wording question from Section 1.
+
+**Exit criteria:**
+- The inventory is complete and committed.
+- The grep result is recorded.
+- Every hazard has a named handling plan.
+- No code changed.
+
+### Step 1, sim: rng state into state (js/sim.js only)
+
+**Goal.** Every input the sim needs to reproduce its own future lives in `state` as plain, JSON-safe data. Nothing determinism-relevant may live in module scope, closures, or the UI.
+
+**Work.**
+- Audit `js/sim.js` for every rng call site. Per-engagement rng is already derived from game seed, tick count, and a canonical engagement key. That means the derivation inputs, not a stream position, are what must be persisted: `state.seed` and `state.tick` as integers.
+- If any call site draws from a module-level or long-lived stream (beat selection, texture selection, anything outside engagements), do one of two things. Either convert it to the same derived pattern with its own key namespace, or store the stream's internal state in `state.rng` as plain integers.
+- Make the canonical engagement key independent of iteration order. Build it from sorted participant ids and the engagement location, never from object key order, Map or Set iteration, or array position that can change after a roundtrip. JSON roundtrips reorder integer-like object keys, so any key built by walking an object is suspect.
+- Remove any `Math.random`, `Date.now`, or `performance.now` reachable from sim code.
+
+**Exit criteria.**
+1. A grep of `js/sim.js` and everything it imports shows zero `Math.random`, `Date.now`, and `performance.now` in sim paths.
+2. No module-level mutable variable in sim code influences any outcome. Each remaining one is listed in the step notes with a reason it is inert.
+3. A unit test shows the canonical engagement key is identical when participants are supplied in shuffled orders, and identical before and after a JSON roundtrip of the containing state.
+4. Golden replays from Cycle 15 are unchanged. For at least five fixed seeds run to the end, the final state hash and the full event log are byte-identical to the pre-refactor outputs. Any difference fails the step. This is a refactor, not a balance change.
+
+### Step 2, sim: serialize and deserialize (js/sim.js plus a new js/save.js)
+
+**Work.**
+- Add `serialize(state)` returning a JSON string with `saveVersion`, `seed`, `tick`, the full sim state, and a checksum over the canonical payload.
+- Add `deserialize(string)` returning a fresh state or a typed error. It must never partially mutate an existing state.
+- Restore exactly, without recomputation, the records the owner flagged:
+  - **Campaign beats:** fired flags, pending beats and their scheduled ticks, and any per-beat counters. A loaded game must never re-fire a beat or skip one that was due.
+  - **Recurring textures:** last-shown ticks, cooldowns, rotation position. These have zero mechanical effect, but they are still restored exactly so that the text a player sees continues identically.
+  - **Intel snapshots:** stored as the stale values captured at snapshot time. Deserialize must not rebuild them from current truth, because that would leak information the player does not have.
+  - **Exchange ledger:** restored as an ordered, append-only list with entry ids. Load must not replay entries into running totals a second time. Totals are either stored and checked against the ledger sum, or derived only from the ledger.
+- Reject values JSON cannot carry faithfully at serialize time, with a named error: `NaN`, `Infinity`, `-0`, `undefined` in arrays, functions, Map, and Set. Silent coercion is not allowed.
+- Reject on load: missing required fields, unknown `saveVersion`, and checksum mismatch. No silent defaulting of missing fields.
+
+**Exit criteria.**
+1. `serialize(deserialize(serialize(s)))` is byte-identical to `serialize(s)` for every state sampled in Step 4.
+2. Deserialize of a corrupted, truncated, wrong-version, or field-missing save returns a typed error. The previously loaded state is untouched, verified by hash.
+3. Serialize throws a named error on each forbidden value type, one test per type.
+4. The ledger total after load equals the ledger total before save, and equals the sum of ledger entries.
+
+### Step 3, UI: save and load controls (js/ui.js, index.html)
+
+**Work.**
+- Add Save and Load controls and at least one localStorage slot, plus export to and import from a file so saves survive a cleared browser.
+- On load, discard every UI cache derived from state: selection, open panels, hover targets, intel panel contents, and any end screen render. Then rebuild from the loaded state.
+- Show deserialize errors in plain language. A failed load leaves the current game running.
+- Saving is allowed while paused or at any speed. The sim tick boundary is the only save point. The UI must never serialize mid-tick.
+
+**Exit criteria.**
+1. UI code holds no sim truth. A review of `js/ui.js` finds no field that, if lost, would change the sim's future.
+2. A manual check covers saving mid-engagement, during a pending beat, and after an intel snapshot. After reload, the visible panels match what was shown before the save.
+3. Importing a corrupted file shows the error message, and the running game continues unchanged.
+4. Exporting and then importing a save produces a state hash equal to the original.
+
+### Step 4, tests and balance: save integrity and time step determinism
+
+**Proof standard.** Proof means behavioral continuation equivalence, not structural roundtrip equality. A roundtrip test proves the bytes survive. It does not prove the game continues the same way, because hidden inputs such as order-dependent keys, module state, and recomputed snapshots pass a roundtrip and still diverge later. Every determinism claim in this cycle is proven by running the future and comparing it.
+
+**Save integrity tests (owner required).**
+- Byte idempotence of serialize, deserialize, serialize, as in Step 2.
+- Corruption, truncation, version, missing field, and checksum rejection, with no mutation of the live state.
+- Forbidden value rejection, one test per type.
+- Record-specific checks:
+  - **Beats:** save on the exact tick a beat fires, and on the tick before it. The beat fires exactly once across the boundary.
+  - **Textures:** the texture sequence after load matches the uninterrupted run.
+  - **Intel:** a snapshot taken before save still shows its stale values after load, even when current truth has changed.
+  - **Ledger:** entry count, order, ids, and totals match. No duplicate entries appear after repeated save and load cycles.
+
+**Time step determinism tests (owner required).**
+- The sim outcome depends only on the sequence of ticks, never on how wall clock time was batched into them. For each test seed, compare final state hash and full event log across three runs: advancing one tick per call, advancing in large batches, and an irregular mix with speed changes and pauses. All three must be identical.
+- The same comparison is repeated with a save and load inserted at an arbitrary point in each schedule.
+
+**Behavioral continuation equivalence tests.**
+- **Run A:** seed S, run to tick T, serialize, deserialize into a fresh state with no shared objects (and in a fresh module instance where the harness allows), then run to tick T+K.
+- **Run B:** seed S, run uninterrupted to T+K.
+- **Required:** the final state hash is identical, the full event log from T to T+K is identical, and the exchange ledger, beat records, texture records, and intel snapshots are deep-equal at T+K.
+- **Sampling of T:**
+  - tick 0
+  - mid-engagement, while an engagement's rng is in use
+  - the tick a campaign beat fires
+  - immediately after an intel snapshot
+  - immediately after a ledger entry
+  - one tick before the end condition
+- **Chained case:** save and load at several ticks in one run, compared against the uninterrupted run.
+- **Seeds:** at least five, covering a passive seed, an engagement-heavy seed, and a campaign-beat-heavy seed.
+
+**What must be proven about engagement rng specifically.** Given identical seed, tick, and canonical key, an engagement produces identical draws whether or not a save and load occurred before it. The canonical key must also be identical before and after load for every engagement in the sampled runs. The harness logs each engagement key and draw count in both runs and diffs them, so that a divergence points at the engagement that caused it rather than only at the final hash.
+
+**Widened zero mechanical effect coverage (carried from Section 1).** The Cycle 15 test proved zero mechanical effect for recurring textures on one passive seed only. Extend it to the full Step 4 seed set, including the engagement-heavy and beat-heavy seeds. Also run it across a save and load boundary. For each seed, run with textures active and with texture selection stubbed out. The mechanical state hash, meaning all state excluding texture records and text, must be identical at every sampled tick.
+
+**Balance.** No balance changes this cycle. The balance check is that the Cycle 15 golden outcomes for the fixed seeds are unchanged after Steps 1 through 3.
+
+**Exit criteria.**
+1. All save integrity tests pass.
+2. All time step determinism tests pass on every test seed.
+3. All continuation equivalence tests pass for every sampled T on every seed, including the chained case.
+4. The engagement key and draw-count diff is empty in every comparison.
+5. Widened zero mechanical effect coverage passes on all seeds, including across save and load.
+6. Golden outcomes are unchanged.
+7. Any test failure is fixed at the cause in sim code. The tolerance is not loosened, and a sampled tick is not dropped to make a failure go away.
+
+### Step 5, milestone review
+
+**The judge confirms:**
+- Step 1 through Step 4 exit criteria were met, with evidence: test output, grep results, and golden hash comparison.
+- No determinism-relevant data lives outside `state`.
+- Beats, textures, intel snapshots, and the ledger are restored exactly and not recomputed.
+- The proof offered is continuation equivalence, not only roundtrip equality.
+- The Step 0 end screen wording check below was done and recorded.
+
+**Exit criteria.** All of the above are confirmed, or any gap is assigned to Cycle 17 with a named owner step.
+
+### Carry-over addendum to Step 0 (from Section 1)
+
+Before Step 1 begins, open the rendered end screen in a browser, at least once on a finished game. Read the exchange conversion wording as displayed and confirm it matches the intended meaning of the ledger conversion. Record the exact rendered text in the step notes. This is a read-and-confirm item only. Any wording change it suggests goes to Section 5 if it is a taste call, or to a later cycle if it is a correctness fix. It does not expand Cycle 16 scope.
+
+## Section 5: Taste level items parked for the human owner
+
+These are in addition to DECISIONS item 14 (score floor at zero, and whether the weights feel right), which remains parked. None is decided here.
+
+1. **Start versus end comparison on the end screen.** Whether the end screen should show where the empire began next to where it finished, as a side-by-side summary. This is a presentation and pacing choice for the owner.
+
+2. **Lore epilogue on the end screen.** Whether a short narrative epilogue should accompany the final numbers, and how much text the end screen should carry. This is a tone call.
+
+3. **Wording for winning on conditions while trailing on score.** Whether the end screen should say explicitly when a player met the victory conditions but finished behind on score, and in what voice. The mechanics are settled. How the game names this outcome is the owner's call.
+
+4. **Exchange unit scale.** Whether exchange values should be shown at their current scale or rescaled so the numbers read more naturally to a player. This affects how the ledger and conversion feel, not what they compute.
+
+5. **Missing uniform exchange weight.** Whether exchange categories should share one uniform weight in scoring, or keep the current arrangement with no uniform weight defined. This touches how score feels, so it sits alongside item 14 for the owner rather than being settled by the judge.
+
+### Prescription for Cycle 16 (from the judge, accepted, with the grounding corrections above)
+The full step text is inside the review above. Shape: Step 0, audit only (a STATE_INVENTORY of every field reachable from state, the rng location audit and the wall clock grep, plus the carried read and confirm of the rendered end screen exchange wording); Step 1, sim, rng state into state (persist the derivation inputs, canonical engagement keys independent of iteration order, no wall clock reads in sim paths, golden outcomes unchanged); Step 2, sim, serialize and deserialize with a save version and checksum, exact restoration of beats, textures, intel snapshots, and the exchange ledger, named rejection of values JSON cannot carry and of corrupted, truncated, wrong version, or field missing saves; Step 3, UI, save and load controls in js/main.js and index.html (the judge text says js/ui.js; corrected here per the claims check), a localStorage slot plus file export and import, UI caches discarded on load, plain language load errors; Step 4, tests and balance, the owner required save integrity and time step determinism tests with behavioral continuation equivalence as the proof standard (run A saved and loaded at tick T against run B uninterrupted, final hash, event log, and the four record families deep equal, across sampled boundary ticks and at least five seeds), the engagement key and draw count diff, the widened zero mechanical effect coverage, and golden outcomes unchanged; Step 5, milestone review. Cycle 17 (playability pass) follows Cycle 16, per the owner order recorded at the Cycle 15 step list.
+
+### Documentation closed in this step
+- DECISIONS_FOR_JASH.md gains item 15: the judge five taste items (a start versus end comparison on the end screen, a lore epilogue, explicit wording for winning on conditions while trailing on score, the exchange display scale, and the uniform exchange weight beside item 14), all undecided and blocking nothing.
+- BACKLOG.md header now records Cycle 15 complete with this verdict, the two carry items riding in Cycle 16, and Cycle 16 Step 0 next.
+
+### Lessons
+- Recorded in LOOP_LESSONS.md: an 8000 token judge cap truncates mid prescription, and the completion call pattern recovers the full report in one extra call; do not write or commit anything until both parts are in hand. And: a package only judge prescribes against an imagined repo layout (it named js/ui.js and a tick field this repo does not have), so file and field names in any external prescription get re-grounded against the repo before a step brief quotes them.
+
+### Mission status
+Cycle 15 is complete: Steps 1, 2a, 2b, 3, and 4 done, judge PASS with no fix-now flags, no unresolved balance flags. Next run claims Cycle 16 Step 0 (the state inventory audit plus the rendered exchange wording confirmation). No stop condition is met: zero consecutive failed judge verdicts, the build green on every check run this run.
