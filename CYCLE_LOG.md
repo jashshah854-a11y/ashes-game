@@ -4535,3 +4535,6 @@ Theme: the equipment third spend, reinforce, under DECISIONS_FOR_JASH.md item 20
 
 ### Mission status
 Cycle 20 is complete: Steps 0 to 6 done, milestone verdict PASS WITH FIX-NOW FLAGS, of which F1 and F3 are closed this run by orchestrator verification (code citation and probes, recorded above) and F2 alone survives as a fix-now flag with its home at Cycle 21 Step 1, beside the F1 conservation pin. The Cycle 21 step list is recorded above. No stop condition is met: the verdict is not a FAIL, no build is broken, and no run in this cycle failed verification on its final tree.
+
+### Cycle 20 step 6 sync note
+- Sync out after commit 10edac7: the import script completed with exit 0 and sent 2 commits to GitHub (cf07ae2, the Cycle 20 step 5 sync note carried over, plus this step's 10edac7; jashshah854-a11y/ashes-game, master now at remote a25a378; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit. This note rides the next run's sync, as prior sync notes have.
