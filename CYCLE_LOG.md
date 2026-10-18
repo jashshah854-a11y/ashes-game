@@ -4226,3 +4226,6 @@ Claimed this run: Step 1 only, the sim command under the Q4 ruling (DECISIONS_FO
 
 ### Mission status
 Cycle 20 Step 1 is complete: the cancel command is in the sim with its formal tests, balance byte identical, and no save change, exactly as the Q4 ruling's binding constraints require. Next run claims Step 2 (cancel on screen, UI only). No stop condition is met: no failed judge verdict, no verification failure on the final tree (the builder's two failing test drafts were corrected inside the same builder session before any verification by the orchestrator, and the step never faced a revert), and no balance change.
+
+### Cycle 20 step 1 sync note
+- Sync out after commit 28c95c6: the import script completed with exit 0 and sent this step's commits to GitHub (jashshah854-a11y/ashes-game, master now at remote b4d7e33; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
