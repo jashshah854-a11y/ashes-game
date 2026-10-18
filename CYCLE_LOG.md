@@ -2677,3 +2677,28 @@ Cycle 15 Step 1 is complete and verified. Next run claims Step 2 (the end screen
 ### Cycle 15 step 1 sync note
 - Sync out after commit 8a7d4b1: the import script sent 1 commit to GitHub (jashshah854-a11y/ashes-game, master now at remote e4102e9; the script notes the remote sha differs from the local sha while the tree matches, as in prior syncs). Sync succeeded and did not block or alter the local commit.
 Builders unavailable, no changes
+
+## Cycle 15, Step 2 of 4: campaign end screen UI, FAILED VERIFICATION, REVERTED (2026-10-17)
+
+Claimed this run: Step 2 only. The step did not land. Per the loop rules it was reverted completely, and this entry plus a LOOP_LESSONS entry are the only changes in this commit. The failed diff is preserved outside the repo at /tmp/c15s2-failed.patch for the next run to study, not to reapply blindly.
+
+### What the builders did
+- Builder rotation: opencode/deepseek-v4.1-flash-free ran first. Its delivered output was truncated before its edit summary, but the working tree gained the full Step 2 implementation during that call (3 files, 111 insertions, 2 deletions: index.html, js/main.js, css/style.css). The next model, opencode/glm-5.3-flash-free, then found that implementation already present, made no changes of its own, and reported it verified. That report is treated as a builder claim, not as verification.
+- The implementation as built: the banner div gained an end title, reason, day, scores container, margin, explain paragraph, and a New Game button; showBanner was rewritten to read Sim.campaignResult and Sim.CFG and to build two nation score blocks with the six labelled rows in the prescribed order; css gained a Cycle 15 block laying the two blocks side by side with wrapping.
+
+### Verification run by the orchestrator (not taken from either builder)
+- Full git diff reviewed: scope was exactly the three allowed files, no sim, test, tool, or doc change, and no extra sim call beyond campaignResult and CFG reads.
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 106 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle14.txt.
+- Python byte scan for em and en dashes across the repo: zero.
+- Real browser check, FAILED: headless Chromium against the actual repo index.html at seed 1, before any game over. The banner element carried class "banner hidden" but its computed display was flex, its bounding box was on screen (width 797, height 114), and its visible text was the stray New Game button with all score fields empty. Root cause: the new CSS rule #banner { display: flex } has ID specificity and overrides the .hidden { display: none } rule, so the end screen can never be hidden, including at game start and after New Game.
+- Second defect found in diff review: the Cost exchange net row reads "the steel you destroyed minus the steel you lost" for both nation blocks. That wording is wrong in two ways: it uses "you" for the Dominion block as well, and the sim net is destroyed plus forced minus lost minus suffered, so the sentence omits the interceptor launch terms the ledger includes.
+
+### Disposition
+- Both defects are in the built step, so the step fails verification. Reverted completely with git checkout on the three files; the working tree is clean apart from this log and LOOP_LESSONS.md.
+- This is Step 2 first verification failure. The next run re-briefs Step 2 with two added hard constraints from this failure: one, the end screen hidden state must be proven in a real browser at game start (computed display none while the game is running) as well as proven shown at game over, and any new display rule for the banner must include a matching hidden rule with enough specificity; two, the exchange row wording must state the full net definition in nation neutral words (destroyed plus launches forced, minus lost plus launches suffered) or a shorter wording that makes no false claim about the formula.
+- No stop condition is met: no failed judge verdict, and this is one verification failure, not three consecutive runs failing verification.
+
+### Mission status
+Cycle 15 Step 1 remains complete and verified. Step 2 remains unbuilt. Next run claims Step 2 again under the tightened brief above.
