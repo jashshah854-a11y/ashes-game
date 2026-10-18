@@ -3909,3 +3909,66 @@ Cycle 18 is complete: Steps 0, 1, 2, 3, 4, and 5 done, judge PASS WITH FIX-NOW F
 
 ### Cycle 18 step 5 sync note
 - Sync out after commit 6c2fab4: the import script sent 3 commits to GitHub (6108f1e, the Cycle 18 step 4 sync note carried over, plus this step's 823bf76 and 6c2fab4; jashshah854-a11y/ashes-game, master now at remote f3f68bd; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 19, step list (recorded at the cycle's start, from the Cycle 18 step 5 judge prescription)
+
+- Step 0, seal Cycle 18, evidence and test only, no sim or UI behavior changes: close F1 (verify the baseline commit and the corrected attribution count), F2 (quote the Step 1 deleted lines with their replacements, with the no weakening statements and the version 1 rejection evidence), and F3 (exact marker count assertions in tools/order-marker-check.js, shown failing on a duplicated tree and passing on HEAD); balance rerun byte identical to tools/baseline-cycle18.txt at the close.
+- Step 1, owner decisions recorded before any code: the open rulings are put to Jash as explicit questions with the judge's recommended defaults (history retention for visible progression, the equipment third spend, blockade dormancy). The loop records the rulings in DECISIONS_FOR_JASH.md and builds nothing on silence.
+- Step 2, production line cancel or pause, only if Jash rules on DECISIONS_FOR_JASH.md item 6 at Step 1; otherwise skipped and recorded.
+- Step 3, the first visible progression surface, only if the Step 1 history ruling lands; otherwise skipped and recorded, with no speculative storage.
+
+## Cycle 19, Step 0 of 3: seal Cycle 18, flags F1 to F3 closed (2026-10-18)
+
+Claimed this run: Step 0 only. No sim or UI behavior changed: the only code file touched is the browser check tools/order-marker-check.js (commit 610e152, 62 insertions, 0 deletions). Steps 1 to 3 do not start this run.
+
+### Builder rotation, recorded plainly
+- opencode/deepseek-v4.1-flash-free, opencode/glm-5.3-flash-free, opencode/mimo-v2.6-flash-free, and opencode/longcat-2.5-preview-free each refused the brief instantly with Rate limit exceeded and made no changes. opencode/nemotron-3-ultra-free, fifth in the order, built the step: exactly the one intended file, exactly the briefed Scenario C, no other change. The orchestrator wrote the brief, ran every verification itself, and committed.
+
+### F1 closed, diff reconciliation verified by machine count
+- git diff over the Cycle 18 build range, base 896b07d (Cycle 17 step 5 sync note) to 6108f1e (Cycle 18 step 4 sync note, the tree the Step 5 package was assembled from), rerun this run: 16 files changed, 1612 insertions, 31 deletions. The file name list machine counts to exactly 16: BACKLOG.md, CYCLE_18_STEP0_SPEC.md, CYCLE_LOG.md, LEGIBILITY_AUDIT.md, LOOP_LESSONS.md, css/style.css, index.html, js/main.js, js/save.js, js/sim.js, tests/sim.test.js, tools/battle-why-check.js, tools/blockade-check.js, tools/order-marker-check.js, tools/save-check.js, tools/save-hardening-check.js. tools/baseline-cycle18.txt is not in that list.
+- The baseline is a separate Step 5 commit, 823bf76, adding exactly that one file at 36 insertions, after the stat range above. cmp of tools/baseline-cycle18.txt against tools/baseline-cycle17.txt, rerun this run: zero difference. The Step 5 corrected attribution sentence therefore matches a machine count: the 16 file stat excludes the baseline, and the baseline is accounted separately, by its own commit. F1 is closed, not partially: Cycle 18 is sealed on this item.
+
+### F2 closed, the Step 1 deletions quoted line by line
+Source: commit 89647fb, Cycle 18 Step 1. The judge named three files; each deleted line is quoted below with its replacement from the same hunk. The source change these surfaces follow is in the same commit in js/save.js (SAVE_VERSION 1 to 2, with its two header comment lines), which is the change being followed, not a test surface.
+
+tests/sim.test.js, 3 deletions:
+- Deleted: `  // version changed to 2` Replaced by: `  // version changed to 99`
+- Deleted: `  badVersion.saveVersion = 2;` Replaced by: `  badVersion.saveVersion = 99;`
+  These two are one staging change in the rejection kinds test: 2 stopped being a bad version on the day it became the current version, so the staged bad value moved to 99. The assertions that follow it are untouched in the diff (ok is false, kind is version, live state hash unchanged), and no assertion was weakened or removed; with 2 left in place the test would have fed a valid save and asserted its rejection, which is a contradiction, not a stronger test.
+- Deleted: `test('save and load: negative zero probe and conditional fix', () => {` Replaced by: `test('save and load: serializeSave refuses negative zero because JSON would write it as 0', () => {`
+  This is the G4 rename only. The hunk touches that one line; every assertion in the test body is unchanged, so no assertion was weakened or removed.
+
+tools/save-check.js, 3 deletions:
+- Deleted: `//    savedSeed + '.json'; parse the envelope and assert saveVersion 1, seed` Replaced by the same line with saveVersion 2. A header comment naming the asserted value; no assertion lives in it.
+- Deleted: `    check('Export: the envelope reads saveVersion 1, seed equals savedSeed, tick equals savedTick',` Replaced by the same line with saveVersion 2. The check name only.
+- Deleted: `      envelope.saveVersion === 1 && envelope.seed === savedSeed && envelope.tick === savedTick,` Replaced by the same line with saveVersion === 2. The assertion keeps its exact shape, a strict equality on the envelope version plus the seed and tick equalities; only the expected current version value moved, from 1 to 2. No assertion was weakened or removed.
+
+tools/save-hardening-check.js, 1 deletion:
+- Deleted: `    const expectedVersionMsg = 'This save was made by a different version of the game (save version 99). This game can only load version 1 saves, so nothing was loaded and your current game keeps running.';` Replaced by the same line with version 2 saves in place of version 1 saves. The check still asserts the rendered notice equals that exact full string; only the version word inside the expected string moved with the format. No assertion was weakened or removed.
+
+Version 1 still fed in and rejected in plain language, shown three ways this run:
+- In the suite: tests/sim.test.js, the battle record round trip test, sets a serialized envelope's saveVersion to 1 and asserts deserializeSave returns ok false with kind version (suite green at 130, below). That test was added in the same Step 1 commit and is untouched since.
+- By a direct orchestrator probe this run: a fresh seed 1 save with saveVersion set to 1 returns ok false, kind version, and the reason, verbatim: "This save was made by a different version of the game (save version 1). This game can only load version 2 saves, so nothing was loaded and your current game keeps running."
+- In a real browser: tools/save-hardening-check.js, rerun this run at 30 of 30, feeds a version 99 envelope through the slot and asserts the rendered notice equals the exact plain language rejection string for version 99, styled as an error, with the current game still running.
+No quoted deletion shows a weakened or removed assertion, so no surface drops to FAIL under the judge's rule. F2 is closed.
+
+The four Cycle 18 Step 0 evidence items, named as four, as the judge's Step 0 wording requires: (1) the F1 verdict fix, walk rows 1, 2, and 3 in LEGIBILITY_AUDIT.md moved from Partial to Yes, so the verdict column counts 16 Yes of 16; (2) the interactive recount in Section 9a, 21 static plus 7 dynamic equals 28, unchanged after Cycle 17 Steps 1 to 4; (3) the wall clock record in Section 9b, the grep at zero on the sim path, with the Step 4 save time read located at js/main.js line 1459 in the UI only slot meta; (4) the one sentence rationale in Section 9c for the Cycle 17 Step 4 tools/save-check.js edit, confirming no assertion was weakened or removed. Four items, counted from the Step 0 entry itself.
+
+### F3 closed, exact marker counts promoted into the check
+- What was added (commit 610e152, builder Nemotron as above, orchestrator verified the full diff: 62 insertions, 0 deletions, no existing line changed): a Scenario C in tools/order-marker-check.js. In node it stages a fresh seed 1 game, takes the first province holding at least two player units (the p4_3 stack, one infantry and one drone wing), orders both to the same first neighbor, and serializes. In the browser it imports that save through the real file input and asserts exactly 2 markers total, exactly 2 on the common target tile, and the sorted marker texts equal to the two expected texts, one Inf and one Drone.
+- On HEAD, standalone with its own log: 19 of 19 PASS, exit 0 (the 16 prior checks plus the 3 new ones).
+- On a duplicated tree, non vacuity by the actual regression: a scratch copy of the repo with the Cycle 18 Step 3 duplicate rendering block reinserted into js/main.js (the exact block commit 3da73cf removed, placed back inside the live intel branch) fails the check at exit 1, 5 failures counted of 13 checks reached (the conditional text and tile checks under a count of 1 are skipped when the count is wrong, which is why the mutant total is 13, stated plainly). All three new Scenario C checks fail on the mutant (4 markers found where 2 are asserted, in total, on the target, and in the text list), and the two pre existing exactly one checks fail with it. The scratch copy was deleted after the run; no mutant code is in the repo.
+- F3 is closed: the probe that caught the regression is now the committed check, with exact counts for the rendered collection.
+
+### Verification run by the orchestrator (not taken from the builder)
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 130 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle18.txt.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- Browser checks run this run, each standalone with its own log under /tmp/c19s0-logs: order-marker 19 of 19 (and the mutant run above), save 19 of 19, save-hardening 30 of 30. The other fourteen browser checks were not rerun: this step changes no game code and no other check, and their totals stand as recorded at Cycle 18 Step 5. Stated plainly rather than implied.
+
+### Disposition
+- The step passes verification. The check change is committed as 610e152; this log, lessons, and backlog entry ride the documentation commit that follows. Step 0 is complete and Cycle 18 is sealed: F1, F2, and F3 are all closed with the evidence above.
+
+### Mission status
+Cycle 19 Step 0 is complete; Step 1 is next and does not start this run. Step 1 is the owner decisions step: it puts the history retention, equipment third spend, and blockade dormancy questions to Jash with the judge's recommended defaults and records his rulings; nothing builds on silence, and Steps 2 and 3 stay conditional on those rulings exactly as the step list above records. No stop condition is met: no failed judge verdict, no verification failure this run (four rate limited builder heads are builder unavailability within one run's rotation, resolved by the fifth model in the same run), and no balance change.
