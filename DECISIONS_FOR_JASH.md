@@ -1039,3 +1039,19 @@ item above.
     control), landing before the Q1 build per the consultation's
     cycle order, because it is small, needs no save change, and
     keeps any save or balance regression attributable to one change.
+
+21. Cycle 20 milestone settlements (2026-10-18, under the autopilot
+    order). Two items from the Cycle 20 milestone review are settled
+    here so later cycles do not reopen them. (a) The final snapshot
+    day seam: a history snapshot stamps the day its ending tick began
+    (day 35 on passive seed 1) while the balance report's reportDay
+    is the following day; the same stamp before increment convention
+    holds for beats, textures, and intel, and Cycle 20 Step 3 pinned
+    it. Ruled: keep the current semantics, no change. Ruled by Claude
+    under Jash's 2026-10-18 autopilot order. (b) The milestone's
+    completion call 3 taste items (queued reinforce orders and their
+    associated defaults) are not adopted: they contradict the Q2
+    ruling in item 20 (an instant explicit command, never a queued
+    order). The Cycle 21 step list in CYCLE_LOG at the Cycle 20
+    Step 6 entry governs. Ruled by Claude under Jash's 2026-10-18
+    autopilot order.
