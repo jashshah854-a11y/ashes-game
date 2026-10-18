@@ -13,6 +13,10 @@
 //    tile, matching type (Inf or Drone), and none on the enemy target tile.
 // B. Import a second staged save, fresh seed 1 with no orders, assert zero
 //    markers.
+// C. a third staged save, fresh seed 1, two player units that start stacked on
+//    the same province both ordered to the same neighboring province; assert
+//    exactly two .order-marker total and exactly two on that common target
+//    tile, with marker texts matching the two ordered unit types.
 //
 // Browser path also verifies live interaction:
 // (a) pause via real Pause button; assert zero .order-marker before any order
@@ -141,6 +145,54 @@ const sB = Sim.createGame(1);
 const saveTextB = Save.serializeSave(sB).text;
 fs.writeFileSync('/tmp/order-marker-B.json', saveTextB);
 
+// Scenario C: fresh seed 1, two player units stacked on same province, both
+// ordered to the same neighbor
+const sC = Sim.createGame(1);
+// Group player units by provinceId, in state.units order
+const playerUnitsByProv = {};
+for (const u of sC.units) {
+  if (u.nation === 'player') {
+    if (!playerUnitsByProv[u.provinceId]) playerUnitsByProv[u.provinceId] = [];
+    playerUnitsByProv[u.provinceId].push(u);
+  }
+}
+// Find first province with at least two player units
+let stackedProvId = null;
+let stackedUnits = null;
+for (const provId of Object.keys(playerUnitsByProv)) {
+  if (playerUnitsByProv[provId].length >= 2) {
+    stackedProvId = provId;
+    stackedUnits = playerUnitsByProv[provId].slice(0, 2);
+    break;
+  }
+}
+if (!stackedProvId || !stackedUnits) {
+  throw new Error('Could not find a province with at least two player units for seed 1');
+}
+// Compute neighbors and take first as common target
+const stackedProv = sC.provinces[stackedProvId];
+const neighbors = Sim.neighborsOf(sC, stackedProv);
+if (neighbors.length === 0) {
+  throw new Error('Stacked province has no neighbors for seed 1');
+}
+const commonTargetId = neighbors[0].id;
+// Issue orders for both units to the common target
+const orderResults = [];
+for (const u of stackedUnits) {
+  const res = Sim.issueOrder(sC, u.id, commonTargetId);
+  orderResults.push(res);
+}
+if (!orderResults.every(r => r.ok)) {
+  throw new Error('One or both issueOrder calls failed for Scenario C');
+}
+// Record expected marker texts in state.units order
+const expectedTextsC = stackedUnits.map(u => {
+  const typeLabel = u.type === 'drone' ? 'Drone' : 'Inf';
+  return 'Order: ' + typeLabel + ' ordered here at dawn';
+});
+const saveTextC = Save.serializeSave(sC).text;
+fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
+
 // ---------- Browser checks ----------
 
 (async () => {
@@ -255,6 +307,16 @@ fs.writeFileSync('/tmp/order-marker-B.json', saveTextB);
     await importSave(saveTextB, 'B');
     const markersB = await countMarkers();
     check('Scenario B (no orders): zero markers', markersB.length === 0, 'found: ' + markersB.length);
+
+    // ---- Scenario C import: two orders to same target ----
+    await importSave(saveTextC, 'C');
+    const markersC = await countMarkers();
+    check('Scenario C (two orders, one target): exactly two markers total', markersC.length === 2, 'found: ' + markersC.length);
+    const markersCOnTarget = markersC.filter(m => m.parentProvince === commonTargetId);
+    check('Scenario C: exactly two markers on the common target tile', markersCOnTarget.length === 2, 'found on target: ' + markersCOnTarget.length + ' expected: 2');
+    const sortedFoundTexts = markersC.map(m => m.text).sort();
+    const sortedExpectedTexts = expectedTextsC.slice().sort();
+    check('Scenario C: marker texts match the two ordered unit types', JSON.stringify(sortedFoundTexts) === JSON.stringify(sortedExpectedTexts), 'found: ' + JSON.stringify(sortedFoundTexts) + ' expected: ' + JSON.stringify(sortedExpectedTexts));
 
     // ---- (e) Map legend contains order marker text ----
     const legendText = await page.textContent('#map-legend');
