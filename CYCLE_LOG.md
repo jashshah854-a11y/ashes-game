@@ -4730,3 +4730,6 @@ Claimed this run: Step 4 only, under the Cycle 21 step list and DECISIONS item 2
 
 ### Mission status
 Cycle 21 Step 4 is complete: the Dominion reinforces through the same public command, price, and eligibility as the player; sensible and fortress spend 240 to 390 equipment per campaign on reinforcement and still win 8 of 8 above the ruling floor; reckless loses 8 of 8 with and without reinforcement; suite 187. Next run claims Step 5 (tests and balance for the cycle: the full suite, the balance rerun under the standing ruling bands, and tools/baseline-cycle21.txt committed from that run's own output). No stop condition is met: no failed judge verdict, no verification failure on the final tree (the header defect was caught in diff review and fixed inside this run before commit), and the one balance movement is the step's own intended mechanic, with every ruling band holding.
+
+### Cycle 21 step 4 sync note
+- Sync out after commit 988e2c7: the import script completed with exit 0 and sent this step's 2 commits to GitHub (cece658 and 988e2c7; jashshah854-a11y/ashes-game, master now at remote 8e2e4cf; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
