@@ -173,6 +173,8 @@
     manpowerPerProvincePerDay: 1, // daily manpower intake for each province the nation owns
     campaignBeats: true,          // record the turning points the lore marks (state.beats); no rule reads them
     campaignTextures: true,       // record recurring event texture (state.textures); no rule reads them
+    campaignHistory: true,        // record per nation history snapshots (state.history); no rule reads them
+    historyIntervalDays: 30,      // snapshot cadence for historyPhase
     fortMaxLevel: 2,              // fortification levels a province can hold
     fortCostPerLevel: 100,        // equipment, multiplied by the target level, paid when the work starts
     fortBuildDays: 5,             // days of construction per level
@@ -755,6 +757,64 @@
     return recorded;
   }
 
+  // ---------- Campaign history (Cycle 20) ----------
+  // The one record family for history snapshots. No rule reads state.history.
+  // ensureHistory creates the container and the nation array if missing.
+  function ensureHistory(state, nationId) {
+    if (!state.history) state.history = { player: [], enemy: [] };
+    if (!state.history[nationId]) state.history[nationId] = [];
+    return state.history[nationId];
+  }
+
+  // historySnapshot returns a plain object with exactly these keys in this order:
+  // day, provinces, factoryLevels, armyStrength, linesOpen, steel, equipment, manpower.
+  function historySnapshot(state, nationId) {
+    var provs = nationProvinces(state, nationId);
+    var units = unitsOf(state, nationId);
+    var totalStrength = 0;
+    for (var i = 0; i < units.length; i++) totalStrength += units[i].strength;
+    var n = state.nations[nationId];
+    return {
+      day: state.day,
+      provinces: provs.length,
+      factoryLevels: factoryLevels(state, nationId),
+      armyStrength: Math.round(totalStrength),
+      linesOpen: unlockedLineCount(state, nationId),
+      steel: n.steel,
+      equipment: n.equipment,
+      manpower: manpowerPool(state, nationId)
+    };
+  }
+
+  // recordHistory is gated by CFG.campaignHistory. For each nation (player then enemy)
+  // it appends a snapshot unless one for state.day already exists in that list
+  // or the list already holds 6 snapshots.
+  function recordHistory(state) {
+    if (!CFG.campaignHistory) return [];
+    var recorded = [];
+    ['player', 'enemy'].forEach(function (nationId) {
+      var list = ensureHistory(state, nationId);
+      var exists = false;
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].day === state.day) { exists = true; break; }
+      }
+      if (exists) return;
+      if (list.length >= 6) return;
+      list.push(historySnapshot(state, nationId));
+      recorded.push(nationId);
+    });
+    return recorded;
+  }
+
+  // historyPhase is gated the same way. It calls recordHistory only when
+  // state.day % CFG.historyIntervalDays === 0 or state.gameOver is true.
+  // It returns the list of nation ids recorded.
+  function historyPhase(state) {
+    if (!CFG.campaignHistory) return [];
+    if (state.day % CFG.historyIntervalDays !== 0 && !state.gameOver) return [];
+    return recordHistory(state);
+  }
+
   // Plant one agent from the stockpile on a province the nation does
   // not own. The agent watches that province only, never its
   // neighbors, from now until the province changes owner or the
@@ -1187,6 +1247,10 @@
         player: { snapshots: {}, agents: {} },
         enemy: { snapshots: {}, agents: {} }
       },
+      history: {           // per nation history snapshots, recorded at intervals (recordHistory); no rule reads them
+        player: [],
+        enemy: []
+      },
       nations: {
         player: {
           id: 'player', name: 'The Vessari Compact', short: 'Vessari',
@@ -1264,6 +1328,7 @@
     addUnit(state, 'enemy', 'drone', state.nations.enemy.capitalId);
 
     logEvent(state, 'War begins. The Compact and the Dominion mobilize along the river line.');
+    recordHistory(state);
     return state;
   }
 
@@ -2611,6 +2676,7 @@
     state.units = state.units.filter(function (u) { return u.strength > 0; });
     intelPhase(state); // record today's intel snapshots for both nations, if any
     beatPhase(state); // record today's turning points, if any
+    historyPhase(state); // record today's history snapshots for both nations, if any
     state.day += 1;
     state.tickCount += 1;
     if (!state.gameOver && state.day > CFG.campaignEndDay) {
@@ -2683,6 +2749,8 @@
     intelLiveProvinces: intelLiveProvinces,
     intelLiveCount: intelLiveCount,
     intelPhase: intelPhase,
+    historyPhase: historyPhase,
+    historySnapshot: historySnapshot,
     agentStock: agentStock,
     agentCost: agentCost,
     liveAgents: liveAgents,

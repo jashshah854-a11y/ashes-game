@@ -3780,7 +3780,7 @@ test('save and load: golden outcomes unchanged', () => {
 // so a later UI step can explain each battle. These tests pin the
 // record's shape on every engagement kind, that the launch line and the
 // other lines carry no record, that no rule reads the record, and that
-// it survives the version 2 save round trip. No recorded value changes:
+// it survives the version 3 save round trip. No recorded value changes:
 // every expected power is computed with Sim.stackPower before the phase
 // runs, never copied from the record itself.
 
@@ -3955,15 +3955,15 @@ test('battle record: no rule reads the record, so deleting it changes nothing', 
   assert.strictEqual(normalize(runB), normalize(runA), 'the two full states are identical without the record');
 });
 
-test('battle record: save version 2 carries the record through a round trip', () => {
+test('battle record: save version 3 carries the record through a round trip', () => {
   const fresh = Sim.createGame(42);
   const ser = Save.serializeSave(fresh);
   assert.strictEqual(ser.ok, true);
   const envelope = JSON.parse(ser.text);
-  assert.strictEqual(envelope.saveVersion, 2, 'the envelope reads saveVersion 2');
-  assert.strictEqual(Save.SAVE_VERSION, 2);
+  assert.strictEqual(envelope.saveVersion, 3, 'the envelope reads saveVersion 3');
+  assert.strictEqual(Save.SAVE_VERSION, 3);
   const stale = JSON.parse(ser.text);
-  stale.saveVersion = 1;
+  stale.saveVersion = 2;
   const rejected = Save.deserializeSave(JSON.stringify(stale));
   assert.strictEqual(rejected.ok, false);
   assert.strictEqual(rejected.kind, 'version');
@@ -4132,4 +4132,89 @@ test('cancel: save and load round trip after a cancel', () => {
   assert.strictEqual(cancel2.ok, true);
   assert.strictEqual(cancel2.manpowerRefund, Sim.CFG.unitTypes.infantry.manpowerCost);
   assert.strictEqual(Sim.manpowerPool(loaded, 'player'), startingPool);
+});
+
+// ---------- Cycle 20 step 3: history snapshots ----------
+
+test('history: fresh createGame holds exactly one snapshot per nation at day 1 with correct values', () => {
+  const s = Sim.createGame(1);
+  assert.ok(s.history && Array.isArray(s.history.player) && Array.isArray(s.history.enemy));
+  assert.strictEqual(s.history.player.length, 1);
+  assert.strictEqual(s.history.enemy.length, 1);
+  const p = s.history.player[0];
+  const e = s.history.enemy[0];
+  assert.strictEqual(p.day, 1);
+  assert.strictEqual(e.day, 1);
+  assert.strictEqual(p.provinces, 35);
+  assert.strictEqual(e.provinces, 35);
+  assert.strictEqual(p.factoryLevels, Sim.factoryLevels(s, 'player'));
+  assert.strictEqual(e.factoryLevels, Sim.factoryLevels(s, 'enemy'));
+  assert.strictEqual(p.armyStrength, 72);
+  assert.strictEqual(e.armyStrength, 72);
+  assert.strictEqual(p.linesOpen, 2);
+  assert.strictEqual(e.linesOpen, 2);
+  assert.strictEqual(p.steel, 20);
+  assert.strictEqual(e.steel, 20);
+  assert.strictEqual(p.equipment, 60);
+  assert.strictEqual(e.equipment, 60);
+  assert.strictEqual(p.manpower, 1200);
+  assert.strictEqual(e.manpower, 1200);
+});
+
+test('history: snapshots at interval and on game over, no duplicates, at most 6', () => {
+  const s = Sim.createGame(1);
+  // Tick 30 times (days 1 through 30)
+  for (let i = 0; i < 30; i++) Sim.tick(s);
+  const days30 = s.history.player.map(h => h.day);
+  assert.deepStrictEqual(days30, [1, 30], 'snapshots at day 1 and day 30 after 30 ticks');
+  // Tick to game over (passive seed 1 capital falls on tick starting day 35)
+  while (!s.gameOver) Sim.tick(s);
+  const finalDays = s.history.player.map(h => h.day);
+  assert.strictEqual(finalDays[finalDays.length - 1], 35, 'final snapshot day is the ending tick day');
+  // Strictly increasing, no duplicates
+  for (let i = 1; i < finalDays.length; i++) {
+    assert.ok(finalDays[i] > finalDays[i - 1], 'days strictly increase: ' + finalDays[i - 1] + ' -> ' + finalDays[i]);
+  }
+  assert.ok(finalDays.length <= 6, 'at most 6 snapshots, got ' + finalDays.length);
+  // Same for enemy
+  const eDays = s.history.enemy.map(h => h.day);
+  assert.deepStrictEqual(eDays, finalDays, 'enemy has same snapshot days as player');
+});
+
+test('history: zero mechanical effect when toggled off', () => {
+  let off;
+  Sim.CFG.campaignHistory = false;
+  try {
+    off = Sim.createGame(42);
+    for (let i = 0; i < 30; i++) Sim.tick(off);
+    assert.deepStrictEqual(off.history.player, []);
+    assert.deepStrictEqual(off.history.enemy, []);
+  } finally {
+    Sim.CFG.campaignHistory = true;
+  }
+  const on = Sim.createGame(42);
+  for (let i = 0; i < 30; i++) Sim.tick(on);
+  // Strip history and compare
+  const strip = (s) => { const c = JSON.parse(JSON.stringify(s)); delete c.history; return JSON.stringify(c); };
+  assert.strictEqual(strip(on), strip(off), 'mechanics identical with history on vs off');
+});
+
+test('history: save round trip preserves history deep equal', () => {
+  const Save = require('../js/save.js');
+  const s = Sim.createGame(42);
+  for (let i = 0; i < 15; i++) Sim.tick(s);
+  const ser = Save.serializeSave(s);
+  assert.strictEqual(ser.ok, true);
+  const envelope = JSON.parse(ser.text);
+  assert.strictEqual(envelope.saveVersion, 3);
+  const des = Save.deserializeSave(ser.text);
+  assert.strictEqual(des.ok, true);
+  assert.deepStrictEqual(des.state.history, s.history, 'history deep equal after round trip');
+});
+
+test('history: determinism across two fresh seed 7 games ticked 35 times', () => {
+  const a = Sim.createGame(7);
+  const b = Sim.createGame(7);
+  for (let i = 0; i < 35; i++) { Sim.tick(a); Sim.tick(b); }
+  assert.deepStrictEqual(a.history, b.history, 'history deep equal for same seed and ticks');
 });

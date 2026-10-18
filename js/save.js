@@ -2,7 +2,7 @@
 // Turns the sim state from createGame in js/sim.js into one JSON save string
 // and back again, touching no game rule on either trip. A save is an
 // envelope, an object with five fields in this order: saveVersion (this
-// format is version 2), seed (the campaign seed), tick (the tick count), and
+// format is version 3), seed (the campaign seed), tick (the tick count), and
 // checksum, a guard over the payload, then the payload itself, the whole
 // saved game state written as one JSON string. checksumFor computes that
 // guard: an FNV-1a hash over the payload string, with the same starting
@@ -13,15 +13,15 @@
 // each edge once; on load the edges lookup is rebuilt from edgeList with
 // each edges entry set to the very same object as its edgeList entry, so
 // the two views can never drift apart.
-// The four record families, beats, textures, exchange, and intel, are
-// records only. They are restored exactly as saved: nothing is recomputed
+// The five record families, beats, textures, exchange, intel, and history,
+// are records only. They are restored exactly as saved: nothing is recomputed
 // or regenerated, and no sim function is called on load.
 // serializeSave never throws. Before it writes, it walks the saved state
 // and refuses, naming the field where it sits, any value a JSON save
 // cannot carry faithfully: a function, an undefined value, a symbol, a
 // bigint, NaN, Infinity, negative Infinity, or a circular reference.
 // deserializeSave never throws either. It refuses text that is not a save
-// at all, a header with a field missing, a version other than 2, a payload
+// at all, a header with a field missing, a version other than 3, a payload
 // that does not match its checksum, or a payload that is damaged or does
 // not agree with its header, each with a plain reason naming what is
 // wrong.
@@ -31,15 +31,15 @@
 (function (global) {
   'use strict';
 
-  var SAVE_VERSION = 2;
+  var SAVE_VERSION = 3;
 
-  // The 18 top level keys of a saved state: the createGame keys minus edges,
+  // The 19 top level keys of a saved state: the createGame keys minus edges,
   // in createGame order. edges is omitted because edgeList carries every
   // edge once and edges is rebuilt from it on load.
   var REQUIRED_KEYS = [
     'day', 'seed', 'tickCount', 'mapW', 'mapH', 'provinces', 'edgeList',
     'units', 'nextUnitId', 'gameOver', 'winner', 'endReason', 'log',
-    'beats', 'textures', 'exchange', 'intel', 'nations'
+    'beats', 'textures', 'exchange', 'intel', 'history', 'nations'
   ];
 
   var HEADER_FIELDS = ['saveVersion', 'seed', 'tick', 'checksum', 'payload'];
@@ -315,6 +315,7 @@
       textures: payload.textures,
       exchange: payload.exchange,
       intel: payload.intel,
+      history: payload.history,
       nations: payload.nations
     };
     return { ok: true, state: restored };

@@ -27,7 +27,7 @@
 //    codex closed.
 // 4. File round trip while paused: Export through the download event; assert
 //    the suggested filename is 'ashes-save-day-' + savedDay + '-seed-' +
-//    savedSeed + '.json'; parse the envelope and assert saveVersion 2, seed
+//    savedSeed + '.json'; parse the envelope and assert saveVersion 3, seed
 //    equals savedSeed, and tick equals the saved tickCount; assert the
 //    envelope carries no filename or name field; deserialize in node is ok.
 //    Import through the real Import button and file chooser; poll for the
@@ -200,8 +200,8 @@ async function clickWhenClear(page, selector) {
     const exportPath = await download.path();
     const exportText = fs.readFileSync(exportPath, 'utf8');
     const envelope = JSON.parse(exportText);
-    check('Export: the envelope reads saveVersion 2, seed equals savedSeed, tick equals savedTick',
-      envelope.saveVersion === 2 && envelope.seed === savedSeed && envelope.tick === savedTick,
+    check('Export: the envelope reads saveVersion 3, seed equals savedSeed, tick equals savedTick',
+      envelope.saveVersion === 3 && envelope.seed === savedSeed && envelope.tick === savedTick,
       'version ' + envelope.saveVersion + ', seed ' + envelope.seed + ', tick ' + envelope.tick);
     const deserExport = Save.deserializeSave(exportText);
     check('Export: js/save.js reads the exported file back ok in node',
