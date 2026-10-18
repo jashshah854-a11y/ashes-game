@@ -44,7 +44,8 @@
    'save-notice', 'save-slot-meta', 'btn-save-slot', 'btn-load-slot', 'btn-export', 'btn-import',
    'save-file-input', 'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
-   'codex-article', 'btn-codex-close'
+   'codex-article', 'btn-codex-close',
+   'progression-blocks', 'progression-explain'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -607,6 +608,7 @@
     el.statEnemyManpowerIntake.textContent = Sim.manpowerIntake(state, 'enemy');
 
     renderExchange();
+    renderProgression();
     renderProduction();
     renderProvinceCard();
     renderUnitCard();
@@ -653,6 +655,49 @@
     d.className = cls;
     d.textContent = text;
     return d;
+  }
+
+  // Signed number for change rows: positive numbers show a leading plus.
+  function signedNum(n) { return n > 0 ? '+' + n : String(n); }
+
+  // Campaign progression panel: draws the history snapshots for both nations.
+  function renderProgression() {
+    var interval = Sim.CFG.historyIntervalDays;
+    el.progressionExplain.textContent =
+      'Snapshots are recorded on day 1, then every ' + interval + ' days, and on the final day of the campaign. Each snapshot records provinces held, factory levels, army strength, production lines open, steel, equipment, and manpower for that day, so a later country can be compared with its day 1 self. No rule in the game reads these snapshots.';
+
+    el.progressionBlocks.innerHTML = '';
+
+    var nations = ['player', 'enemy'];
+    for (var ni = 0; ni < nations.length; ni++) {
+      var nationId = nations[ni];
+      var title = nationId === 'player' ? 'The Vessari Compact (you)' : 'The Khessite Dominion';
+      var list = (state.history && state.history[nationId]) || [];
+
+      var block = document.createElement('div');
+      block.className = 'progression-nation';
+      block.appendChild(textDiv('progression-nation-title', title));
+
+      if (list.length === 0) {
+        block.appendChild(textDiv('progression-row', 'No snapshots are recorded yet.'));
+      } else {
+        for (var i = 0; i < list.length; i++) {
+          var snap = list[i];
+          block.appendChild(textDiv('progression-row',
+            'Day ' + snap.day + ': ' + snap.provinces + ' provinces held, ' + snap.factoryLevels + ' factory levels, army strength ' + snap.armyStrength + ', ' + snap.linesOpen + ' production lines open, ' + snap.steel + ' steel, ' + snap.equipment + ' equipment, ' + snap.manpower + ' manpower.'));
+        }
+        if (list.length === 1) {
+          block.appendChild(textDiv('progression-row',
+            'Only day 1 is recorded so far. The next snapshot is recorded on day ' + interval + '.'));
+        } else if (list.length >= 2 && list[list.length - 1].day !== list[0].day) {
+          var first = list[0];
+          var last = list[list.length - 1];
+          block.appendChild(textDiv('progression-row progression-change',
+            'Change since day 1, day ' + last.day + ' compared with day 1: provinces held ' + signedNum(last.provinces - first.provinces) + ', factory levels ' + signedNum(last.factoryLevels - first.factoryLevels) + ', army strength ' + signedNum(last.armyStrength - first.armyStrength) + ', production lines open ' + signedNum(last.linesOpen - first.linesOpen) + ', steel ' + signedNum(last.steel - first.steel) + ', equipment ' + signedNum(last.equipment - first.equipment) + ', manpower ' + signedNum(last.manpower - first.manpower) + '.'));
+        }
+      }
+      el.progressionBlocks.appendChild(block);
+    }
   }
 
   // Funded working days until this line reaches the efficiency cap,
