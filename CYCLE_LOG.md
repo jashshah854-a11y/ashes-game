@@ -4656,3 +4656,6 @@ Claimed this run: Step 2 only, under DECISIONS_FOR_JASH.md item 20 Q2 and the it
 
 ### Mission status
 Cycle 21 Step 2 is complete: the reinforce command and its readout are in the sim under the item 22 rulings, the ruled lastCombatDay field is stamped in movementPhase with saveVersion unchanged at 3, suite 184, and balance byte identical to tools/baseline-cycle20.txt. Next run claims Step 3 (reinforce on screen, UI only: the unit card control from the reinforceInfo readout). No stop condition is met: no failed judge verdict, no verification failure on the final tree (the label defect was caught in orchestrator diff review and fixed inside this run before commit), and no balance change.
+
+### Cycle 21 step 2 sync note
+- Sync out after commit c0668fd: the import script completed with exit 0 and sent 3 commits to GitHub (4625a97, the Cycle 21 step 1 sync note carried over, plus this step's 86ae047 and c0668fd; jashshah854-a11y/ashes-game, master now at remote 5a15547; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
