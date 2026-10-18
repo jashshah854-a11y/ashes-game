@@ -5195,3 +5195,6 @@ The Cycle 21 Step 6 reading is confirmed against the code in tools/balance.js ru
 
 ### Mission status
 Cycle 22 Step 1 is complete: the diagnostic ruling preceded the instrumentation, the report carries the ruled figures, tools/baseline-cycle22.txt is committed, the stripped output is byte identical to the Cycle 21 baseline, the finding and the leave as is ruling are recorded, and the reckless 30 and origStrengthPct questions are answered from traces and code. Next run claims Step 2 (the hardening and legibility bundle: F4, F6, the history snapshot day bound, and the two reinforce legibility items; balance byte identical to baseline-cycle22 throughout). No stop condition is met: no failed verdict, no verification failure, no tuning of any kind.
+
+### Cycle 22 step 1 sync note
+- Sync out after commit 8d5f2cc: the import script completed with exit 0 and sent 5 commits to GitHub (8e0d91a, the Cycle 22 step 0 sync note carried over, plus this step's 28758ee, 7a75b3b, 4441b4e, and 8d5f2cc; jashshah854-a11y/ashes-game, master now at remote 5b3f372; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
