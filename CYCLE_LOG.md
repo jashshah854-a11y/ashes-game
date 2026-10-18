@@ -3147,3 +3147,26 @@ Cycle 15 is complete. Cycle 16 is started (step list above) but Step 0 remains u
 
 ### Cycle 16 step 0 sync note
 - Sync out after commit 5eb48a2: the import script sent 2 commits to GitHub (the Cycle 15 step 4 sync note commit 8ea2aa7 and this step's 5eb48a2; jashshah854-a11y/ashes-game, master now at remote 29f7daa; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit.
+
+## Cycle 16, Step 0 of 5: state inventory audit, SECOND FAILED VERIFICATION, REVERTED (2026-10-18)
+
+Claimed this run: Step 0 only, retry at full size under the three tightened constraints from the first failure. The step did not land. Per the loop rules it was reverted completely, and this entry, a LOOP_LESSONS entry, and a BACKLOG note are the only changes in this commit. The failed file is preserved outside the repo at /tmp/c16s0-failed-inventory-2.md for the next run to study, not to reapply blindly.
+
+### What the builders did
+- Builder rotation: opencode/deepseek-v4.1-flash-free returned Rate limit exceeded and made no changes. opencode/glm-5.3-flash-free accepted the call and built the step: one new file, STATE_INVENTORY.md, 24,478 bytes. opencode/mimo-v2.6-flash-free was also started in parallel in error by the orchestrator and was rate limited after its exploration; the surviving file matches the glm build and its node measurements. No other repo file was touched by the builders (git status showed only the new untracked file).
+- The inventory as built gets the previously failed claims right: the top level count is stated as 19 with the count method named and all 19 rows listed; province x and y are classified Authoritative with the sim readers named and the grep recorded; no quoted string is truncated with ellipses; the edges and edgeList alias is stated, the exchange aggregate shape is stated, the rng audit and the wall clock grep are present, and the fractional attritionCarry values are measured.
+
+### Verification run by the orchestrator (not taken from the builder)
+- Full file read and claims check against the code. The plain counts verify: node confirms 19 top level keys, 70 provinces, 123 edges in both representations with 123 of 123 identity matches, 14 units at creation, log length 1 at creation, and capitals p0_3 and p9_3 on seeds 1 and 99. node --check on every JS file: all pass. node --test tests/sim.test.js: 112 pass, 0 fail. node tools/balance.js all: byte identical to tools/baseline-cycle14.txt. Python byte scan for em and en dashes across the whole repo: zero.
+- Three defects fail the audit, whose whole purpose is to be the clean ground truth list later steps build against:
+  1. Corrupted text in the document body: section 7 contains a Cyrillic insertion inside an English word (an absent key puts, with the first letters in Cyrillic), and section 12 contains a Chinese character insertion inside a sentence about the existing rules. A non-ASCII scan of the file finds exactly these 10 non-ASCII bytes and nothing else. An audit with corrupted words in it is not a reliable ground truth.
+  2. Garbled phrases in several places that state no checkable meaning: snapshots never capturing map gender facts, the timer handle described as never family, the UI state described as a module level friendship, and the conclusion described as straitened. Each is small; together they show the text was not read clean before delivery.
+  3. Section 11 assigns hazard owners against provisional step definitions that contradict the recorded Cycle 16 step list: it treats Step 1 as save serialization and Step 2 as load hydration, when the recorded list has Step 1 as rng state into state, Step 2 as serialize and deserialize, Step 3 as UI controls, and Step 4 as tests and balance. Its own disclaimer says hazards move by topic, but the table as printed names the wrong steps, and a Step 1 or Step 2 reader trusting the table would look for serialization work in the rng step.
+
+### Disposition
+- The step fails verification, so it is reverted completely: STATE_INVENTORY.md is removed (preserved at /tmp/c16s0-failed-inventory-2.md), and the working tree is clean apart from this log, LOOP_LESSONS.md, and BACKLOG.md.
+- This is Step 0's second verification failure, so the next run re-briefs Step 0 at HALF SIZE: a shorter inventory covering only the top level table with the 19 keys, the province, nation, line, and unit subobject tables, and the alias note, with the rng audit, the UI held state table, and the hazards table deferred to a Step 0b. Added hard constraints for the half size brief: a non-ASCII byte scan of the delivered file must be zero (plain ASCII only), and hazard or step references, if any appear, must use the recorded Cycle 16 step definitions exactly.
+- No stop condition is met: no failed judge verdict, and this is two consecutive runs failing verification, not three.
+
+### Mission status
+Cycle 15 is complete. Cycle 16 Step 0 remains unbuilt after two failed attempts. Next run claims Step 0 at half size as Step 0a under the disposition above. No stop condition is met.
