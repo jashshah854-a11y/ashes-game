@@ -35,6 +35,10 @@
 // profile list becomes passive, sensible, reckless, reckless-reinforce,
 // fortress in that order, and process.argv profile selection accepts
 // 'reckless-reinforce'.
+// Cycle 22 step 1: added six blockade fields to the run report.
+// They sample Sim.enemyHomeCoastalControlCount after each tick for
+// each nation. The fields are report only and no profile or sim
+// behavior changed.
 const Sim = require('../js/sim.js');
 const SEEDS = [1, 7, 42, 99, 1234, 555, 2024, 31337];
 
@@ -193,6 +197,11 @@ function run(seed, profile) {
   const trace = (profile === 'sensible' || profile === 'fortress') ? [] : null;
   // Per run reinforce spend counter for the player.
   s._reinforceCounter = { spent: 0 };
+  // Blockade progress trackers for player and enemy nations.
+  const blockadeTrackers = {
+    player: { max: 0, daysAt1: 0, daysAt2: 0 },
+    enemy: { max: 0, daysAt1: 0, daysAt2: 0 }
+  };
   let days = 0;
   while (!s.gameOver && days < 200) {
     if (profile === 'sensible') sensibleDay(s, trace);
@@ -200,6 +209,14 @@ function run(seed, profile) {
     else if (profile === 'reckless') recklessDay(s, false);
     else if (profile === 'reckless-reinforce') recklessDay(s, true);
     Sim.tick(s); days++;
+    // Sample blockade progress after each tick.
+    for (const n of ['player', 'enemy']) {
+      const val = Sim.enemyHomeCoastalControlCount(s, n);
+      const tr = blockadeTrackers[n];
+      if (val > tr.max) tr.max = val;
+      if (val === 1) tr.daysAt1++;
+      if (val === 2) tr.daysAt2++;
+    }
   }
   const origStrength = s.units.filter(u => u.nation === 'player' && u.id <= 7 && u.strength > 0).reduce((a, u) => a + u.strength, 0);
   return {
@@ -215,7 +232,13 @@ function run(seed, profile) {
     line3QueueSeen: trace ? !!trace.line3Queued : undefined,
     trace: trace || undefined,
     reason: s.endReason,
-    reinforceSpentPlayer: s._reinforceCounter.spent
+    reinforceSpentPlayer: s._reinforceCounter.spent,
+    blockadePlayerMax: blockadeTrackers.player.max,
+    blockadePlayerDaysAt1: blockadeTrackers.player.daysAt1,
+    blockadePlayerDaysAt2: blockadeTrackers.player.daysAt2,
+    blockadeEnemyMax: blockadeTrackers.enemy.max,
+    blockadeEnemyDaysAt1: blockadeTrackers.enemy.daysAt1,
+    blockadeEnemyDaysAt2: blockadeTrackers.enemy.daysAt2
   };
 }
 
