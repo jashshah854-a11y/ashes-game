@@ -4588,3 +4588,6 @@ Claimed this run: Step 0 only. No builder was briefed and no game code was built
 
 ### Mission status
 Cycle 21 Step 0 is complete: all eight answers are recorded as rulings in DECISIONS_FOR_JASH.md item 22, no new state is needed beyond the one ruled field, and the build may proceed. Next run claims Step 1 (close F2 and pin F1, no balance change). No stop condition is met: no failed judge verdict (this consultation is a decision ruling under the autopilot order, not a milestone verdict), no verification failure, and no balance change.
+
+### Cycle 21 step 0 sync note
+- Sync out after commit 4f5935e: the import script completed with exit 0 and sent 2 commits to GitHub (2cee316, the Cycle 20 step 6 sync note carried over, plus this step's 4f5935e; jashshah854-a11y/ashes-game, master now at remote 9ddd08d; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit. This note rides the next run's sync, as prior sync notes have.
