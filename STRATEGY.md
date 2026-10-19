@@ -177,6 +177,7 @@ Luma is on the final composite, 0 to 255, using Rec. 709 weights on sRGB values.
 | C. Last seen | 120 to 175 | Gray terrain, lifted, low contrast, pencil hatching |
 | D. Unknown | 185 to 225 | Blank parchment with faint mist |
 | E. State lights | 225 to 255 | Plaque numerals, bright stroke highlights |
+| F. Figures | 50 to 210 | Units and structures, measured on sprite pixels after tint (proposal P1 from VISUAL_STRATEGY.md, adopted by Jash 2026-10-19, DECISIONS item 29) |
 
 B and C overlap in raw range on purpose. They separate by chroma (B has color, C has none) and by the hatching texture. Gate G13 also requires their **mean** luma to sit at least 25 levels apart on the composite.
 
