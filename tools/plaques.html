@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ashes of Empires, plaque system harness</title>
+<!--
+  Ashes of Empires, Cycle 23 Step 5a, plaque system harness.
+  Loads css/plaques.css, js/sim.js, js/save.js, js/adapter.js and js/plaques.js.
+  Contains one div id board with position relative and aspect-ratio 10 / 7 and width 1000px.
+  Exposes exactly one global window.PLAQUE_PAGE with two functions:
+  setup(view) which stores the view, calls AshesPlaques.renderPlaques on the board,
+  and returns AshesPlaques.buildPlaques(view);
+  and counts() which reads the DOM and returns { unitPlaques, hollowPlaques,
+  numeralSpans, alarmMarks, buildingMarks, factoryMarks, fortMarks,
+  digitTextInHollow } where digitTextInHollow is the number of hollow plaque
+  elements whose textContent contains a digit.
+-->
+<style>
+  html, body { margin: 0; padding: 0; background: #20241F; }
+  #board {
+    position: relative;
+    width: 1000px;
+    aspect-ratio: 10 / 7;
+    background: #20241F;
+  }
+</style>
+</head>
+<body>
+<div id="board"></div>
+<link rel="stylesheet" href="../css/plaques.css">
+<script src="../js/sim.js"></script>
+<script src="../js/save.js"></script>
+<script src="../js/adapter.js"></script>
+<script src="../js/plaques.js"></script>
+<script>
+(function (global) {
+  'use strict';
+
+  var storedView = null;
+
+  function setup(view) {
+    storedView = view;
+    var board = document.getElementById('board');
+    board.innerHTML = '';
+    AshesPlaques.renderPlaques(board, view);
+    return AshesPlaques.buildPlaques(view);
+  }
+
+  function counts() {
+    var board = document.getElementById('board');
+    var unitPlaques = board.querySelectorAll('.plaque').length;
+    var hollowPlaques = board.querySelectorAll('.plaque-hollow').length;
+    var numeralSpans = board.querySelectorAll('.plaque .numeral').length;
+    var alarmMarks = board.querySelectorAll('.plaque .alarm').length;
+    var buildingMarks = board.querySelectorAll('.building-mark').length;
+    var factoryMarks = board.querySelectorAll('.mark-factory').length;
+    var fortMarks = board.querySelectorAll('.mark-fort').length;
+
+    var digitTextInHollow = 0;
+    var hollowEls = board.querySelectorAll('.plaque-hollow');
+    for (var i = 0; i < hollowEls.length; i++) {
+      if (/\d/.test(hollowEls[i].textContent)) {
+        digitTextInHollow++;
+      }
+    }
+
+    return {
+      unitPlaques: unitPlaques,
+      hollowPlaques: hollowPlaques,
+      numeralSpans: numeralSpans,
+      alarmMarks: alarmMarks,
+      buildingMarks: buildingMarks,
+      factoryMarks: factoryMarks,
+      fortMarks: fortMarks,
+      digitTextInHollow: digitTextInHollow
+    };
+  }
+
+  global.PLAQUE_PAGE = {
+    setup: setup,
+    counts: counts
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+</body>
+</html>

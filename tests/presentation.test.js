@@ -268,3 +268,123 @@ test('fixture: the committed worst case board reads back with its section 2.8.1 
   assert.ok(viewDark.length >= 12, 'dark at least 12, got ' + viewDark.length);
   assert.ok(darkCorner >= 1, 'dark corner at least 1, got ' + darkCorner);
 });
+
+// Plaque system tests (Cycle 23 Step 5a)
+const AshesPlaques = require('../js/plaques.js');
+
+test('plaque build: fixture view returns 27 live unit groups, 7 flotilla plaques, 3 remembered plaques (37 unitPlaques) and 84 buildingMarks (46 factory, 38 fort), with densest province p0_3 present', () => {
+  const Save = require('../js/save.js');
+  const fixturePath = path.join(__dirname, '..', 'tools', 'fixture', 'worst-case.json');
+  const fixtureText = fs.readFileSync(fixturePath, 'utf8');
+  const readBack = Save.deserializeSave(fixtureText);
+  assert.strictEqual(readBack.ok, true, readBack.reason || 'deserialize failed');
+  const s = readBack.state;
+  const view = playerView(s);
+  const descriptors = AshesPlaques.buildPlaques(view);
+
+  assert.strictEqual(descriptors.unitPlaques.length, 37, 'unitPlaques length ' + descriptors.unitPlaques.length);
+  assert.strictEqual(descriptors.buildingMarks.length, 84, 'buildingMarks length ' + descriptors.buildingMarks.length);
+
+  const factoryMarks = descriptors.buildingMarks.filter(m => m.kind === 'factory').length;
+  const fortMarks = descriptors.buildingMarks.filter(m => m.kind === 'fort').length;
+  assert.strictEqual(factoryMarks, 46, 'factory marks ' + factoryMarks);
+  assert.strictEqual(fortMarks, 38, 'fort marks ' + fortMarks);
+
+  const densest = descriptors.unitPlaques.some(d => d.provinceId === 'p0_3' && d.intel === 'live');
+  assert.ok(densest, 'densest province p0_3 present in live unitPlaques');
+});
+
+test('plaque build: every remembered plaque has numeral null, count null, totalStrength null and hollow true, and no dark province id appears in any descriptor', () => {
+  const Save = require('../js/save.js');
+  const fixturePath = path.join(__dirname, '..', 'tools', 'fixture', 'worst-case.json');
+  const fixtureText = fs.readFileSync(fixturePath, 'utf8');
+  const readBack = Save.deserializeSave(fixtureText);
+  assert.strictEqual(readBack.ok, true, readBack.reason || 'deserialize failed');
+  const s = readBack.state;
+  const view = playerView(s);
+  const descriptors = AshesPlaques.buildPlaques(view);
+
+  descriptors.unitPlaques.forEach(d => {
+    if (d.intel === 'remembered') {
+      assert.strictEqual(d.numeral, null, 'remembered plaque numeral is null for ' + d.provinceId);
+      assert.strictEqual(d.count, null, 'remembered plaque count is null for ' + d.provinceId);
+      assert.strictEqual(d.totalStrength, null, 'remembered plaque totalStrength is null for ' + d.provinceId);
+      assert.strictEqual(d.hollow, true, 'remembered plaque hollow is true for ' + d.provinceId);
+    }
+  });
+
+  const darkIds = view.provinces.filter(p => p.intel === 'dark').map(p => p.id);
+  const darkInDescriptors = descriptors.unitPlaques.some(d => darkIds.includes(d.provinceId)) ||
+    descriptors.buildingMarks.some(m => darkIds.includes(m.provinceId));
+  assert.strictEqual(darkInDescriptors, false, 'no dark province id appears in any descriptor');
+});
+
+test('plaque build: does not mutate the view and is deterministic', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const viewBefore = JSON.stringify(view);
+
+  const a = AshesPlaques.buildPlaques(view);
+  const viewAfterFirst = JSON.stringify(view);
+  assert.strictEqual(viewAfterFirst, viewBefore, 'view unchanged after first buildPlaques call');
+
+  const b = AshesPlaques.buildPlaques(view);
+  const viewAfterSecond = JSON.stringify(view);
+  assert.strictEqual(viewAfterSecond, viewBefore, 'view unchanged after second buildPlaques call');
+
+  assert.deepStrictEqual(b, a, 'two calls to buildPlaques are deep equal');
+});
+
+test('plaque palette: grayscale split between playerFill and enemyFill is at least 50 levels (Rec 709 luma)', () => {
+  function hexToRgb(hex) {
+    const m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+    if (!m) throw new Error('bad hex ' + hex);
+    return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+  }
+  function luma(rgb) {
+    // STRATEGY.md section 1.5: luma uses Rec 709 weights on the sRGB
+    // values themselves, on the 0 to 255 scale.
+    return Math.round(0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b);
+  }
+  const playerLuma = luma(hexToRgb(AshesPlaques.PALETTE.playerFill));
+  const enemyLuma = luma(hexToRgb(AshesPlaques.PALETTE.enemyFill));
+  const diff = Math.abs(playerLuma - enemyLuma);
+  assert.ok(diff >= 50, 'luma diff ' + diff + ' (player ' + playerLuma + ', enemy ' + enemyLuma + ') must be >= 50');
+});
+
+test('plaque glyphs: exactly six keys, all SVG strings pairwise different, soldier drone ship pairwise different', () => {
+  const keys = Object.keys(AshesPlaques.GLYPHS).sort();
+  assert.deepStrictEqual(keys, ['alarm', 'drone', 'factory', 'fort', 'ship', 'soldier'], 'exactly six glyph keys');
+
+  const values = Object.values(AshesPlaques.GLYPHS);
+  const unique = new Set(values);
+  assert.strictEqual(unique.size, values.length, 'all six SVG strings are pairwise different');
+
+  assert.notStrictEqual(AshesPlaques.GLYPHS.soldier, AshesPlaques.GLYPHS.drone, 'soldier and drone differ');
+  assert.notStrictEqual(AshesPlaques.GLYPHS.soldier, AshesPlaques.GLYPHS.ship, 'soldier and ship differ');
+  assert.notStrictEqual(AshesPlaques.GLYPHS.drone, AshesPlaques.GLYPHS.ship, 'drone and ship differ');
+});
+
+test('plaque source lint: js/plaques.js contains no banned strings and no sim mutator calls', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'plaques.js'), 'utf8');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'plaques.js must not contain ' + str);
+  });
+  FORBIDDEN_CALLS.forEach(name => {
+    const re = new RegExp('(\\bSim\\.)?\\b' + name + '\\b\\s*\\(');
+    assert.ok(!re.test(src), 'plaques.js must not call ' + name);
+  });
+  // Also verify no require of sim.js
+  assert.ok(!/require\(['\"]\.\/sim\.js['\"]\)/.test(src), 'plaques.js must not require sim.js');
+});
+
+test('plaque build: fresh seed 42 game view returns 8 live unit groups and zero remembered plaques', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const descriptors = AshesPlaques.buildPlaques(view);
+
+  const liveGroups = descriptors.unitPlaques.filter(d => d.intel === 'live').length;
+  const rememberedGroups = descriptors.unitPlaques.filter(d => d.intel === 'remembered').length;
+  assert.strictEqual(liveGroups, 8, 'live unit groups ' + liveGroups);
+  assert.strictEqual(rememberedGroups, 0, 'remembered groups ' + rememberedGroups);
+});

@@ -1,0 +1,82 @@
+@font-face {
+  font-family: "Barlow Semi Condensed";
+  src: url("../assets/fonts/BarlowSemiCondensed-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+.plaque-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.plaque {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px;
+  font-family: "Barlow Semi Condensed", sans-serif;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #FFFFFF;
+}
+
+.plaque.faction-player {
+  background: #2E6FD8;
+  border: 1px solid #0B1E3A;
+  border-radius: 0;
+}
+
+.plaque.faction-enemy {
+  background: #14161A;
+  border: 2px solid #C8372D;
+  border-radius: 0;
+  clip-path: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    0 calc(100% - 4px),
+    0 4px
+  );
+}
+
+.plaque-hollow {
+  background: transparent;
+  color: #8A8A8A;
+  border: 1px dashed #8A8A8A;
+}
+
+.plaque-hollow .glyph {
+  opacity: 0.65;
+  color: #9A9A9A;
+}
+
+.plaque .glyph svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.plaque .alarm {
+  color: #FFD94D;
+  display: inline-flex;
+}
+
+.building-mark {
+  position: absolute;
+  transform: translate(-50%, 0);
+  display: flex;
+  gap: 1px;
+  font-family: "Barlow Semi Condensed", sans-serif;
+  font-size: 9px;
+  color: #F2ECD9;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 0 2px;
+}
