@@ -5616,3 +5616,6 @@ Claimed this run: Step 5b, split at this run's start under the RUN WINDOW DISCIP
 
 ### Mission status
 Cycle 23 Step 5b is complete as the build half: the glyph name defect is fixed and pinned, the glyphs are reworked silhouettes, and the fresh eyes generator produces judgeable sheets. Run 3 is not complete: next run claims Step 5c (the judge proof above). No stop condition is met: no failed verdict, no verification failure on the final tree, and no tuning of any kind.
+
+### Cycle 23 step 5b sync note
+- Sync out after commit 1325f48 was attempted with the standard import script but hit this run's 120 second sync timeout with no output captured, so its outcome is unverified (it may have completed server side). Sync is best-effort only and did not block or alter the local commit; the next run should check the remote head against local 1325f48 before assuming the push landed. This note rides the next run's sync, as prior sync notes have.
