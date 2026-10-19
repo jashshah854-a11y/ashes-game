@@ -43,12 +43,14 @@ function luma(px) {
   return 0.2126 * px.r + 0.7152 * px.g + 0.0722 * px.b;
 }
 
-// Sample the #map-fog pixel at the centre of cell (cx, cy) in a 10 x 7 board.
+// Sample the #map-fog pixel at the centre of cell (cx, cy) in chart space
+// (Cycle 23 Step 9): the canvas spans 12.6 by 9.85 cells with the 10 x 7
+// lattice inset 1.3 left and top.
 async function sampleCellCentre(page, cx, cy) {
   return page.evaluate(([cx, cy]) => {
     const c = document.getElementById('map-fog');
-    const x = Math.min(c.width - 1, Math.floor(((cx + 0.5) / 10) * c.width));
-    const y = Math.min(c.height - 1, Math.floor(((cy + 0.5) / 7) * c.height));
+    const x = Math.min(c.width - 1, Math.floor(((cx + 0.5 + 1.3) / 12.6) * c.width));
+    const y = Math.min(c.height - 1, Math.floor(((cy + 0.5 + 1.3) / 9.85) * c.height));
     const d = c.getContext('2d').getImageData(x, y, 1, 1).data;
     return { x: x, y: y, r: d[0], g: d[1], b: d[2], a: d[3] };
   }, [cx, cy]);

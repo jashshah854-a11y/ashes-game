@@ -391,3 +391,7 @@ button.linkish:hover { background: none; color: #fff2c4; }
 }
 .province.owner-player.intel-remembered { background-color: rgba(51,86,125,0.45); }
 .province.owner-enemy.intel-remembered { background-color: rgba(125,51,51,0.45); }
+
+/* Cycle 23 Step 9, chart board: the board padding (the chart margins) is set
+   from js/main.js and counts inside the board box. */
+#map-board { box-sizing: border-box; }

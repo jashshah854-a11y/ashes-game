@@ -1174,3 +1174,240 @@ test('live board source pin: index.html loads css/plaques.css and js/plaques.js 
   assert.ok(!/\bchips?\b/i.test(html), 'index.html must not describe unit chips');
   assert.ok(html.indexOf('2x24') !== -1 && html.indexOf('hollow dashed plaque') !== -1 && html.indexOf('yellow alarm mark') !== -1, 'legend explains plaques');
 });
+
+// Chart, sea, and coast tests (Cycle 23 Step 9)
+
+const AshesChart = require('../js/map-chart.js');
+
+function step9Chart(seed) {
+  const view = playerView(Sim.createGame(seed));
+  const geom = AshesMapGeometry.buildGeometry(view);
+  return { view: view, geom: geom, chart: AshesChart.buildChart(geom) };
+}
+
+function step9DistToSeg(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y);
+}
+
+function step9DistToPolygon(p, poly) {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    best = Math.min(best, step9DistToSeg(p, poly[i], poly[(i + 1) % poly.length]));
+  }
+  return best;
+}
+
+function step9InsideOrOn(p, poly) {
+  return AshesChart.pointInPolygon(p, poly) || step9DistToPolygon(p, poly) <= 1e-9;
+}
+
+function step9Mid(a, b) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function step9ChainMid(chart, seg) {
+  const idx = Math.floor((seg.coastStart + seg.coastEnd) / 2);
+  return chart.coastline[idx];
+}
+
+test('chart source lint: js/map-chart.js contains no banned strings, no sim require, no Math.random, no Date, no em/en dashes', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-chart.js'), 'utf8');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'map-chart.js must not contain ' + str);
+  });
+  assert.ok(!/require\(['\"]\.\/sim\.js['\"]\)/.test(src), 'map-chart.js must not require sim.js');
+  assert.ok(!/Math\.random\(\)/.test(src), 'map-chart.js must not use Math.random');
+  assert.ok(!/new Date\(\)/.test(src), 'map-chart.js must not use new Date()');
+  assert.ok(!/Date\.now\(\)/.test(src), 'map-chart.js must not use Date.now()');
+  assert.ok(!/[\u2013\u2014]/.test(src), 'map-chart.js must not contain em or en dashes');
+});
+
+test('chart M-COAST: sea segments sit exactly on coastal provinces, every coastal province has one', () => {
+  const { geom, chart } = step9Chart(42);
+  const coastalById = {};
+  geom.provinces.forEach(p => { coastalById[p.id] = !!p.coastal; });
+  assert.strictEqual(chart.boundarySegments.length, 2 * 2 * (geom.mapW + geom.mapH), 'two segments per boundary cell side');
+  const withSea = {};
+  chart.boundarySegments.forEach(seg => {
+    assert.strictEqual(seg.sea, coastalById[seg.provinceId], seg.key + ' sea flag equals province coastal flag');
+    assert.strictEqual(seg.coastal, coastalById[seg.provinceId], seg.key + ' coastal flag');
+    if (seg.sea) withSea[seg.provinceId] = true;
+  });
+  Object.keys(withSea).forEach(id => assert.strictEqual(coastalById[id], true, id + ' has a sea segment so must be coastal'));
+  const inlandCoastal = geom.provinces.filter(p => p.coastal && !withSea[p.id]).map(p => p.id);
+  assert.deepStrictEqual(inlandCoastal, [], 'every coastal province has at least one sea segment');
+});
+
+test('chart M-BOUNDS: every coastline point lies at least 0.06 outside the lattice and 0.20 inside the neatline; every polygon point lies inside the coast', () => {
+  const { geom, chart } = step9Chart(42);
+  const W = geom.mapW;
+  const H = geom.mapH;
+  const n = chart.neatline;
+  assert.ok(chart.coastline.length > 400, 'coastline points ' + chart.coastline.length);
+  chart.coastline.forEach((q, i) => {
+    const outside = Math.max(-q.y, q.y - H, -q.x, q.x - W);
+    assert.ok(outside >= 0.06, 'coast point ' + i + ' outside the lattice by ' + outside.toFixed(4));
+    assert.ok(q.x >= n.x0 + 0.20 && q.x <= n.x1 - 0.20 && q.y >= n.y0 + 0.20 && q.y <= n.y1 - 0.20,
+      'coast point ' + i + ' at ' + q.x.toFixed(3) + ',' + q.y.toFixed(3) + ' within 0.20 of the neatline');
+  });
+  geom.provinces.forEach(p => p.polygon.forEach((q, i) => {
+    assert.ok(AshesChart.pointInPolygon(q, chart.coastline), p.id + ' point ' + i + ' lies inside the coastline');
+  }));
+  // Frame values for the standard map.
+  assert.deepStrictEqual(chart.extent, { x0: -1.3, y0: -1.3, x1: 11.3, y1: 8.55 });
+  assert.deepStrictEqual(chart.neatline, { x0: -1, y0: -1, x1: 11, y1: 8 });
+  assert.ok(Math.abs(chart.widthCells - 12.6) < 1e-9 && Math.abs(chart.heightCells - 9.85) < 1e-9, 'chart size 12.6 by 9.85');
+  assert.ok(Math.abs(chart.insetX - 1.3) < 1e-9 && Math.abs(chart.insetTop - 1.3) < 1e-9 && Math.abs(chart.insetBottom - 1.55) < 1e-9, 'insets');
+});
+
+test('chart M-CONTAIN: every original polygon vertex and edge midpoint lies inside or on its hit polygon', () => {
+  const { geom, chart } = step9Chart(42);
+  geom.provinces.forEach(p => {
+    const hit = chart.hitPolygons[p.id];
+    assert.ok(hit && hit.length >= p.polygon.length, p.id + ' has a hit polygon');
+    p.polygon.forEach((q, i) => {
+      assert.ok(step9InsideOrOn(q, hit), p.id + ' vertex ' + i + ' inside or on its hit polygon');
+      const m = step9Mid(q, p.polygon[(i + 1) % p.polygon.length]);
+      assert.ok(step9InsideOrOn(m, hit), p.id + ' edge ' + i + ' midpoint inside or on its hit polygon');
+    });
+    if (!p.coastal) assert.deepStrictEqual(hit, p.polygon.map(q => ({ x: q.x, y: q.y })), p.id + ' inland hit polygon is its polygon');
+  });
+  // Bottom and left sides: polygon order matches perimeter order, so each
+  // sea chain starts nearer p1 than p2.
+  chart.boundarySegments.forEach(seg => {
+    if (!seg.sea) return;
+    const first = chart.coastline[seg.coastStart];
+    const last = chart.coastline[seg.coastEnd];
+    const along = (seg.side === 'top' || seg.side === 'bottom') ? 'x' : 'y';
+    const dirSeg = Math.sign(seg.p2[along] - seg.p1[along]);
+    const dirChain = Math.sign(last[along] - first[along]);
+    if (dirSeg !== 0) assert.strictEqual(dirChain, dirSeg, seg.key + ' chain runs in polygon order');
+  });
+});
+
+test('chart M-ADJ: sim adjacencies keep their shared boundary and hit polygons create no false adjacency', () => {
+  const { view, geom, chart } = step9Chart(42);
+  const adj = {};
+  view.edges.forEach(e => { adj[e.a + '|' + e.b] = true; adj[e.b + '|' + e.a] = true; });
+  function has(poly, q) { return poly.some(r => r.x === q.x && r.y === q.y); }
+  geom.edges.forEach(e => {
+    assert.strictEqual(e.path.length, 3, 'edge path has 3 points');
+    [e.path[0], e.path[2]].forEach(q => {
+      assert.ok(has(chart.hitPolygons[e.a], q), e.a + ' hit polygon keeps shared point with ' + e.b);
+      assert.ok(has(chart.hitPolygons[e.b], q), e.b + ' hit polygon keeps shared point with ' + e.a);
+    });
+  });
+  const ids = geom.provinces.map(p => p.id);
+  const boxes = {};
+  ids.forEach(id => {
+    const poly = chart.hitPolygons[id];
+    boxes[id] = {
+      x0: Math.min.apply(null, poly.map(q => q.x)), x1: Math.max.apply(null, poly.map(q => q.x)),
+      y0: Math.min.apply(null, poly.map(q => q.y)), y1: Math.max.apply(null, poly.map(q => q.y))
+    };
+  });
+  let checked = 0;
+  ids.forEach(a => ids.forEach(b => {
+    if (a === b || adj[a + '|' + b]) return;
+    const bb = boxes[b];
+    const polyB = chart.hitPolygons[b];
+    chart.hitPolygons[a].forEach(q => {
+      if (q.x < bb.x0 || q.x > bb.x1 || q.y < bb.y0 || q.y > bb.y1) return;
+      checked++;
+      const strictlyInside = AshesChart.pointInPolygon(q, polyB) && step9DistToPolygon(q, polyB) > 1e-9;
+      assert.ok(!strictlyInside, a + ' vertex ' + q.x.toFixed(4) + ',' + q.y.toFixed(4) + ' strictly inside non adjacent ' + b);
+    });
+  }));
+  assert.ok(checked > 0, 'some vertices were bbox candidates');
+});
+
+test('chart M-HIT: 10000 lattice points agree with geometry hitTest; aprons hit their province; sea, border, and beyond land miss', () => {
+  const { geom, chart } = step9Chart(42);
+  const rng = AshesChart.mulberry32(0x5eed09);
+  for (let i = 0; i < 10000; i++) {
+    const x = rng() * geom.mapW;
+    const y = rng() * geom.mapH;
+    assert.strictEqual(AshesChart.hitTest(chart, x, y), AshesMapGeometry.hitTest(geom, x, y), 'point ' + x + ',' + y);
+  }
+  let seaChecked = 0;
+  chart.boundarySegments.forEach(seg => {
+    const probe = step9Mid(step9Mid(seg.p1, seg.p2), step9ChainMid(chart, seg));
+    if (seg.sea) {
+      assert.strictEqual(AshesChart.hitTest(chart, probe.x, probe.y), seg.provinceId, seg.key + ' apron probe ' + probe.x.toFixed(3) + ',' + probe.y.toFixed(3));
+      seaChecked++;
+    }
+  });
+  assert.ok(seaChecked > 0, 'sea segments probed');
+  assert.strictEqual(AshesChart.hitTest(chart, -0.9, -0.9), null, 'neatline corner is sea');
+  assert.strictEqual(AshesChart.hitTest(chart, 5.0, -1.15), null, 'border strip misses');
+  const inland = chart.boundarySegments.find(seg => !seg.sea && seg.side === 'left');
+  assert.ok(inland, 'a west inland segment exists');
+  const beyond = step9Mid(step9Mid(inland.p1, inland.p2), step9ChainMid(chart, inland));
+  assert.strictEqual(AshesChart.hitTest(chart, beyond.x, beyond.y), null, inland.key + ' beyond land probe misses');
+  // Open sea north of the coast misses (the browser sea click point).
+  assert.strictEqual(AshesChart.hitTest(chart, 5.0, -0.88), null, 'open sea at 5.0,-0.88 misses');
+  // Apron of p0_0 at 0.5,-0.25 hits p0_0 (the browser apron click point).
+  assert.strictEqual(AshesChart.hitTest(chart, 0.5, -0.25), 'p0_0', 'apron at 0.5,-0.25 hits p0_0');
+});
+
+test('chart determinism: chartSeed and coastline are stable, and geometry does not vary by sim seed (M1)', () => {
+  const a = step9Chart(42);
+  const again = AshesChart.buildChart(a.geom);
+  assert.strictEqual(again.chartSeed, a.chart.chartSeed, 'same geometry, same chartSeed');
+  assert.deepStrictEqual(again.coastline, a.chart.coastline, 'same geometry, same coastline');
+  assert.deepStrictEqual(again.waves, a.chart.waves, 'same geometry, same waves');
+  const b = step9Chart(7);
+  assert.strictEqual(b.chart.chartSeed, a.chart.chartSeed, 'seed 7 geometry gives the same chartSeed as seed 42');
+  assert.ok(Number.isInteger(a.chart.chartSeed) && a.chart.chartSeed >= 0 && a.chart.chartSeed <= 0xffffffff, 'chartSeed is unsigned 32 bit');
+});
+
+test('chart edges: extended edge paths end on a coastline point and otherwise equal the geometry path', () => {
+  const { geom, chart } = step9Chart(42);
+  const coastKeys = new Set(chart.coastline.map(q => q.x.toFixed(4) + ',' + q.y.toFixed(4)));
+  assert.strictEqual(chart.chartEdges.length, geom.edges.length, 'aligned with geom.edges');
+  let extended = 0;
+  chart.chartEdges.forEach((ce, i) => {
+    const orig = geom.edges[i].path.map(q => ({ x: q.x, y: q.y }));
+    assert.strictEqual(ce.a, geom.edges[i].a);
+    assert.strictEqual(ce.b, geom.edges[i].b);
+    if (!ce.extended) {
+      assert.deepStrictEqual(ce.path, orig, 'unextended edge ' + i + ' keeps its path');
+      return;
+    }
+    extended++;
+    let path = ce.path.slice();
+    const k = q => q.x.toFixed(4) + ',' + q.y.toFixed(4);
+    const startExt = path.length > orig.length && coastKeys.has(k(path[0]));
+    if (startExt) path = path.slice(1);
+    const endExt = path.length > orig.length && coastKeys.has(k(path[path.length - 1]));
+    if (endExt) path = path.slice(0, -1);
+    assert.ok(startExt || endExt, 'extended edge ' + i + ' starts or ends on a coastline point');
+    assert.deepStrictEqual(path, orig, 'edge ' + i + ' without its extension equals the geometry path');
+  });
+  assert.ok(extended > 0, 'at least one edge is extended, got ' + extended);
+});
+
+test('chart ops: under and over lists follow MAP_TREATMENT 1.6 order; polygon ops flag lattice boundary segments', () => {
+  const { view, geom, chart } = step9Chart(42);
+  const ops = AshesMapCanvas.buildChartOps(chart);
+  const kinds = ops.under.map(o => o.kind);
+  assert.strictEqual(kinds[0], 'chart-paper');
+  assert.strictEqual(kinds[1], 'chart-sea');
+  const strokes = ops.under.filter(o => o.kind === 'chart-stroke');
+  assert.deepStrictEqual(strokes.map(o => [o.widthCells, o.plusPx]),
+    [[0.72, 0], [0.52, 1], [0.52, -1], [0.44, 0], [0.30, 1], [0.30, -1], [0.22, 0], [0.14, 1], [0.14, -1]]);
+  assert.strictEqual(ops.under.filter(o => o.kind === 'chart-wave').length, chart.waves.length);
+  assert.strictEqual(kinds[kinds.length - 1], 'chart-land');
+  assert.deepStrictEqual(ops.over.map(o => o.kind), ['chart-beach', 'chart-coastline', 'chart-edge-of-war']);
+  assert.strictEqual(ops.over[2].segments.length, chart.boundarySegments.filter(s => !s.sea).length);
+  const drawOps = AshesMapCanvas.buildDrawOps(geom, view);
+  const p00 = drawOps.find(o => o.kind === 'polygon' && o.id === 'p0_0');
+  assert.deepStrictEqual(p00.boundarySegs, [true, true, false, false, false, false, true, true]);
+  const p44 = drawOps.find(o => o.kind === 'polygon' && o.id === 'p4_4');
+  assert.deepStrictEqual(p44.boundarySegs, [false, false, false, false, false, false, false, false]);
+});

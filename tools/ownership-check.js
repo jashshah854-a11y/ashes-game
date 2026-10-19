@@ -130,9 +130,11 @@ async function main() {
     const centrePx = await page.evaluate((c) => {
       const cv = document.getElementById('map-state');
       const ctx = cv.getContext('2d');
+      // Cell point to canvas pixel in chart space (Cycle 23 Step 9): the canvas
+      // spans 12.6 by 9.85 cells with the lattice inset 1.3 left and top.
       function sample(pt) {
-        const px = Math.floor(pt.x * cv.width / c.mapW);
-        const py = Math.floor(pt.y * cv.height / c.mapH);
+        const px = Math.floor((pt.x + 1.3) * cv.width / 12.6);
+        const py = Math.floor((pt.y + 1.3) * cv.height / 9.85);
         const d = ctx.getImageData(px, py, 1, 1).data;
         return { px: px, py: py, r: d[0], g: d[1], b: d[2], a: d[3] };
       }

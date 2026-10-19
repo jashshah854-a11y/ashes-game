@@ -38,6 +38,7 @@
   var fogFingerprint = null;
   var fogDrawCount = 0;
   var settleTimer = null;
+  var lastChart = null; // Cycle 23 Step 9: the chart built with the last base render
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
@@ -129,9 +130,19 @@
   function renderBaseCanvasNow() {
     var view = View(state);
     var geom = MapGeom.buildGeometry(view);
+    if (typeof AshesChart !== 'undefined') {
+      lastChart = AshesChart.buildChart(geom);
+      window.AshesChartDebug = {
+        seed: lastChart.chartSeed,
+        coastlinePoints: lastChart.coastline.length,
+        waves: lastChart.waves.length,
+        hitProvinces: Object.keys(lastChart.hitPolygons).length
+      };
+    }
     var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
-    var cssW = el.map.clientWidth || geom.boardWidthPx;
-    var cssH = el.map.clientHeight || geom.boardHeightPx;
+    // Cycle 23 Step 9: canvases cover the whole chart board, margins included.
+    var cssW = el.mapBoard.clientWidth || Math.round(geom.boardWidthPx * 1.26);
+    var cssH = el.mapBoard.clientHeight || Math.round(geom.boardHeightPx * (9.85 / 7));
     var off = MapCanvas.renderBaseCanvas(geom, view, Math.round(cssW * dpr * mapZoom), Math.round(cssH * dpr * mapZoom));
     if (off) {
       baseOffscreen = off;
@@ -170,8 +181,9 @@
     var view = View(state);
     var geom = MapGeom.buildGeometry(view);
     var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
-    var cssW = el.map.clientWidth || geom.boardWidthPx;
-    var cssH = el.map.clientHeight || geom.boardHeightPx;
+    // Cycle 23 Step 9: canvases cover the whole chart board, margins included.
+    var cssW = el.mapBoard.clientWidth || Math.round(geom.boardWidthPx * 1.26);
+    var cssH = el.mapBoard.clientHeight || Math.round(geom.boardHeightPx * (9.85 / 7));
     var widthPx = Math.round(cssW * dpr * mapZoom);
     var heightPx = Math.round(cssH * dpr * mapZoom);
 
@@ -212,8 +224,9 @@
     var view = View(state);
     var geom = MapGeom.buildGeometry(view);
     var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
-    var cssW = el.map.clientWidth || geom.boardWidthPx;
-    var cssH = el.map.clientHeight || geom.boardHeightPx;
+    // Cycle 23 Step 9: canvases cover the whole chart board, margins included.
+    var cssW = el.mapBoard.clientWidth || Math.round(geom.boardWidthPx * 1.26);
+    var cssH = el.mapBoard.clientHeight || Math.round(geom.boardHeightPx * (9.85 / 7));
     var widthPx = Math.round(cssW * dpr * mapZoom);
     var heightPx = Math.round(cssH * dpr * mapZoom);
 
@@ -615,6 +628,14 @@
     Array.prototype.forEach.call(el.map.querySelectorAll('.province'), function (node) {
       node.addEventListener('click', function () { onProvinceClick(node.getAttribute('data-prov')); });
     });
+    // Chart board (Cycle 23 Step 9): pad the board by the chart insets in the
+    // grid's own pixel scale. The side inset comes from the board width (the
+    // grid width shrinks by the padding itself); the grid height does not
+    // depend on the padding, so the top and bottom insets come from it.
+    var insetXPx = Math.round(el.mapBoard.clientWidth * (1.3 / 12.6));
+    var insetTopPx = Math.round(el.map.clientHeight * (1.3 / 7));
+    var insetBottomPx = Math.round(el.map.clientHeight * (1.55 / 7));
+    el.mapBoard.style.padding = insetTopPx + 'px ' + insetXPx + 'px ' + insetBottomPx + 'px ' + insetXPx + 'px';
     // Map canvas: render or blit the base layer
     var view = View(state);
     var fp = baseFingerprintOf(view);
@@ -644,6 +665,17 @@
     var layer = layers.length ? layers[layers.length - 1] : null;
     if (layer) {
       layer.style.zIndex = '4';
+      // Cycle 23 Step 9: the plaque layer sits on the lattice inside the chart board.
+      var cw = lastChart ? lastChart.widthCells : 12.6;
+      var chh = lastChart ? lastChart.heightCells : 9.85;
+      var ix = lastChart ? lastChart.insetX : 1.3;
+      var it = lastChart ? lastChart.insetTop : 1.3;
+      var lw = lastChart ? lastChart.mapW : 10;
+      var lh = lastChart ? lastChart.mapH : 7;
+      layer.style.left = (ix / cw * 100) + '%';
+      layer.style.top = (it / chh * 100) + '%';
+      layer.style.width = (lw / cw * 100) + '%';
+      layer.style.height = (lh / chh * 100) + '%';
       var sel = selectedUnit();
       if (sel) {
         Array.prototype.forEach.call(layer.querySelectorAll('.plaque'), function (node) {
@@ -1795,6 +1827,24 @@
     }
     render();
   }
+
+  // Board click by hit polygon (Cycle 23 Step 9): clicks on the chart outside
+  // the tiles (aprons, sea, beyond land) resolve through AshesChart.hitTest in
+  // the renderer's own cell space, zoom included. A miss does nothing.
+  el.mapBoard.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.closest && (t.closest('.province') || t.closest('.plaque-layer'))) return;
+    if (!lastChart || typeof AshesChart === 'undefined') return;
+    var rect = el.mapBoard.getBoundingClientRect();
+    var px = (e.clientX - rect.left) / mapZoom;
+    var py = (e.clientY - rect.top) / mapZoom;
+    var scaleCssX = el.mapBoard.clientWidth / lastChart.widthCells;
+    var scaleCssY = el.mapBoard.clientHeight / lastChart.heightCells;
+    var cellX = px / scaleCssX - lastChart.insetX;
+    var cellY = py / scaleCssY - lastChart.insetTop;
+    var id = AshesChart.hitTest(lastChart, cellX, cellY);
+    if (id) onProvinceClick(id);
+  });
 
   el.btnPause.addEventListener('click', function () {
     if (overlayOpen()) return; // a card or the codex holds the pause until closed

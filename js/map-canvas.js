@@ -6,6 +6,20 @@
 (function (global) {
   'use strict';
 
+  // Chart module (Cycle 23 Step 9): node require, browser global.
+  var AshesChart = (typeof module !== 'undefined' && module.exports)
+    ? require('./map-chart.js')
+    : global.AshesChart;
+  var CHART_C = AshesChart ? AshesChart.CHART_CONSTANTS : {};
+  var CHART_SEA_DEEP = CHART_C.SEA_DEEP;
+  var CHART_SEA_MID = CHART_C.SEA_MID;
+  var CHART_SEA_SHELF = CHART_C.SEA_SHELF;
+  var CHART_SEA_SHORE = CHART_C.SEA_SHORE;
+  var CHART_LAND_LOW = CHART_C.LAND_LOW;
+  var CHART_BEACH = CHART_C.BEACH;
+  var CHART_FRAME_PAPER = CHART_C.FRAME_PAPER;
+  var CHART_INK = CHART_C.INK;
+
   // Constants
   var DPR_CAP_DESKTOP = 2;
   var DPR_CAP_MOBILE = 1.5;
@@ -74,7 +88,15 @@
         var pt = p.polygon[i];
         points.push(pt.x, pt.y);
       }
-      ops.push({ kind: 'polygon', id: p.id, points: points });
+      // boundarySegs: one flag per polygon segment in point order, true when
+      // the segment lies on the lattice boundary by cell position (Step 9).
+      var boundarySegs = [
+        p.y === 0, p.y === 0,
+        p.x === geom.mapW - 1, p.x === geom.mapW - 1,
+        p.y === geom.mapH - 1, p.y === geom.mapH - 1,
+        p.x === 0, p.x === 0
+      ];
+      ops.push({ kind: 'polygon', id: p.id, points: points, x: p.x, y: p.y, boundarySegs: boundarySegs });
     });
 
     // Coast segments
@@ -140,15 +162,22 @@
   // Execute draw operations on a canvas context.
   // scaleX, scaleY: device pixels per cell-space unit.
   function drawOps(ctx, ops, scaleX, scaleY) {
-    var canvas = ctx.canvas;
-    var w = canvas.width;
-    var h = canvas.height;
+    // Lattice size from the polygon ops' cell positions (the sea fills the
+    // neatline, one cell beyond the lattice on every side).
+    var mapW = 0;
+    var mapH = 0;
+    ops.forEach(function (op) {
+      if (op.kind !== 'polygon') return;
+      if (op.x + 1 > mapW) mapW = op.x + 1;
+      if (op.y + 1 > mapH) mapH = op.y + 1;
+    });
 
     ops.forEach(function (op) {
       switch (op.kind) {
         case 'sea':
-          ctx.fillStyle = '#2c4a5e';
-          ctx.fillRect(0, 0, w, h);
+          // Neatline rectangle in cell space (Cycle 23 Step 9).
+          ctx.fillStyle = CHART_SEA_DEEP;
+          ctx.fillRect(-1 * scaleX, -1 * scaleY, (mapW + 2) * scaleX, (mapH + 2) * scaleY);
           break;
 
         case 'polygon':
@@ -160,8 +189,17 @@
               ctx.lineTo(pts[i] * scaleX, pts[i + 1] * scaleY);
             }
             ctx.closePath();
-            ctx.fillStyle = '#d9cfae';
+            ctx.fillStyle = CHART_LAND_LOW;
             ctx.fill();
+            // Stroke only the segments off the lattice boundary (Step 9).
+            ctx.beginPath();
+            var nPts = pts.length / 2;
+            for (var si = 0; si < nPts; si++) {
+              if (op.boundarySegs && op.boundarySegs[si]) continue;
+              var sj = (si + 1) % nPts;
+              ctx.moveTo(pts[si * 2] * scaleX, pts[si * 2 + 1] * scaleY);
+              ctx.lineTo(pts[sj * 2] * scaleX, pts[sj * 2 + 1] * scaleY);
+            }
             ctx.strokeStyle = 'rgba(30,26,18,0.55)';
             ctx.lineWidth = 2; // device px
             ctx.stroke();
@@ -220,6 +258,166 @@
     });
   }
 
+  // Flat closed coastline path [x0, y0, x1, y1, ...] in cell space.
+  function coastFlat(chart) {
+    var flat = [];
+    chart.coastline.forEach(function (q) { flat.push(q.x, q.y); });
+    return flat;
+  }
+
+  // Chart ops (Cycle 23 Step 9, MAP_TREATMENT 1.6 and 1.7). Plain data in
+  // cell space: 'under' draws beneath the province ops, 'over' above them.
+  function buildChartOps(chart) {
+    var coast = coastFlat(chart);
+    var under = [];
+    var ext = chart.extent;
+    var neat = chart.neatline;
+    under.push({ kind: 'chart-paper', rect: [ext.x0, ext.y0, ext.x1 - ext.x0, ext.y1 - ext.y0] });
+    under.push({ kind: 'chart-sea', rect: [neat.x0, neat.y0, neat.x1 - neat.x0, neat.y1 - neat.y0] });
+    function band(w, style) {
+      under.push({ kind: 'chart-stroke', path: coast, widthCells: w, style: style, alpha: 1, plusPx: 0 });
+    }
+    function waterLine(w, restoreStyle) {
+      under.push({ kind: 'chart-stroke', path: coast, widthCells: w, style: CHART_INK, alpha: 0.16, plusPx: 1 });
+      under.push({ kind: 'chart-stroke', path: coast, widthCells: w, style: restoreStyle, alpha: 1, plusPx: -1 });
+    }
+    band(0.72, CHART_SEA_MID);
+    waterLine(0.52, CHART_SEA_MID);
+    band(0.44, CHART_SEA_SHELF);
+    waterLine(0.30, CHART_SEA_SHELF);
+    band(0.22, CHART_SEA_SHORE);
+    waterLine(0.14, CHART_SEA_SHORE);
+    chart.waves.forEach(function (wv) {
+      under.push({ kind: 'chart-wave', x: wv.x, y: wv.y });
+    });
+    under.push({ kind: 'chart-land', path: coast });
+
+    var over = [];
+    over.push({ kind: 'chart-beach', path: coast });
+    over.push({ kind: 'chart-coastline', path: coast });
+    var inland = [];
+    chart.boundarySegments.forEach(function (seg) {
+      if (seg.sea) return;
+      inland.push([seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y]);
+    });
+    over.push({ kind: 'chart-edge-of-war', segments: inland });
+    return { under: under, over: over };
+  }
+
+  function traceClosed(ctx, path, scaleX, scaleY) {
+    ctx.beginPath();
+    ctx.moveTo(path[0] * scaleX, path[1] * scaleY);
+    for (var i = 2; i < path.length; i += 2) {
+      ctx.lineTo(path[i] * scaleX, path[i + 1] * scaleY);
+    }
+    ctx.closePath();
+  }
+
+  // Execute chart ops (either list) on a context already translated to the
+  // cell space origin.
+  function drawChartOps(ctx, ops, scaleX, scaleY) {
+    ops.forEach(function (op) {
+      switch (op.kind) {
+        case 'chart-paper':
+          ctx.fillStyle = CHART_FRAME_PAPER;
+          ctx.fillRect(op.rect[0] * scaleX, op.rect[1] * scaleY, op.rect[2] * scaleX, op.rect[3] * scaleY);
+          break;
+
+        case 'chart-sea':
+          ctx.fillStyle = CHART_SEA_DEEP;
+          ctx.fillRect(op.rect[0] * scaleX, op.rect[1] * scaleY, op.rect[2] * scaleX, op.rect[3] * scaleY);
+          break;
+
+        case 'chart-stroke':
+          ctx.save();
+          traceClosed(ctx, op.path, scaleX, scaleY);
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = op.style;
+          ctx.globalAlpha = op.alpha;
+          ctx.lineWidth = Math.max(1, op.widthCells * scaleX + op.plusPx);
+          ctx.stroke();
+          ctx.restore();
+          break;
+
+        case 'chart-wave':
+          var half = 0.05;
+          var amp = 0.012;
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo((op.x - half) * scaleX, op.y * scaleY);
+          ctx.quadraticCurveTo((op.x - half / 2) * scaleX, (op.y - 2 * amp) * scaleY, op.x * scaleX, op.y * scaleY);
+          ctx.quadraticCurveTo((op.x + half / 2) * scaleX, (op.y - 2 * amp) * scaleY, (op.x + half) * scaleX, op.y * scaleY);
+          ctx.strokeStyle = CHART_INK;
+          ctx.globalAlpha = 0.10;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+          break;
+
+        case 'chart-land':
+          traceClosed(ctx, op.path, scaleX, scaleY);
+          ctx.fillStyle = CHART_LAND_LOW;
+          ctx.fill();
+          break;
+
+        case 'chart-beach':
+          ctx.save();
+          traceClosed(ctx, op.path, scaleX, scaleY);
+          ctx.clip();
+          traceClosed(ctx, op.path, scaleX, scaleY);
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = CHART_BEACH;
+          ctx.globalAlpha = 0.35;
+          ctx.lineWidth = 0.10 * scaleX;
+          ctx.stroke();
+          ctx.restore();
+          break;
+
+        case 'chart-coastline':
+          ctx.save();
+          traceClosed(ctx, op.path, scaleX, scaleY);
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = CHART_INK;
+          ctx.globalAlpha = 0.85;
+          ctx.lineWidth = 0.010 * scaleX;
+          ctx.stroke();
+          ctx.restore();
+          break;
+
+        case 'chart-edge-of-war':
+          ctx.save();
+          ctx.beginPath();
+          op.segments.forEach(function (sg) {
+            ctx.moveTo(sg[0] * scaleX, sg[1] * scaleY);
+            ctx.lineTo(sg[2] * scaleX, sg[3] * scaleY);
+          });
+          ctx.strokeStyle = CHART_INK;
+          ctx.globalAlpha = 0.45;
+          ctx.lineWidth = 0.008 * scaleX;
+          ctx.setLineDash([0.06 * scaleX, 0.025 * scaleX, 0.008 * scaleX, 0.025 * scaleX]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+          break;
+      }
+    });
+  }
+
+  // FNV-1a hash of the coastline coordinates, toFixed(4).
+  function coastlineHash(chart) {
+    var parts = [];
+    chart.coastline.forEach(function (q) { parts.push(q.x.toFixed(4), q.y.toFixed(4)); });
+    return fnv1a(parts.join('|')).toString(16).padStart(8, '0');
+  }
+
+  // Shared chart transform (Step 9): device px per cell over the whole chart
+  // extent, origin translated to lattice (0, 0).
+  function chartTransform(canvas, chart) {
+    var scaleX = canvas.width / chart.widthCells;
+    var scaleY = canvas.height / chart.heightCells;
+    return { scaleX: scaleX, scaleY: scaleY, tx: chart.insetX * scaleX, ty: chart.insetTop * scaleY };
+  }
+
   // Render the base offscreen canvas. Browser only (needs document).
   // Returns {canvas, width, height, hash, ops} or null if not in browser.
   function renderBaseCanvas(geom, view, widthPx, heightPx) {
@@ -235,15 +433,22 @@
     var ctx = canvas.getContext('2d');
 
     var ops = buildDrawOps(geom, view);
+    var chart = AshesChart.buildChart(geom);
+    var chartOps = buildChartOps(chart);
 
-    // scaleX = canvas.width / geom.mapW  (device px per cell)
-    // scaleY = canvas.height / geom.mapH
-    var scaleX = canvas.width / geom.mapW;
-    var scaleY = canvas.height / geom.mapH;
+    // Device px per cell over the chart extent (Cycle 23 Step 9).
+    var tf = chartTransform(canvas, chart);
+    var scaleX = tf.scaleX;
+    var scaleY = tf.scaleY;
 
+    ctx.save();
+    ctx.translate(tf.tx, tf.ty);
+    drawChartOps(ctx, chartOps.under, scaleX, scaleY);
     drawOps(ctx, ops, scaleX, scaleY);
+    drawChartOps(ctx, chartOps.over, scaleX, scaleY);
+    ctx.restore();
 
-    var hash = drawOpsHash(ops);
+    var hash = fnv1a(drawOpsHash(ops) + '|' + coastlineHash(chart)).toString(16).padStart(8, '0');
 
     return {
       canvas: canvas,
@@ -492,7 +697,7 @@
         } else {
           // Khessite (enemy): TWO core strokes at half width, offset perpendicular by +/- core*0.5
           var halfCore = coreW * 0.5;
-          var offsetDist = halfCore;
+          var offsetDist = halfCore / scaleX;
 
           // Compute normal from first and last path points
           var x1 = path[0], y1 = path[1];
@@ -584,12 +789,15 @@
 
     var ops = buildStateOps(geom, view);
 
-    // scaleX = canvas.width / geom.mapW  (device px per cell)
-    // scaleY = canvas.height / geom.mapH
-    var scaleX = canvas.width / geom.mapW;
-    var scaleY = canvas.height / geom.mapH;
+    // Shared chart transform (Cycle 23 Step 9).
+    var tf = chartTransform(canvas, AshesChart.buildChart(geom));
+    var scaleX = tf.scaleX;
+    var scaleY = tf.scaleY;
 
+    ctx.save();
+    ctx.translate(tf.tx, tf.ty);
     drawStateOps(ctx, ops, scaleX, scaleY);
+    ctx.restore();
 
     var hash = stateOpsHash(ops);
 
@@ -847,10 +1055,15 @@
 
     var ops = buildFogOps(geom, view);
 
-    var scaleX = canvas.width / geom.mapW;
-    var scaleY = canvas.height / geom.mapH;
+    // Shared chart transform (Cycle 23 Step 9).
+    var tf = chartTransform(canvas, AshesChart.buildChart(geom));
+    var scaleX = tf.scaleX;
+    var scaleY = tf.scaleY;
 
+    ctx.save();
+    ctx.translate(tf.tx, tf.ty);
     drawFogOps(ctx, ops, scaleX, scaleY);
+    ctx.restore();
 
     var hash = fogOpsHash(ops);
 
@@ -875,6 +1088,10 @@
     drawOpsHash: drawOpsHash,
     drawOps: drawOps,
     renderBaseCanvas: renderBaseCanvas,
+    // Chart exports (Cycle 23 Step 9)
+    buildChartOps: buildChartOps,
+    drawChartOps: drawChartOps,
+    coastlineHash: coastlineHash,
     // State layer exports
     BAND_WIDE_W: BAND_WIDE_W,
     BAND_MID_W: BAND_MID_W,
