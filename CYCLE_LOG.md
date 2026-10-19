@@ -5879,3 +5879,6 @@ The orchestrator's sweep caught tools/ownership-check.js at 14 of 15: the enemy 
 
 ### Mission status
 MAP_TREATMENT Step 9 is complete. Next run claims the treatment's Step 10 (rivers: river graph, flow, width taper, banks, water, glint, mouth extensions, estuary fans, the rail restyle, test R-TRUTH). No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 MAP_TREATMENT Step 9 sync note
+- Sync out after commits 75a8004 and e77c4db: the import script completed with exit 0 and sent both commits to GitHub (jashshah854-a11y/ashes-game, master now at remote 7e8fd60; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
