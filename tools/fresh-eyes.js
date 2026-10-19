@@ -180,11 +180,41 @@ function buildSheetHtml(targets, view, descriptors, sheetIdx) {
   const provinceScaleX = 100;
   const provinceScaleY = 100;
 
+  const byProvince = {};
+  descriptors.unitPlaques.forEach((d, index) => {
+    const pid = d.provinceId;
+    if (!byProvince[pid]) byProvince[pid] = [];
+    byProvince[pid].push({ descriptor: d, index: index });
+  });
+
+  const offsetMap = {};
+  Object.keys(byProvince).forEach(pid => {
+    const group = byProvince[pid];
+    const N = group.length;
+    if (N > 1) {
+      group.forEach((item, i) => {
+        const offset = (i - (N - 1) / 2) * 22;
+        offsetMap[item.index] = offset;
+      });
+    } else {
+      offsetMap[group[0].index] = 0;
+    }
+  });
+
   let cellsHtml = '';
   targets.forEach((t, i) => {
     const desc = t.descriptor;
     const left = cellCenterX - (desc.x + 0.5) * provinceScaleX;
     const top = cellCenterY - (desc.y + 0.5) * provinceScaleY;
+
+    let pinOffset = 0;
+    if (t.fog !== 'dark') {
+      const idx = descriptors.unitPlaques.findIndex(d => d === desc);
+      if (idx >= 0) pinOffset = offsetMap[idx] || 0;
+    }
+
+    const pinTop = cellCenterY + pinOffset - 10;
+    const pinLeft = cellCenterX + 16;
 
     const cellId = 'cell-' + sheetIdx + '-' + i;
     const cloneId = 'clone-' + sheetIdx + '-' + i;
@@ -193,7 +223,7 @@ function buildSheetHtml(targets, view, descriptors, sheetIdx) {
       <div class="cell" id="${cellId}" style="width:${cellWidth}px;height:${cellHeight}px;background:#1a1d18;position:relative;overflow:hidden;border:1px solid #333;display:flex;flex-direction:column;">
         <div class="cell-number" style="position:absolute;top:4px;left:4px;font:10px monospace;color:#888;z-index:10;">${sheetIdx * 10 + i + 1}</div>
         <div class="board-clone" id="${cloneId}" style="position:absolute;left:${left}px;top:${top}px;width:${boardWidth}px;height:${boardHeight}px;background:#20241F;"></div>
-        <div class="pin" style="position:absolute;left:${cellCenterX + 16}px;top:${cellCenterY - 22}px;width:20px;height:20px;border-radius:50%;background:#000;border:2px solid #fff;color:#fff;font:bold 11px/20px monospace;text-align:center;z-index:5;">${sheetIdx * 10 + i + 1}</div>
+        <div class="pin" style="position:absolute;left:${pinLeft}px;top:${pinTop}px;width:20px;height:20px;border-radius:50%;background:#000;border:2px solid #fff;color:#fff;font:bold 11px/20px monospace;text-align:center;z-index:5;">${sheetIdx * 10 + i + 1}</div>
       </div>`;
   });
 
@@ -222,7 +252,7 @@ html,body{margin:0;padding:0;background:#000;}
 .plaque.faction-enemy{background:#14161A;border:2px solid #C8372D;clip-path:polygon(4px 0,calc(100%-4px) 0,100% 4px,100% calc(100%-4px),calc(100%-4px) 100%,4px 100%,0 calc(100%-4px),0 4px);}
 .plaque-hollow{background:transparent;color:#8A8A8A;border:1px dashed #8A8A8A;}
 .plaque-hollow .glyph{opacity:0.65;color:#9A9A9A;}
-.plaque .glyph svg{width:14px;height:14px;display:block;}
+.plaque .glyph svg{width:17px;height:17px;display:block;}
 .plaque .alarm{color:#FFD94D;display:inline-flex;}
 .building-mark{position:absolute;transform:translate(-50%,0);display:flex;gap:1px;font-family:"Barlow Semi Condensed",sans-serif;font-size:9px;color:#F2ECD9;background:rgba(0,0,0,0.55);padding:0 2px;}
 </style>
