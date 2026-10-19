@@ -1390,3 +1390,49 @@ item above.
     an asymmetry that belongs to future AI behavior work
     judged on its own evidence, not to a blockade retune.
     No tuning is made in Cycle 22.
+
+26. The visual transformation (2026-10-18, Jash's direction,
+    executed under his pipeline order and the autopilot
+    order). Jash saw the game for the first time and rejected
+    the tile grid in his own words: it is not a map, they are
+    random squares, there are no models attacking each other,
+    and it has to look good. He ordered the method as well as
+    the outcome: research first, then Claude designs the
+    workflow and the full strategy from the research, then
+    testing, then build. Adopted documents, all in this repo:
+    VISION_BOARD.md (the Lamplit War Table, Opus 5.5),
+    RESEARCH.md (five research lanes; the board's
+    architecture confirmed, six amendments D1 to D6 forced),
+    and STRATEGY.md (Claude's image production workflow and
+    full visual strategy, written 2026-10-18; the API route
+    returned its known one byte failure and the document came
+    through the local Claude Code CLI fallback, disclosed in
+    the file itself). Rulings recorded from STRATEGY.md: the
+    master reference is the OpenAI diorama board image
+    (art-direction/master-diorama-board.png) and every asset
+    derives from the master sheet, never from a sibling; the
+    missing OpenAI blender table concept is skipped
+    permanently (it could only be a sibling, and the cap
+    reset is worth more in the TX01 bake-off); ownership is a
+    gradient border band, not a fill; fog is texture, never
+    darkness, and Last seen hides live numerals; sprites ship
+    only after a 100 percent grayscale silhouette
+    identification test at final size; the sprite camera is
+    locked at due south, X 45 degrees, on a flat top down map,
+    facings rotate and never flip; tint is the overlay formula
+    on a gunmetal base calibrated to sRGB 128; the build runs
+    as Cycle 23 in BACKLOG.md, 22 runs, plaques first and
+    miniatures last. Two decision points are named inside the
+    strategy and are settled here in advance under the
+    autopilot order: (a) the faction colors sit only 7 luma
+    levels apart, so owner identity in grayscale belongs to
+    the plaques (different fills, corners and strokes, about
+    a 70 level split plus a shape channel); if the Run 19
+    tuning pass still fails its thresholds, darkening
+    Khessite red's value while keeping its hue is adopted as
+    the standing fallback and Claude rules on its exact value
+    in that run, recording the ruling here; (b) the three
+    owner checkpoints in the run plan are demonstrations for
+    Jash, not approval gates, and the cycle never waits at
+    them. Ruled by Claude under Jash's 2026-10-18 autopilot
+    order, on Jash's own visual direction of the same day.
