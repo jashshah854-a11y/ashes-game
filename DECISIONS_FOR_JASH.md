@@ -1436,3 +1436,103 @@ item above.
     Jash, not approval gates, and the cycle never waits at
     them. Ruled by Claude under Jash's 2026-10-18 autopilot
     order, on Jash's own visual direction of the same day.
+
+27. Cycle 23 Step 0 rulings (2026-10-18, under the autopilot
+    order). Ruled by Claude under Jash's 2026-10-18 autopilot
+    order.
+
+    (a) The Cycle 23 scope conflict, reconciled. Two shapes
+    claimed the name Cycle 23: the visual transformation
+    (Jash's direct order of 2026-10-18, recorded at item 26
+    above and in BACKLOG.md, 22 runs in STRATEGY.md section
+    2.7) and the Cycle 22 milestone judge's prescription
+    (deflake, blockade reachability, deliberate lore). Neither
+    is renumbered and neither is dropped. The visual
+    transformation keeps the name Cycle 23, because it is
+    Jash's own order and its documents and run numbers are
+    already the record. The judge's prescription folds into
+    Cycle 23 as its opening and closing steps, in this order:
+    Step 0, this decisions and audit step; Step 1, the deflake
+    (the judge's flags F1 and F2, tests and tools only, the
+    first code step of the cycle, before any content work,
+    exactly as the judge homed them); Step 2, the blockade
+    reachability proof (flag F3, report only, no parameter
+    changes); Steps 3 to 24, the visual transformation Runs 1
+    to 22 in STRATEGY.md order, keeping their Run numbers in
+    every log entry; Step 25, the judge's authored lore bound
+    to visible progression (content only, scope ruled at (c)
+    below; it now binds to both the Cycle 22 progression
+    surfaces and the visual transformation's plaques and map);
+    Step 26, the judge's legibility fixes (presentation only:
+    the blockade map answer, the damaged chip's non colour
+    cue, the production panel's surplus sentence, each with a
+    check and a mutant); Step 27, verification, close, and
+    milestone review, printing the outcome table the judge's
+    process note requires. The judge's own Step 0 assignments
+    land here instead of at items 26 and 27 as first written:
+    item 26 was already taken by the visual rulings, so the
+    deflake method is ruled at (b) and the lore scope at (c)
+    of this item. Binding constraints carried whole from both
+    parents: no new system and no saveVersion change anywhere
+    in Cycle 23; no numeric event effects; the 15 equipment
+    per point reinforce price, blockade parameters, and AI
+    weights unchanged; stackPower sha256 must remain
+    5c6822d3eb6cd9d8ecaf8e5c5056b759923f4fdbc708de4911cd863ce1d4772c
+    (verified at HEAD at this step under the Step 5 extraction
+    method, and identical at the Cycle 22 start commit); the
+    visual cycle's standing guard that the simulation source
+    tree stays byte identical through its runs.
+
+    (b) The deflake method, ruled before Step 1 code. One
+    shared browser helper in tools (a single module every
+    browser check requires) owns all waiting: it pauses the
+    sim, waits deterministically on a named condition with a
+    bounded timeout that fails loudly, and dismisses or awaits
+    the event overlay before any click. No check file keeps a
+    wait of its own: no fixed waitForTimeout after a click, no
+    local sleep helper, no unbounded loop. The single
+    sanctioned survivor is the poll interval inside the shared
+    helper's own bounded condition wait, which is the helper's
+    engine, not a wait on a hope. The Step 0 sleep audit,
+    counted this run and recorded in CYCLE_LOG as Step 1's
+    exit target: waitForTimeout appears 52 times in 12 files
+    (save-hardening 11, reinforce 8, save 5, order-marker 5,
+    cancel 4, lore 4, battle-why 3, growth-view 3,
+    map-progression 3, progression 3, end-screen 2, fort 1);
+    local sleep helpers add 21 awaited sleep calls in 4 more
+    files (first-touch 8, core-loop 6, battle-systems 5,
+    browser 2); 6 checks carry no sleep based wait at all
+    (blockade, drone-ew, efficiency, intel, manpower, navy).
+    Step 1 migrates reinforce-check and fort-check first, then
+    every other file named here, and closes only on the
+    judge's consecutive run proofs.
+
+    (c) The lore step scope (Step 25), ruled. Authored content
+    only: at least 6 authored events, at least 2 per nation
+    identity already in js/lore.js; each event reads exactly
+    one existing field from this list and names it in a
+    comment: factory level, rail built state, history
+    snapshots, war log entries, unit strength against
+    maxStrength. Zero numeric effect, so stripped balance
+    stays byte identical. Required bindings, from the judge:
+    a first factory reaching level 3; a first built rail line
+    completing; a unit falling below half of maxStrength and
+    later recovering; a history snapshot showing territory
+    growth across a year boundary. Fired event state rides
+    the two record families that already exist and are
+    already saved under saveVersion 3, verified in code this
+    run: once each events record in state.beats and recurring
+    events append to state.textures, both carried in the save
+    payload by js/save.js (its record families list names
+    beats and textures), so no new saved structure is created
+    and saveVersion stays 3. The F4 coverage assertion
+    enumerates every new event by name, and a mutant disabling
+    each new event fails by name.
+
+    (d) What Step 0 does not rule. No visual run's design
+    question is settled here beyond item 26; Run level taste
+    inside the visual cycle is ruled at its own run under the
+    autopilot order. The blockade next action stays item
+    25(b) Option A, leave as is, until Step 2's reachability
+    evidence either proves it or reopens it. No tuning of any
+    kind is ruled or made in Cycle 23.
