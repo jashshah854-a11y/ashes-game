@@ -5417,3 +5417,33 @@ Cycle 23 Step 0 is complete: the scope conflict is reconciled and ruled in DECIS
 
 ### Mission status
 Cycle 23 Step 1 is complete: flags F1 (reinforce check deflake) and F2 (fort check deflake) are closed with the full exit battery green on first attempts. Next run claims Step 2 (blockade reachability, flag F3, report only). No stop condition is met: no failed verdict, no verification failure on the final tree, and no tuning of any kind.
+
+## Cycle 23 Step 2: blockade reachability, report only, flag F3 closed (2026-10-19)
+
+Claimed this run: Step 2 only, the report only reachability proof prescribed by the Cycle 22 judge (flag F3, homed here at Cycle 23 Step 0). No game code, no sim numbers, and no parameters changed: the only code artifact is one new tools script, and the balance output is byte identical to the Cycle 22 baseline.
+
+### What was built
+- tools/blockade-reachability.js (new, 291 lines): drives one campaign on seed 42 through the public command path only. Commands used, printed by the script itself: queueProduction, issueOrder, tick, syncProductionLines, and the readouts steelIncome, blockadeLoss, isBlockaded, enemyHomeCoastalControlCount (researchDroneGen2 is in the driver but was never affordable before the threshold, so it does not appear in the run's used list). The driver never writes a state field: a grep audit of the finished file for owner, provinceId, and steel assignments finds none (the two state.provinces matches are reads). It is not added to the balance run and changes no baseline, as prescribed.
+- The strategy: the 2 starting capital infantry hold as garrison. Every other unit runs a lane by its starting row: north (y at most 3) targets p5_0 then p6_0 along row 0, south targets p5_6 along row 6; reinforcements alternate lanes starting north. Routing is a true Dijkstra next step where entering a province costs 10 plus 3 per row of distance from the lane row plus 50 if enemy units stand there and it is not the target. One holder rule: the lowest id player unit on each captured target province stays, the rest advance. The lane weighting is load bearing, measured in prototyping: an unweighted shortest path sends the lone starting south unit through row 4, where it meets the Dominion row 4 advance in an edge swap battle on day 3 and both units die; the row 6 route never meets an enemy unit.
+
+### The report (script output, seed 42, commit 323d2b0b9f399adc89942a5cb07449fb2f7111b1, exit 0, byte identical across two reruns)
+- First day the offensive count reached 1: day 5. Reached 2: day 5 (both river coastal provinces, north p5_0 and south p5_6, fall on the same tick). Reached 3: day 6 (p6_0).
+- Day before the threshold (day 5): count 2, Dominion steel 43, Dominion steel income 35, Dominion blockade loss 0.
+- Threshold day (day 6): count 3, Dominion steel 50, income 35, blockade loss 8, isBlockaded true. The loss is exactly Math.floor(35 times CFG.blockadeSteelPct 25 divided by 100) equals 8.
+- Following day (day 7): count 3, Dominion steel 49, income 35, blockade loss 8, isBlockaded true. The day 7 tick income phase applied the threshold day loss; the stockpile line also carries the Dominion's own production and factory spending that tick, so the readout loss, not the stockpile delta, is the effect figure, stated plainly here as in DECISIONS item 25(c).
+- Orchestrator cross check (prototype driver, same routing, not committed): all 8 standard seeds reach count 3 on day 6, threshold losses 8 to 11 steel at incomes 34 to 45. The committed script proves the one prescribed campaign; the cross check shows seed 42 is not a lucky seed.
+
+### Build history, recorded honestly
+- opencode/deepseek-v4.1-flash-free, opencode/glm-5.3-flash-free, and opencode/mimo-v2.6-flash-free each refused with Rate limit exceeded and made no changes. opencode/longcat-2.5-preview-free spent its 300 second timeout reading js/sim.js and wrote nothing; the tree stayed clean throughout (verified by git status after each attempt).
+- opencode/nemotron-3-ultra-free built the file, and its first version failed verification on the orchestrator's run: counts reached 1 and 2 on day 5 but never 3 (its routing was greedy, not the briefed Dijkstra, priced enemy presence by province owner, and its target selection sent non holder units back to the first target), and its day before capture branch could never fire. One fix round with the exact cost function, holder rule, and pre tick sampling named in the brief: the same model produced counts on days 5, 5, and 6 with the exact threshold figures. One defect survived the fix round: the main loop never broke on the threshold, so the campaign ran to day 150 and the following day figures were day 151 figures under a following day label. The orchestrator closed it with a one line correction (break out of the campaign loop once the threshold data is sampled), disclosed here rather than hidden; the corrected script reruns byte identical and every figure above is from the corrected file.
+
+### Verification (orchestrator, on the final tree)
+- node --check on every JS file in js, tests, and tools: all pass.
+- node --test tests/sim.test.js: 191 pass, 0 fail (suite unchanged; the step adds no tests, as prescribed for a report only step).
+- node tools/balance.js all: byte identical to tools/baseline-cycle22.txt (cmp clean).
+- Python byte scan for em and en dashes across the whole repo: zero.
+- stackPower extraction sha256: 5c6822d3eb6cd9d8ecaf8e5c5056b759923f4fdbc708de4911cd863ce1d4772c, the judge's binding hash for Cycle 23, unchanged (no file under js changed).
+- No browser sweep: no UI, HTML, CSS, or sim file changed in this step; the sweep belongs to code steps that touch those surfaces.
+
+### Mission status
+Cycle 23 Step 2 is complete: flag F3 is closed as proven, the finding is recorded in DECISIONS item 25(c), and item 25 does not reopen. The AI coastal blindness caveat from item 25(b) stands as future AI behavior work. Next run claims Step 3, visual Run 1, the first of the 22 visual transformation runs in STRATEGY.md order. No stop condition is met: no failed verdict, no verification failure on the final tree, and no tuning of any kind.

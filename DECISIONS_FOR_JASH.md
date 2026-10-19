@@ -1391,6 +1391,39 @@ item above.
     judged on its own evidence, not to a blockade retune.
     No tuning is made in Cycle 22.
 
+    (c) The reachability proof and the closing of flag F3
+    (Cycle 23 Step 2, 2026-10-19). Ruled by Claude under
+    Jash's 2026-10-18 autopilot order. The premise in (a)
+    and the Option A ruling in (b) are now proven for the
+    player side: tools/blockade-reachability.js drives one
+    campaign on seed 42 at commit 323d2b0 through the public
+    command path only (queueProduction, researchDroneGen2,
+    issueOrder, tick, and the readouts; no state writes, no
+    staged provinces, no debug setters), bending both flanks
+    toward the coast on lane weighted routes and holding the
+    captured coastal provinces with units. The offensive
+    count first reaches 1 and 2 on day 5 (the north and
+    south river coastal provinces fall on the same tick)
+    and 3 on day 6. The steel figures around the threshold:
+    day 5, count 2, Dominion steel 43, income 35, blockade
+    loss 0; day 6, count 3, steel 50, income 35, loss 8,
+    isBlockaded true, the loss exactly the floor of 35
+    times the CFG 25 percent; day 7, count still 3, loss
+    still 8, the day 7 tick income phase having applied the
+    threshold day loss (the stockpile line itself also
+    carries the Dominion's own spending, so the readout,
+    not the stockpile delta, is the effect figure). An
+    orchestrator cross check with the same routing on all
+    8 standard seeds reaches count 3 on day 6 on every
+    seed, with threshold losses of 8 to 11 steel. Flag F3
+    is closed: blockade is reachable by a player through
+    the public path and its effect lands; item 25 does not
+    reopen. The (b) caveat stands unchanged: the scripted
+    AI never contests the coast, so a player can blockade
+    but is never blockaded; that asymmetry stays future AI
+    behavior work, not a blockade retune. No parameter
+    changes.
+
 26. The visual transformation (2026-10-18, Jash's direction,
     executed under his pipeline order and the autopilot
     order). Jash saw the game for the first time and rejected
