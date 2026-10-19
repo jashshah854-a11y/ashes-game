@@ -33,6 +33,7 @@
     <div id="map-viewport">
       <div id="map-board">
         <canvas id="map-base" aria-hidden="true"></canvas>
+        <canvas id="map-fog" aria-hidden="true"></canvas>
         <canvas id="map-state" aria-hidden="true"></canvas>
         <div id="map" class="map" aria-label="Province map"></div>
       </div>
@@ -61,7 +62,7 @@
     <div id="map-legend" class="intel-legend">
       <p class="legend-title">Map legend.</p>
       <ul class="legend-list">
-        <li>Blue tile: yours. Red tile: the Dominion. Dark gray tile: never seen, so its owner is not shown.</li>
+        <li>Blue tile: yours. Red tile: the Dominion. Light parchment tile: never seen, so its owner is not shown.</li>
         <li>A colored band along a province border shows who holds the ground on that side of the border: blue for yours, red for the Dominion. A black line under the bands where blue meets red is the front line.</li>
         <li>The gold capital star marks a capital.</li>
         <li>A gold outline marks the selected province.</li>
@@ -86,6 +87,7 @@
         <li>A minus N percent tag on a chip is that unit supply penalty.</li>
         <li>The parchment board under the tiles is drawn on a canvas from the same map data, zoom buttons scale the board, and the canvas redraws once the zoom settles.</li>
         <li>Colored border bands and the black front line are drawn on a second canvas above the tiles, from the same map data, and redraw only when ownership changes.</li>
+        <li>Fog is drawn on its own canvas under the tiles, from what you can see. A province you see now has no fog. A remembered province is filled flat gray with diagonal pencil hatching and a gray border where its last known owner band was. An Unknown province, never seen, is blank light parchment with soft mist, the lightest ground on the map.</li>
       </ul>
     </div>
     <p class="hint">

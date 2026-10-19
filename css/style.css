@@ -375,3 +375,16 @@ button.linkish:hover { background: none; color: #fff2c4; }
 .province.owner-player { background: rgba(51,86,125,0.86); }
 .province.owner-enemy { background: rgba(125,51,51,0.86); }
 .province.owner-fog { background: rgba(38,38,43,0.94); }
+
+/* Cycle 23 Step 8: fog canvas between the base canvas and the tiles.
+   Fogged tiles turn translucent so the fog treatments show through. */
+#map-fog { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+#map { z-index: 2; }
+#map-state { z-index: 3; }
+.province.owner-fog { background: rgba(236,226,200,0.25); color: #3a352a; }
+.province.owner-player.intel-remembered,
+.province.owner-enemy.intel-remembered {
+  background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.38) 0 6px, rgba(0, 0, 0, 0) 6px 12px);
+}
+.province.owner-player.intel-remembered { background-color: rgba(51,86,125,0.45); }
+.province.owner-enemy.intel-remembered { background-color: rgba(125,51,51,0.45); }

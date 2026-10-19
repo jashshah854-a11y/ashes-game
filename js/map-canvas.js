@@ -586,6 +586,267 @@
     };
   }
 
+  // Fog layer constants (Cycle 23 Step 8). Fog is texture and value, never
+  // darkness: the Unknown fill is the lightest state (luma band D, 185 to
+  // 225), the remembered gray sits in band C (120 to 175). The mist color
+  // is itself under 225 luma, so any mist over the Unknown fill stays in
+  // band D however many wisps and puffs overlap.
+  var FOG_UNKNOWN_FILL = '#DCCDA8';
+  var FOG_REMEMBERED_FILL = '#9E9E97';
+  var FOG_MIST = '#EFE7D3';
+  var FOG_WISP_ALPHA = 0.3;
+  var FOG_PUFF_ALPHA = 0.25;
+  var FOG_HATCH_INK = '#1e1a12';
+  var FOG_HATCH_ALPHA = 0.35;
+  var FOG_HATCH_SPACING = 0.12;
+  var FOG_HATCH_W = 1.5;
+  var FOG_BAND_GRAY = '#6E6E66';
+  var FOG_BAND_ALPHA = 0.5;
+  var FOG_WISPS = 3;
+  var FOG_PUFFS = 4;
+
+  // mulberry32 PRNG, seeded by a 32-bit unsigned integer (same as map-geometry.js).
+  function mulberry32(seed) {
+    var t = seed >>> 0;
+    return function () {
+      t = (t + 0x6d2b79f5) >>> 0;
+      var z = Math.imul(t ^ (t >>> 15), 1 | t);
+      z = Math.imul(z ^ (z >>> 7), 61 | t);
+      return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function clampTo(v, lo, hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
+  // Trace a flat polygon as the current path.
+  function tracePolygon(ctx, poly, scaleX, scaleY) {
+    ctx.beginPath();
+    ctx.moveTo(poly[0] * scaleX, poly[1] * scaleY);
+    for (var i = 2; i < poly.length; i += 2) {
+      ctx.lineTo(poly[i] * scaleX, poly[i + 1] * scaleY);
+    }
+    ctx.closePath();
+  }
+
+  // Build fog operations from geometry and view.
+  // Reads ONLY geom polygons and view.provinces (id, intel, snapshot).
+  // Dark provinces emit an 'unknown' op with deterministic mist wisps and
+  // border puffs; remembered provinces emit a 'remembered' op carrying the
+  // snapshot owner; live provinces emit nothing. Sorted by province id.
+  function buildFogOps(geom, view) {
+    var ops = [];
+    var geomById = {};
+    geom.provinces.forEach(function (p) { geomById[p.id] = p; });
+    var mapW = geom.mapW;
+    var mapH = geom.mapH;
+
+    view.provinces.forEach(function (vp) {
+      if (vp.intel !== 'dark' && vp.intel !== 'remembered') return;
+      var gp = geomById[vp.id];
+      if (!gp) return;
+      var poly = gp.polygon;
+      var flat = [];
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (var i = 0; i < poly.length; i++) {
+        flat.push(poly[i].x, poly[i].y);
+        if (poly[i].x < minX) minX = poly[i].x;
+        if (poly[i].y < minY) minY = poly[i].y;
+        if (poly[i].x > maxX) maxX = poly[i].x;
+        if (poly[i].y > maxY) maxY = poly[i].y;
+      }
+
+      if (vp.intel === 'remembered') {
+        ops.push({
+          kind: 'remembered',
+          id: vp.id,
+          polygon: flat,
+          snapshotOwner: vp.snapshot ? vp.snapshot.owner : null,
+          hatch: true,
+          hatchAnchor: [gp.x + 0.5, gp.y + 0.5]
+        });
+        return;
+      }
+
+      var rng = mulberry32(fnv1a('fog:' + vp.id));
+      // Wisps: inside the polygon bbox shrunk 15 percent on each side,
+      // clamped to the board.
+      var bw = maxX - minX;
+      var bh = maxY - minY;
+      var sx0 = minX + bw * 0.15, sx1 = maxX - bw * 0.15;
+      var sy0 = minY + bh * 0.15, sy1 = maxY - bh * 0.15;
+      var wisps = [];
+      for (var w = 0; w < FOG_WISPS; w++) {
+        wisps.push({
+          x: clampTo(sx0 + rng() * (sx1 - sx0), 0, mapW),
+          y: clampTo(sy0 + rng() * (sy1 - sy0), 0, mapH),
+          rx: 0.14 + rng() * 0.10,
+          ry: 0.05 + rng() * 0.05
+        });
+      }
+      // Puffs: points along the polygon perimeter, clamped to the board.
+      var puffs = [];
+      var n = poly.length;
+      for (var k = 0; k < FOG_PUFFS; k++) {
+        var seg = Math.floor(rng() * n) % n;
+        var t = rng();
+        var a = poly[seg];
+        var b = poly[(seg + 1) % n];
+        puffs.push({
+          x: clampTo(a.x + (b.x - a.x) * t, 0, mapW),
+          y: clampTo(a.y + (b.y - a.y) * t, 0, mapH),
+          r: 0.05 + rng() * 0.04
+        });
+      }
+      ops.push({ kind: 'unknown', id: vp.id, polygon: flat, wisps: wisps, puffs: puffs });
+    });
+
+    ops.sort(function (a, b) { return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0); });
+    return ops;
+  }
+
+  // Draw fog operations on a canvas context. Live provinces have no op,
+  // so the canvas stays transparent over them.
+  // scaleX, scaleY: device pixels per cell-space unit.
+  function drawFogOps(ctx, ops, scaleX, scaleY) {
+    var bandW = 0.01875 * scaleX;
+
+    ops.forEach(function (op) {
+      var poly = op.polygon;
+      if (!poly || poly.length < 6) return;
+
+      if (op.kind === 'unknown') {
+        ctx.save();
+        tracePolygon(ctx, poly, scaleX, scaleY);
+        ctx.clip();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = FOG_UNKNOWN_FILL;
+        tracePolygon(ctx, poly, scaleX, scaleY);
+        ctx.fill();
+
+        ctx.fillStyle = FOG_MIST;
+        ctx.globalAlpha = FOG_WISP_ALPHA;
+        op.wisps.forEach(function (w) {
+          ctx.beginPath();
+          ctx.ellipse(w.x * scaleX, w.y * scaleY, w.rx * scaleX, w.ry * scaleY, 0, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = FOG_PUFF_ALPHA;
+        op.puffs.forEach(function (p) {
+          ctx.beginPath();
+          ctx.arc(p.x * scaleX, p.y * scaleY, p.r * scaleX, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.restore();
+      } else if (op.kind === 'remembered') {
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (var i = 0; i < poly.length; i += 2) {
+          if (poly[i] < minX) minX = poly[i];
+          if (poly[i] > maxX) maxX = poly[i];
+          if (poly[i + 1] < minY) minY = poly[i + 1];
+          if (poly[i + 1] > maxY) maxY = poly[i + 1];
+        }
+
+        ctx.save();
+        tracePolygon(ctx, poly, scaleX, scaleY);
+        ctx.clip();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = FOG_REMEMBERED_FILL;
+        tracePolygon(ctx, poly, scaleX, scaleY);
+        ctx.fill();
+
+        if (op.hatch) {
+          // Diagonal hatch lines x - y = c, phased so the province cell
+          // centre falls midway between two lines and reads the flat fill.
+          var s = FOG_HATCH_SPACING;
+          var anchor = op.hatchAnchor || [(minX + maxX) / 2, (minY + maxY) / 2];
+          var c0 = (anchor[0] - anchor[1]) + s / 2;
+          var cMin = minX - maxY;
+          var cMax = maxX - minY;
+          var c = c0 - Math.ceil((c0 - cMin) / s) * s;
+          ctx.beginPath();
+          for (; c <= cMax; c += s) {
+            ctx.moveTo((c + minY) * scaleX, minY * scaleY);
+            ctx.lineTo((c + maxY) * scaleX, maxY * scaleY);
+          }
+          ctx.strokeStyle = FOG_HATCH_INK;
+          ctx.globalAlpha = FOG_HATCH_ALPHA;
+          ctx.lineWidth = FOG_HATCH_W;
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // Gray band standing in for the last known owner band.
+        ctx.save();
+        tracePolygon(ctx, poly, scaleX, scaleY);
+        ctx.strokeStyle = FOG_BAND_GRAY;
+        ctx.globalAlpha = FOG_BAND_ALPHA;
+        ctx.lineWidth = bandW;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+  }
+
+  // FNV-1a hash of a canonical string built from fog ops.
+  function fogOpsHash(ops) {
+    var parts = [];
+    function pushNum(v) { parts.push(v.toFixed(4)); }
+    ops.forEach(function (op) {
+      parts.push(op.kind);
+      parts.push(String(op.id));
+      if (op.kind === 'remembered') {
+        parts.push(op.snapshotOwner === null ? '' : String(op.snapshotOwner));
+        parts.push(op.hatch ? '1' : '0');
+        if (op.hatchAnchor) { pushNum(op.hatchAnchor[0]); pushNum(op.hatchAnchor[1]); }
+      }
+      for (var i = 0; i < op.polygon.length; i++) pushNum(op.polygon[i]);
+      if (op.wisps) {
+        op.wisps.forEach(function (w) { pushNum(w.x); pushNum(w.y); pushNum(w.rx); pushNum(w.ry); });
+      }
+      if (op.puffs) {
+        op.puffs.forEach(function (p) { pushNum(p.x); pushNum(p.y); pushNum(p.r); });
+      }
+    });
+    var canonical = parts.join('|');
+    var hash = fnv1a(canonical);
+    return hash.toString(16).padStart(8, '0');
+  }
+
+  // Render the fog offscreen canvas. Browser only (needs document).
+  // Returns {canvas, width, height, hash, ops} or null if not in browser.
+  function renderFogCanvas(geom, view, widthPx, heightPx) {
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    var canvas = document.createElement('canvas');
+    var fitted = fitPixels(widthPx, heightPx);
+    canvas.width = fitted.width;
+    canvas.height = fitted.height;
+
+    var ctx = canvas.getContext('2d');
+
+    var ops = buildFogOps(geom, view);
+
+    var scaleX = canvas.width / geom.mapW;
+    var scaleY = canvas.height / geom.mapH;
+
+    drawFogOps(ctx, ops, scaleX, scaleY);
+
+    var hash = fogOpsHash(ops);
+
+    return {
+      canvas: canvas,
+      width: canvas.width,
+      height: canvas.height,
+      hash: hash,
+      ops: ops
+    };
+  }
+
   var AshesMapCanvas = {
     DPR_CAP_DESKTOP: DPR_CAP_DESKTOP,
     DPR_CAP_MOBILE: DPR_CAP_MOBILE,
@@ -609,7 +870,17 @@
     buildStateOps: buildStateOps,
     drawStateOps: drawStateOps,
     stateOpsHash: stateOpsHash,
-    renderStateCanvas: renderStateCanvas
+    renderStateCanvas: renderStateCanvas,
+    // Fog layer exports
+    FOG_UNKNOWN_FILL: FOG_UNKNOWN_FILL,
+    FOG_REMEMBERED_FILL: FOG_REMEMBERED_FILL,
+    FOG_MIST: FOG_MIST,
+    FOG_WISP_ALPHA: FOG_WISP_ALPHA,
+    FOG_PUFF_ALPHA: FOG_PUFF_ALPHA,
+    buildFogOps: buildFogOps,
+    drawFogOps: drawFogOps,
+    fogOpsHash: fogOpsHash,
+    renderFogCanvas: renderFogCanvas
   };
 
   if (typeof module !== 'undefined' && module.exports) {

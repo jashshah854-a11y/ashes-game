@@ -35,6 +35,8 @@
   var baseSettleCount = 0;
   var stateFingerprint = null;
   var stateDrawCount = 0;
+  var fogFingerprint = null;
+  var fogDrawCount = 0;
   var settleTimer = null;
 
   var el = {};
@@ -62,7 +64,7 @@
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
    'progression-blocks', 'progression-explain',
-   'map-base', 'map-state', 'map-board', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
+   'map-base', 'map-fog', 'map-state', 'map-board', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -150,8 +152,60 @@
         coasts: geom.coastSegments.length
       }
     };
-    // Also render the state layer after base settles
+    // Also render the fog and state layers after base settles
+    renderFogCanvasNow();
     renderStateCanvasNow();
+  }
+
+  // Fog layer (Cycle 23 Step 8): the fog fingerprint holds only the
+  // fog-relevant view facts, so the canvas redraws only when one of them
+  // or the canvas size changes.
+  function fogFingerprintOf(view) {
+    return JSON.stringify(view.provinces.map(function (p) {
+      return [p.id, p.intel, (p.snapshot && p.snapshot.owner) || '', p.lastSeenDay];
+    }));
+  }
+
+  function renderFogCanvasNow() {
+    var view = View(state);
+    var geom = MapGeom.buildGeometry(view);
+    var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
+    var cssW = el.map.clientWidth || geom.boardWidthPx;
+    var cssH = el.map.clientHeight || geom.boardHeightPx;
+    var widthPx = Math.round(cssW * dpr * mapZoom);
+    var heightPx = Math.round(cssH * dpr * mapZoom);
+
+    var counts = { live: 0, remembered: 0, dark: 0 };
+    view.provinces.forEach(function (p) {
+      if (counts[p.intel] !== undefined) counts[p.intel]++;
+    });
+
+    var ops = MapCanvas.buildFogOps(geom, view);
+    var hash = MapCanvas.fogOpsHash(ops);
+    var fp = fogFingerprintOf(view);
+    var fitted = MapCanvas.fitPixels(widthPx, heightPx);
+
+    if (fogFingerprint !== fp || !el.mapFog ||
+        el.mapFog.width !== fitted.width || el.mapFog.height !== fitted.height) {
+      var off = MapCanvas.renderFogCanvas(geom, view, widthPx, heightPx);
+      if (off && el.mapFog) {
+        if (el.mapFog.width !== off.width || el.mapFog.height !== off.height) {
+          el.mapFog.width = off.width;
+          el.mapFog.height = off.height;
+        }
+        var ctx = el.mapFog.getContext('2d');
+        ctx.clearRect(0, 0, el.mapFog.width, el.mapFog.height);
+        ctx.drawImage(off.canvas, 0, 0);
+        fogFingerprint = fp;
+        fogDrawCount++;
+      }
+    }
+
+    window.AshesFogDebug = {
+      hash: hash,
+      drawCount: fogDrawCount,
+      counts: counts
+    };
   }
 
   function renderStateCanvasNow() {
@@ -232,6 +286,7 @@
     baseOffscreen = null;
     baseFingerprint = null;
     stateFingerprint = null;
+    fogFingerprint = null;
     render();
     startTimer();
   }
@@ -592,6 +647,8 @@
     } else {
       blitBase();
     }
+    // Fog layer (remembered and Unknown provinces), then the state layer
+    renderFogCanvasNow();
     // State layer (ownership bands and front lines)
     renderStateCanvasNow();
   }
@@ -1884,7 +1941,7 @@
     settleTimer = setTimeout(function () {
       baseSettleCount++;
       renderBaseCanvasNow();
-      // renderBaseCanvasNow calls renderStateCanvasNow internally
+      // renderBaseCanvasNow calls renderFogCanvasNow and renderStateCanvasNow internally
     }, 250);
   }
 

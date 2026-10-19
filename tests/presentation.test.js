@@ -923,3 +923,121 @@ test('state ops source lint: js/map-canvas.js state functions contain no banned 
     assert.ok(src.indexOf(str) === -1, 'map-canvas.js must not contain ' + str);
   });
 });
+
+// Fog layer tests (Cycle 23 Step 8)
+
+function fogFixtureView() {
+  const Save = require('../js/save.js');
+  const fixtureText = fs.readFileSync(path.join(__dirname, '..', 'tools', 'fixture', 'worst-case.json'), 'utf8');
+  const readBack = Save.deserializeSave(fixtureText);
+  assert.strictEqual(readBack.ok, true, readBack.reason || 'deserialize failed');
+  return playerView(readBack.state);
+}
+
+function fogIntelCount(view, intel) {
+  return view.provinces.filter(function (p) { return p.intel === intel; }).length;
+}
+
+function hexLuma(hex) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+test('fog ops: fresh seed 42 view emits no op for live provinces, one unknown op per dark province (27), zero remembered ops', () => {
+  const view = playerView(Sim.createGame(42));
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildFogOps(geom, view);
+  const darkCount = fogIntelCount(view, 'dark');
+  const intelById = {};
+  view.provinces.forEach(function (p) { intelById[p.id] = p.intel; });
+  assert.strictEqual(darkCount, 27, 'seed 42 has 27 dark provinces');
+  assert.strictEqual(ops.filter(function (op) { return op.kind === 'unknown'; }).length, darkCount);
+  assert.strictEqual(ops.filter(function (op) { return op.kind === 'remembered'; }).length, fogIntelCount(view, 'remembered'));
+  assert.strictEqual(ops.filter(function (op) { return op.kind === 'remembered'; }).length, 0);
+  ops.forEach(function (op) {
+    assert.notStrictEqual(intelById[op.id], 'live', 'no fog op for live province ' + op.id);
+    if (op.kind === 'unknown') assert.strictEqual(intelById[op.id], 'dark');
+  });
+  const ids = ops.map(function (op) { return op.id; });
+  assert.deepStrictEqual(ids, ids.slice().sort(), 'ops sorted by province id');
+});
+
+test('fog ops: fixture view emits 9 remembered and 15 unknown ops, each remembered op carries its view snapshot owner', () => {
+  const view = fogFixtureView();
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildFogOps(geom, view);
+  const remembered = ops.filter(function (op) { return op.kind === 'remembered'; });
+  const unknown = ops.filter(function (op) { return op.kind === 'unknown'; });
+  assert.strictEqual(remembered.length, fogIntelCount(view, 'remembered'));
+  assert.strictEqual(unknown.length, fogIntelCount(view, 'dark'));
+  assert.strictEqual(remembered.length, 9);
+  assert.strictEqual(unknown.length, 15);
+  assert.strictEqual(ops.length, 24, 'no op for the 46 live provinces');
+  const byId = {};
+  view.provinces.forEach(function (p) { byId[p.id] = p; });
+  remembered.forEach(function (op) {
+    const vp = byId[op.id];
+    assert.strictEqual(vp.intel, 'remembered');
+    assert.strictEqual(op.snapshotOwner, vp.snapshot ? vp.snapshot.owner : null, 'snapshot owner for ' + op.id);
+    assert.strictEqual(op.hatch, true);
+  });
+});
+
+test('fog ops: deterministic, and flipping one province intel changes the hash', () => {
+  const view = fogFixtureView();
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const a = AshesMapCanvas.buildFogOps(geom, view);
+  const b = AshesMapCanvas.buildFogOps(geom, view);
+  assert.deepStrictEqual(a, b);
+  assert.strictEqual(AshesMapCanvas.fogOpsHash(a), AshesMapCanvas.fogOpsHash(b));
+
+  const cloned = JSON.parse(JSON.stringify(view));
+  const target = cloned.provinces.find(function (p) { return p.intel === 'dark'; });
+  target.intel = 'live';
+  const flipped = AshesMapCanvas.buildFogOps(geom, cloned);
+  assert.notStrictEqual(AshesMapCanvas.fogOpsHash(flipped), AshesMapCanvas.fogOpsHash(a));
+  assert.strictEqual(flipped.length, a.length - 1);
+});
+
+test('fog palette: Unknown fill luma in band D (185 to 225), remembered fill in band C (120 to 175), at least 25 apart, mist cannot leave band D', () => {
+  const unknownLuma = hexLuma(AshesMapCanvas.FOG_UNKNOWN_FILL);
+  const rememberedLuma = hexLuma(AshesMapCanvas.FOG_REMEMBERED_FILL);
+  const mistLuma = hexLuma(AshesMapCanvas.FOG_MIST);
+  assert.ok(unknownLuma >= 185 && unknownLuma <= 225, 'unknown luma ' + unknownLuma.toFixed(1));
+  assert.ok(rememberedLuma >= 120 && rememberedLuma <= 175, 'remembered luma ' + rememberedLuma.toFixed(1));
+  assert.ok(unknownLuma - rememberedLuma >= 25, 'difference ' + (unknownLuma - rememberedLuma).toFixed(1));
+  // Worst case: all 3 wisps and 1 puff stacked over one pixel of Unknown fill.
+  assert.ok(mistLuma > unknownLuma, 'mist reads lighter than the fill');
+  let worst = unknownLuma;
+  for (let i = 0; i < 3; i++) worst += (mistLuma - worst) * AshesMapCanvas.FOG_WISP_ALPHA;
+  worst += (mistLuma - worst) * AshesMapCanvas.FOG_PUFF_ALPHA;
+  assert.ok(worst <= 225, 'worst case stacked mist luma ' + worst.toFixed(1));
+  assert.ok(AshesMapCanvas.FOG_WISP_ALPHA <= 0.35 && AshesMapCanvas.FOG_PUFF_ALPHA <= 0.3);
+});
+
+test('fog ops: every unknown op has exactly 3 wisps and 4 puffs, all inside the board bounds (seed 42 and fixture)', () => {
+  [playerView(Sim.createGame(42)), fogFixtureView()].forEach(function (view) {
+    const geom = AshesMapGeometry.buildGeometry(view);
+    const ops = AshesMapCanvas.buildFogOps(geom, view);
+    ops.filter(function (op) { return op.kind === 'unknown'; }).forEach(function (op) {
+      assert.strictEqual(op.wisps.length, 3, 'wisps for ' + op.id);
+      assert.strictEqual(op.puffs.length, 4, 'puffs for ' + op.id);
+      op.wisps.concat(op.puffs).forEach(function (pt) {
+        assert.ok(pt.x >= 0 && pt.x <= geom.mapW && pt.y >= 0 && pt.y <= geom.mapH, op.id + ' point ' + pt.x + ',' + pt.y);
+      });
+    });
+  });
+});
+
+test('fog ops: buildFogOps does not mutate the view or geometry', () => {
+  const view = fogFixtureView();
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const viewBefore = JSON.stringify(view);
+  const geomBefore = JSON.stringify(geom);
+  AshesMapCanvas.buildFogOps(geom, view);
+  assert.strictEqual(JSON.stringify(view), viewBefore);
+  assert.strictEqual(JSON.stringify(geom), geomBefore);
+});
