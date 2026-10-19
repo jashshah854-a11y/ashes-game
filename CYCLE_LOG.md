@@ -5788,3 +5788,6 @@ Claimed this run: Step 8 only (visual Run 6 in STRATEGY.md order, as reordered b
 
 ### Mission status
 Cycle 23 Step 8 is complete: fog in its three states is live on its own canvas, value separated (Unknown lightest at band D, remembered gray hatched at band C, live transparent), numeral suppression in Last seen proven by DOM assertion, and redraw discipline held by fingerprint. Next run claims Step 9 (the proven plaque system wired onto the live board as the unit display). No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 step 8 sync note
+- Sync out after commits e680339 and 755c43c: the import script completed with exit 0 and sent both commits to GitHub (jashshah854-a11y/ashes-game, master now at remote 20a76e3; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
