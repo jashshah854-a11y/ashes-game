@@ -139,7 +139,11 @@
         hitProvinces: Object.keys(lastChart.hitPolygons).length,
         riverEdges: lastChart.rivers.edges.length,
         riverMouths: lastChart.rivers.mouths.length,
-        riverFans: lastChart.rivers.fans.length
+        riverFans: lastChart.rivers.fans.length,
+        reliefSalt: lastChart.relief.salt,
+        reliefRes: lastChart.relief.res,
+        reliefContours: lastChart.relief.contours.length,
+        reliefHash: lastChart.relief.hash
       };
     }
     var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);

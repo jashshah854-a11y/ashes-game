@@ -103,9 +103,10 @@ async function main() {
       sea.a === 255 && sea.b > sea.r && sea.g > sea.r,
       'rgba=' + sea.r + ',' + sea.g + ',' + sea.b + ',' + sea.a + ' at ' + sea.x + ',' + sea.y);
     const land = await sampleBase(4.5, 3.5);
-    check('browser: base canvas land pixel at cell 4.5,3.5 is the flat land colour',
-      land.a === 255 && land.g >= land.r && land.r > land.b && land.r < 200,
-      'rgba=' + land.r + ',' + land.g + ',' + land.b + ',' + land.a + ' at ' + land.x + ',' + land.y);
+    const landLuma = 0.2126 * land.r + 0.7152 * land.g + 0.0722 * land.b;
+    check('browser: base canvas land pixel at cell 4.5,3.5 is relief inside the Terrain band (luma 60 to 150)',
+      land.a === 255 && landLuma >= 60 && landLuma <= 150,
+      'rgba=' + land.r + ',' + land.g + ',' + land.b + ',' + land.a + ' luma=' + landLuma.toFixed(1) + ' at ' + land.x + ',' + land.y);
 
     // 4. Live owner tiles stay transparent
     const tileBg = await page.evaluate(() => {

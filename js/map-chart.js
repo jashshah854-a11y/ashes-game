@@ -29,6 +29,24 @@
   var RIVER_WATER = '#6F8C8F';
   var RIVER_BANK = '#4A4335';
   var RIVER_GLINT = '#8FA6A3';
+  var LAND_HIGH = '#8A7A58';
+  var CONTOUR = '#5A4A36';
+  var SHADE_DARK = '#2B2620';
+  var SHADE_LIGHT = '#F3EAD2';
+
+  // Relief parameters (MAP_TREATMENT 3.2 to 3.6).
+  var RELIEF_RES = 16;
+  var RELIEF_Z = 3.0;
+  var RELIEF_LIGHT = { x: -0.5, y: -0.5, z: 0.7071 };
+  var RELIEF_LEVELS = [0.30, 0.55, 0.80];
+  var RELIEF_MIN_CONTOUR = 0.25;
+  var RELIEF_RIVER_CLEAR = 0.06;
+  var RESERVE_RX = 0.45;
+  var RESERVE_RY = 0.11;
+  var ANCHOR_LIFT = 0.30;
+  var FAIRNESS_MAX = 0.08;
+  var SALT_MAX = 15;
+  var BEYOND_RUGGEDNESS = 0.6;
 
   // River parameters (MAP_TREATMENT 2.3 and 2.5).
   var W_SRC = 0.055;
@@ -471,6 +489,669 @@
     return { nodes: nodes, edges: edges, mouths: mouthList, fans: fans };
   }
 
+  // ---------- Relief (Cycle 23 Step 11, MAP_TREATMENT 3) ----------
+  // Decorative presentation only: no sim number, order, or outcome reads it.
+
+  function smoothstep(e0, e1, v) {
+    var t = clamp((v - e0) / (e1 - e0), 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+
+  function hexRgb(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  // Two pass 3-4 chamfer distance transform over a w by h grid, in place.
+  // dist holds 0 at seed cells and a large value elsewhere. When label is
+  // given, every improvement copies the label of the neighbour it came from,
+  // so each cell ends up carrying the label of the seed its chamfer path
+  // started at. That seed is the nearest one up to the chamfer metric error
+  // (under 8 percent), which is the same approximation the distance itself
+  // makes, so the label and the distance always agree with each other.
+  function chamfer(dist, label, w, h) {
+    var i, j, k, v;
+    for (j = 0; j < h; j++) {
+      for (i = 0; i < w; i++) {
+        k = j * w + i;
+        if (i > 0) { v = dist[k - 1] + 3; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k - 1]; } }
+        if (j > 0) {
+          v = dist[k - w] + 3; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k - w]; }
+          if (i > 0) { v = dist[k - w - 1] + 4; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k - w - 1]; } }
+          if (i < w - 1) { v = dist[k - w + 1] + 4; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k - w + 1]; } }
+        }
+      }
+    }
+    for (j = h - 1; j >= 0; j--) {
+      for (i = w - 1; i >= 0; i--) {
+        k = j * w + i;
+        if (i < w - 1) { v = dist[k + 1] + 3; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k + 1]; } }
+        if (j < h - 1) {
+          v = dist[k + w] + 3; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k + w]; }
+          if (i < w - 1) { v = dist[k + w + 1] + 4; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k + w + 1]; } }
+          if (i > 0) { v = dist[k + w - 1] + 4; if (v < dist[k]) { dist[k] = v; if (label) label[k] = label[k + w - 1]; } }
+        }
+      }
+    }
+  }
+
+  // Starting owners at tick 0: js/sim.js newGame deals provinces west to
+  // east, player when p.x < mapW / 2, enemy otherwise. A presentation test
+  // pins this partition against a fresh sim game.
+  function startingOwner(geom, p) {
+    return p.x < geom.mapW / 2 ? 'player' : 'enemy';
+  }
+
+  // Per province ruggedness with the fairness salt (MAP_TREATMENT 3.3).
+  function buildRuggedness(geom, chartSeed) {
+    var best = null;
+    for (var salt = 0; salt <= SALT_MAX; salt++) {
+      var rug = {};
+      var sum = { player: 0, enemy: 0 };
+      var cnt = { player: 0, enemy: 0 };
+      geom.provinces.forEach(function (p) {
+        var u = mulberry32(fnv1a(chartSeed + ':rug:' + salt + ':' + p.id))();
+        var r = 0.25 + 0.75 * u;
+        rug[p.id] = r;
+        var o = startingOwner(geom, p);
+        sum[o] += r;
+        cnt[o]++;
+      });
+      var mean = {
+        player: cnt.player ? sum.player / cnt.player : 0,
+        enemy: cnt.enemy ? sum.enemy / cnt.enemy : 0
+      };
+      var diff = Math.abs(mean.player - mean.enemy);
+      if (!best || diff < best.diff) best = { salt: salt, ruggedness: rug, mean: mean, diff: diff };
+      if (diff <= FAIRNESS_MAX) break;
+    }
+    return best;
+  }
+
+  // Relief: height grid, distance fields, shade raster, contours, label
+  // reserves. A pure function of geom, the coastline, and the river graph,
+  // deterministic by chartSeed. Heights and fields are Float32Arrays
+  // (compact, and the raster and tests index them flat, row major).
+  function buildRelief(geom, coastline, rivers, chartSeed, neatline) {
+    var W = geom.mapW;
+    var H = geom.mapH;
+    var RES = RELIEF_RES;
+    var g = 1 / RES;
+    var x0 = neatline.x0;
+    var y0 = neatline.y0;
+    var gw = Math.round((neatline.x1 - neatline.x0) * RES);
+    var gh = Math.round((neatline.y1 - neatline.y0) * RES);
+    var N = gw * gh;
+    var BIG = 1e9;
+    var i, j, k, q;
+
+    function sx(ii) { return x0 + (ii + 0.5) * g; }
+    function sy(jj) { return y0 + (jj + 0.5) * g; }
+    function cellIndex(x, y) {
+      var ii = clamp(Math.floor((x - x0) * RES), 0, gw - 1);
+      var jj = clamp(Math.floor((y - y0) * RES), 0, gh - 1);
+      return jj * gw + ii;
+    }
+
+    // Land mask: scanline even-odd fill over grid rows, O(rows x segments).
+    var land = new Uint8Array(N);
+    var nc = coastline.length;
+    for (j = 0; j < gh; j++) {
+      var yy = sy(j);
+      var xs = [];
+      for (q = 0; q < nc; q++) {
+        var ca = coastline[q];
+        var cb = coastline[(q + 1) % nc];
+        if ((ca.y > yy) !== (cb.y > yy)) xs.push(ca.x + (yy - ca.y) * (cb.x - ca.x) / (cb.y - ca.y));
+      }
+      xs.sort(function (a, b) { return a - b; });
+      for (q = 0; q + 1 < xs.length; q += 2) {
+        var iStart = Math.max(0, Math.ceil((xs[q] - x0) * RES - 0.5));
+        var iEnd = Math.min(gw - 1, Math.floor((xs[q + 1] - x0) * RES - 0.5));
+        for (i = iStart; i <= iEnd; i++) {
+          var px = sx(i);
+          if (px > xs[q] && px < xs[q + 1]) land[j * gw + i] = 1;
+        }
+      }
+    }
+
+    // Rasterise a polyline segment into seed cells at half a grid step.
+    function seedSegment(dist, ax, ay, bx, by, onCell) {
+      var n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / (0.5 * g)));
+      for (var s = 0; s <= n; s++) {
+        var t = s / n;
+        var kk = cellIndex(ax + (bx - ax) * t, ay + (by - ay) * t);
+        dist[kk] = 0;
+        if (onCell) onCell(kk, t);
+      }
+    }
+    var CHAMFER_SCALE = g / 3;
+
+    // dC: distance to the coastline.
+    var dC = new Float32Array(N);
+    dC.fill(BIG);
+    for (q = 0; q < nc; q++) {
+      var c1 = coastline[q];
+      var c2 = coastline[(q + 1) % nc];
+      seedSegment(dC, c1.x, c1.y, c2.x, c2.y, null);
+    }
+    chamfer(dC, null, gw, gh);
+    for (k = 0; k < N; k++) dC[k] *= CHAMFER_SCALE;
+
+    // River components, recomputed here from nodes and edges (union find).
+    var nodes = rivers.nodes;
+    var parent = nodes.map(function (n0, ni) { return ni; });
+    function find(a) { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; }
+    rivers.edges.forEach(function (e) {
+      var ra = find(e.from);
+      var rb = find(e.to);
+      if (ra !== rb) parent[ra] = rb;
+    });
+    var compMaxD = {};
+    nodes.forEach(function (n1, ni) {
+      var r = find(ni);
+      if (compMaxD[r] === undefined || n1.D > compMaxD[r]) compMaxD[r] = n1.D;
+    });
+    function dnOf(nodeIndex, D) {
+      var m = compMaxD[find(nodeIndex)];
+      return m > 0 ? clamp(D / m, 0, 1) : 0;
+    }
+
+    // dR: distance to the river centreline (3-4 chamfer, like dC), and Dn
+    // of the nearest river point. A point on an edge has graph distance
+    // min(Da + s, Db + len - s) from the mouth. The Dn label is carried by
+    // a feature transform in the same two raster passes: each cell keeps
+    // the river point (x, y, Dn) of a neighbour when that point is closer to
+    // the cell centre by true Euclidean distance. Plain label copying along
+    // chamfer paths left the label in row bands (the 3-4 metric breaks
+    // ties along rows), and the valley floor term turned those bands into
+    // visible stripes; the Euclidean feature transform gives the nearest
+    // river point to within a sample almost everywhere, so Dn is smooth.
+    var dR = new Float32Array(N);
+    dR.fill(BIG);
+    var riverDn = new Float32Array(N);
+    var featX = new Float64Array(N);
+    var featY = new Float64Array(N);
+    var featD2 = new Float64Array(N);
+    featD2.fill(Infinity);
+    function seedRiverPoint(x, y, dn) {
+      var kk = cellIndex(x, y);
+      var ci = kk % gw;
+      var cj = (kk - ci) / gw;
+      var ex = x - sx(ci);
+      var ey = y - sy(cj);
+      var d2 = ex * ex + ey * ey;
+      dR[kk] = 0;
+      if (d2 < featD2[kk]) { featD2[kk] = d2; featX[kk] = x; featY[kk] = y; riverDn[kk] = dn; }
+    }
+    function seedRiverStroke(pts, dnAt) {
+      for (var s = 1; s < pts.length; s++) {
+        var a = pts[s - 1];
+        var b = pts[s];
+        var n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / (0.5 * g)));
+        for (var t = 0; t <= n; t++) {
+          var f = t / n;
+          seedRiverPoint(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, dnAt(s - 1 + f));
+        }
+      }
+    }
+    rivers.edges.forEach(function (e) {
+      var smp = e.samples;
+      if (!smp.length) return;
+      // Which node sits at the first sample: from or to.
+      var nf = nodes[e.from];
+      var nt = nodes[e.to];
+      var firstIsFrom = Math.hypot(smp[0].x - nf.x, smp[0].y - nf.y) <= Math.hypot(smp[0].x - nt.x, smp[0].y - nt.y);
+      var dFirst = firstIsFrom ? nf.D : nt.D;
+      var dLast = firstIsFrom ? nt.D : nf.D;
+      var arc = [0];
+      for (var s = 1; s < smp.length; s++) arc.push(arc[s - 1] + Math.hypot(smp[s].x - smp[s - 1].x, smp[s].y - smp[s - 1].y));
+      var len = arc[arc.length - 1];
+      seedRiverStroke(smp, function (fi) {
+        var i0 = Math.min(Math.floor(fi), smp.length - 1);
+        var i1 = Math.min(i0 + 1, smp.length - 1);
+        var sArc = arc[i0] + (arc[i1] - arc[i0]) * (fi - i0);
+        return dnOf(e.from, Math.min(dFirst + sArc, dLast + len - sArc));
+      });
+    });
+    // Mouth extension samples belong to their mouth node's component, D = 0.
+    rivers.mouths.forEach(function (m) {
+      seedRiverStroke(m.samples, function () { return 0; });
+    });
+    chamfer(dR, null, gw, gh);
+    for (k = 0; k < N; k++) dR[k] *= CHAMFER_SCALE;
+    function takeFeature(kk, from, cx, cy) {
+      if (featD2[from] === Infinity) return;
+      var ex = featX[from] - cx;
+      var ey = featY[from] - cy;
+      var d2 = ex * ex + ey * ey;
+      if (d2 < featD2[kk]) { featD2[kk] = d2; featX[kk] = featX[from]; featY[kk] = featY[from]; riverDn[kk] = riverDn[from]; }
+    }
+    for (j = 0; j < gh; j++) {
+      for (i = 0; i < gw; i++) {
+        k = j * gw + i;
+        if (i > 0) takeFeature(k, k - 1, sx(i), sy(j));
+        if (j > 0) {
+          takeFeature(k, k - gw, sx(i), sy(j));
+          if (i > 0) takeFeature(k, k - gw - 1, sx(i), sy(j));
+          if (i < gw - 1) takeFeature(k, k - gw + 1, sx(i), sy(j));
+        }
+      }
+      for (i = gw - 2; i >= 0; i--) takeFeature(j * gw + i, j * gw + i + 1, sx(i), sy(j));
+    }
+    for (j = gh - 1; j >= 0; j--) {
+      for (i = gw - 1; i >= 0; i--) {
+        k = j * gw + i;
+        if (i < gw - 1) takeFeature(k, k + 1, sx(i), sy(j));
+        if (j < gh - 1) {
+          takeFeature(k, k + gw, sx(i), sy(j));
+          if (i < gw - 1) takeFeature(k, k + gw + 1, sx(i), sy(j));
+          if (i > 0) takeFeature(k, k + gw - 1, sx(i), sy(j));
+        }
+      }
+      for (i = 1; i < gw; i++) takeFeature(j * gw + i, j * gw + i - 1, sx(i), sy(j));
+    }
+
+    // dS: exact Euclidean distance to the nearest river source. Sources are
+    // few (one per river head), so a direct loop per sample is cheap and
+    // exact, and needs no chamfer.
+    var sources = nodes.filter(function (n2) { return n2.source; });
+
+    // Ruggedness, fairness salt, and r(P).
+    var rugInfo = buildRuggedness(geom, chartSeed);
+    var rugGrid = new Float32Array(W * H);
+    geom.provinces.forEach(function (p) { rugGrid[p.y * W + p.x] = rugInfo.ruggedness[p.id]; });
+    // Outside the lattice rectangle r is 0.6, reached 0.5 cell out; the
+    // first 0.5 cell outside blends linearly from the clamped edge value to
+    // 0.6. Deviation from the literal rule (0.6 at once outside): the jump
+    // drew a straight ridge along the whole lattice edge in the hillshade.
+    // Inside the lattice r is exactly the clamped bilinear rule.
+    function rAt(x, y) {
+      var out = Math.max(0 - x, x - W, 0 - y, y - H);
+      if (out >= 0.5) return BEYOND_RUGGEDNESS;
+      var r = rLattice(clamp(x, 0, W), clamp(y, 0, H));
+      return out > 0 ? r + (BEYOND_RUGGEDNESS - r) * (out / 0.5) : r;
+    }
+    function rLattice(x, y) {
+      var fx = clamp(x - 0.5, 0, W - 1);
+      var fy = clamp(y - 0.5, 0, H - 1);
+      var ix = Math.min(Math.floor(fx), W - 2);
+      var iy = Math.min(Math.floor(fy), H - 2);
+      var tx = fx - ix;
+      var ty = fy - iy;
+      var r00 = rugGrid[iy * W + ix];
+      var r10 = rugGrid[iy * W + ix + 1];
+      var r01 = rugGrid[(iy + 1) * W + ix];
+      var r11 = rugGrid[(iy + 1) * W + ix + 1];
+      return (r00 * (1 - tx) + r10 * tx) * (1 - ty) + (r01 * (1 - tx) + r11 * tx) * ty;
+    }
+
+    // Value noise lattices, one cached dense table per octave, so each
+    // lattice point is hashed exactly once (caching changes no value).
+    var octaves = [];
+    for (var o = 0; o < 4; o++) {
+      var freq = 0.9 * Math.pow(2, o);
+      var lx0 = Math.floor(neatline.x0 * freq) - 1;
+      var ly0 = Math.floor(neatline.y0 * freq) - 1;
+      var lw = Math.ceil(neatline.x1 * freq) + 2 - lx0;
+      var lh = Math.ceil(neatline.y1 * freq) + 2 - ly0;
+      var table = new Float64Array(lw * lh);
+      for (var ly = 0; ly < lh; ly++) {
+        for (var lx = 0; lx < lw; lx++) {
+          table[ly * lw + lx] = mulberry32(fnv1a(chartSeed + ':h:' + o + ':' + (lx + lx0) + ',' + (ly + ly0)))();
+        }
+      }
+      octaves.push({ freq: freq, amp: Math.pow(0.5, o), x0: lx0, y0: ly0, w: lw, table: table });
+    }
+    function fbm(x, y) {
+      var sum = 0;
+      for (var oo = 0; oo < 4; oo++) {
+        var oc = octaves[oo];
+        var qx = x * oc.freq;
+        var qy = y * oc.freq;
+        var ix = Math.floor(qx);
+        var iy = Math.floor(qy);
+        var tx = qx - ix;
+        var ty = qy - iy;
+        tx = tx * tx * (3 - 2 * tx);
+        ty = ty * ty * (3 - 2 * ty);
+        var b = (iy - oc.y0) * oc.w + (ix - oc.x0);
+        var t = oc.table;
+        var top = t[b] + (t[b + 1] - t[b]) * tx;
+        var bot = t[b + oc.w] + (t[b + oc.w + 1] - t[b + oc.w]) * tx;
+        sum += oc.amp * (top + (bot - top) * ty);
+      }
+      return sum / 1.875;
+    }
+
+    // Height (MAP_TREATMENT 3.3). Deviation from the literal formula, on
+    // purpose: the valley floor term (hv + 0.02) is multiplied by the same
+    // shore factor smoothstep(0, 0.45, dC) as raw. Taken literally, the
+    // floor holds every shore at hv + 0.02 (0.08 to 0.32) and the 3.3
+    // guarantee "h is 0 at the coast" fails along the whole coastline. With
+    // the factor, the shore far from rivers comes down to 0 exactly, while
+    // the mouth valley keeps its river level at the coast through the
+    // hv * (1 - wv) term. Second deviation: the floor also fades out between
+    // 0.6 and 1.2 cell from the river (reach). The floor exists to make the
+    // valley (3.3: never below river level at 0.6 cell, which still holds
+    // in full); left everywhere, it ties far ground to the level of a river
+    // cells away, and the nearest river point jumps across bends, so the
+    // floor drew straight stripes across the hillshade.
+    var heights = new Float32Array(N);
+    var nearestRiverDn = riverDn;
+    for (j = 0; j < gh; j++) {
+      var py = sy(j);
+      for (i = 0; i < gw; i++) {
+        k = j * gw + i;
+        if (!land[k]) continue;
+        var pxx = sx(i);
+        var dc = dC[k];
+        var dS = BIG;
+        for (q = 0; q < sources.length; q++) {
+          var sdx = pxx - sources[q].x;
+          var sdy = py - sources[q].y;
+          var dsq = Math.sqrt(sdx * sdx + sdy * sdy);
+          if (dsq < dS) dS = dsq;
+        }
+        var shore = smoothstep(0, 0.45, dc);
+        var base = 0.35 * smoothstep(0, 2.5, dc);
+        var raw = base + 0.65 * rAt(pxx, py) * fbm(pxx, py) + (sources.length ? 0.25 * Math.exp(-(dS / 0.8) * (dS / 0.8)) : 0);
+        raw = raw * shore;
+        var hv = 0.06 + 0.24 * riverDn[k];
+        var wv = smoothstep(0.05, 0.60, dR[k]);
+        var reach = 1 - smoothstep(0.6, 1.2, dR[k]);
+        var hh = hv * (1 - wv) + Math.max(raw, (hv + 0.02) * shore * reach) * wv;
+        heights[k] = clamp(hh, 0, 1);
+      }
+    }
+
+    // Label anchors and reserves (MAP_TREATMENT 3.6 and 5.5). The anchor is
+    // the average of the polygon vertices (the 8 point polygon spreads its
+    // jitter over corners and midpoints, so this tracks the drawn shape
+    // better than geom center, which averages the four corners only), moved
+    // up 0.30 cell. Names are drawn in Step 12.
+    var labelReserves = geom.provinces.map(function (p) {
+      var ax = 0;
+      var ay = 0;
+      p.polygon.forEach(function (pt) { ax += pt.x; ay += pt.y; });
+      ax /= p.polygon.length;
+      ay /= p.polygon.length;
+      return { id: p.id, x: ax, y: ay - ANCHOR_LIFT, rx: RESERVE_RX, ry: RESERVE_RY };
+    });
+    // Reserves bucketed by the whole cell their bounding box touches, so a
+    // point tests only the few ellipses near it (the test itself is exact).
+    var reserveBuckets = {};
+    labelReserves.forEach(function (lr) {
+      for (var by = Math.floor(lr.y - lr.ry); by <= Math.floor(lr.y + lr.ry); by++) {
+        for (var bx = Math.floor(lr.x - lr.rx); bx <= Math.floor(lr.x + lr.rx); bx++) {
+          (reserveBuckets[bx + ':' + by] = reserveBuckets[bx + ':' + by] || []).push(lr);
+        }
+      }
+    });
+    function inReserve(x, y) {
+      var bucket = reserveBuckets[Math.floor(x) + ':' + Math.floor(y)];
+      if (!bucket) return false;
+      for (var r = 0; r < bucket.length; r++) {
+        var lr = bucket[r];
+        var ex = (x - lr.x) / lr.rx;
+        var ey = (y - lr.y) / lr.ry;
+        if (ex * ex + ey * ey <= 1) return true;
+      }
+      return false;
+    }
+    var reserveMask = new Uint8Array(N);
+    labelReserves.forEach(function (lr) {
+      var i0 = clamp(Math.floor((lr.x - lr.rx - x0) * RES), 0, gw - 1);
+      var i1 = clamp(Math.ceil((lr.x + lr.rx - x0) * RES), 0, gw - 1);
+      var j0 = clamp(Math.floor((lr.y - lr.ry - y0) * RES), 0, gh - 1);
+      var j1 = clamp(Math.ceil((lr.y + lr.ry - y0) * RES), 0, gh - 1);
+      for (var jj = j0; jj <= j1; jj++) {
+        for (var ii = i0; ii <= i1; ii++) {
+          var ex = (sx(ii) - lr.x) / lr.rx;
+          var ey = (sy(jj) - lr.y) / lr.ry;
+          if (ex * ex + ey * ey <= 1) reserveMask[jj * gw + ii] = 1;
+        }
+      }
+    });
+
+    // Hillshade and tint (MAP_TREATMENT 3.4) into an RGBA raster.
+    var low = hexRgb(LAND_LOW);
+    var high = hexRgb(LAND_HIGH);
+    var dark = hexRgb(SHADE_DARK);
+    var light = hexRgb(SHADE_LIGHT);
+    var rgba = new Uint8Array(N * 4);
+    for (j = 0; j < gh; j++) {
+      for (i = 0; i < gw; i++) {
+        k = j * gw + i;
+        if (!land[k]) continue;
+        var hl = heights[j * gw + Math.max(0, i - 1)];
+        var hr = heights[j * gw + Math.min(gw - 1, i + 1)];
+        var hu = heights[Math.max(0, j - 1) * gw + i];
+        var hd = heights[Math.min(gh - 1, j + 1) * gw + i];
+        var dhdx = (hr - hl) / (2 * g);
+        var dhdy = (hd - hu) / (2 * g);
+        var nx = -RELIEF_Z * dhdx;
+        var ny = -RELIEF_Z * dhdy;
+        var nl = Math.sqrt(nx * nx + ny * ny + 1);
+        var sh = Math.max(0, (nx * RELIEF_LIGHT.x + ny * RELIEF_LIGHT.y + RELIEF_LIGHT.z) / nl);
+        var delta = sh - 0.7071;
+        if (reserveMask[k]) delta *= 0.35;
+        var tm = smoothstep(0.25, 0.75, heights[k]);
+        var target = delta < 0 ? dark : light;
+        var amt = delta < 0 ? Math.min(0.38, -1.1 * delta) : Math.min(0.20, 0.9 * delta);
+        for (var ch = 0; ch < 3; ch++) {
+          var tint = low[ch] + (high[ch] - low[ch]) * tm;
+          rgba[k * 4 + ch] = Math.round(tint + (target[ch] - tint) * amt);
+        }
+        rgba[k * 4 + 3] = 255;
+      }
+    }
+
+    // Contours (MAP_TREATMENT 3.5): marching squares over the sample grid,
+    // two Chaikin passes, then cuts. A point is cut when the nearest grid
+    // sample is sea, has dR below 0.06, or the point lies inside a label
+    // reserve ellipse (tested exactly). Runs shorter than 0.25 cell are
+    // dropped last, after every cut.
+    // Segment table per case: edges 0 top, 1 right, 2 bottom, 3 left.
+    // Corner bits: a (top left) 8, b (top right) 4, c (bottom right) 2, d (bottom left) 1.
+    var CASES = [
+      [], [[3, 2]], [[2, 1]], [[3, 1]], [[0, 1]], null, [[0, 2]], [[3, 0]],
+      [[3, 0]], [[0, 2]], null, [[0, 1]], [[3, 1]], [[2, 1]], [[3, 2]], []
+    ];
+    function contourLevel(level) {
+      var pts = new Map();
+      var segs = [];
+      function edgeKey(ci, cj, e) {
+        if (e === 0) return (cj * gw + ci) * 2;
+        if (e === 2) return ((cj + 1) * gw + ci) * 2;
+        if (e === 3) return (cj * gw + ci) * 2 + 1;
+        return (cj * gw + ci + 1) * 2 + 1;
+      }
+      function edgePoint(ci, cj, e, va, vb, vc, vd) {
+        var key = edgeKey(ci, cj, e);
+        if (pts.has(key)) return key;
+        var xa = sx(ci);
+        var ya = sy(cj);
+        var p;
+        if (e === 0) p = { x: xa + g * (level - va) / (vb - va), y: ya };
+        else if (e === 2) p = { x: xa + g * (level - vd) / (vc - vd), y: ya + g };
+        else if (e === 3) p = { x: xa, y: ya + g * (level - va) / (vd - va) };
+        else p = { x: xa + g, y: ya + g * (level - vb) / (vc - vb) };
+        pts.set(key, p);
+        return key;
+      }
+      for (var cj = 0; cj < gh - 1; cj++) {
+        for (var ci = 0; ci < gw - 1; ci++) {
+          var va = heights[cj * gw + ci];
+          var vb = heights[cj * gw + ci + 1];
+          var vc = heights[(cj + 1) * gw + ci + 1];
+          var vd = heights[(cj + 1) * gw + ci];
+          var cs = (va >= level ? 8 : 0) | (vb >= level ? 4 : 0) | (vc >= level ? 2 : 0) | (vd >= level ? 1 : 0);
+          var list = CASES[cs];
+          if (list === null) {
+            var centreHigh = (va + vb + vc + vd) / 4 >= level;
+            if (cs === 5) list = centreHigh ? [[3, 0], [2, 1]] : [[0, 1], [3, 2]];
+            else list = centreHigh ? [[0, 1], [3, 2]] : [[3, 0], [2, 1]];
+          }
+          for (var s = 0; s < list.length; s++) {
+            segs.push([
+              edgePoint(ci, cj, list[s][0], va, vb, vc, vd),
+              edgePoint(ci, cj, list[s][1], va, vb, vc, vd)
+            ]);
+          }
+        }
+      }
+      // Chain segments into polylines through shared edge points.
+      var byKey = new Map();
+      segs.forEach(function (sg, si) {
+        for (var e = 0; e < 2; e++) {
+          var lst = byKey.get(sg[e]);
+          if (!lst) { lst = []; byKey.set(sg[e], lst); }
+          lst.push(si);
+        }
+      });
+      var used = new Uint8Array(segs.length);
+      var lines = [];
+      function walk(startKey, chainOut) {
+        var key = startKey;
+        for (;;) {
+          var cand = byKey.get(key);
+          var next = -1;
+          for (var c = 0; c < cand.length; c++) if (!used[cand[c]]) { next = cand[c]; break; }
+          if (next < 0) return;
+          used[next] = 1;
+          key = segs[next][0] === key ? segs[next][1] : segs[next][0];
+          chainOut.push(key);
+        }
+      }
+      for (var si = 0; si < segs.length; si++) {
+        if (used[si]) continue;
+        used[si] = 1;
+        var fwd = [segs[si][0], segs[si][1]];
+        walk(segs[si][1], fwd);
+        var closed = fwd[fwd.length - 1] === fwd[0];
+        var keys = fwd;
+        if (!closed) {
+          var back = [];
+          walk(segs[si][0], back);
+          keys = back.reverse().concat(fwd);
+        }
+        lines.push({ closed: closed, pts: keys.map(function (kk) { return pts.get(kk); }) });
+      }
+      return lines;
+    }
+    function chaikin(line) {
+      var p = line.pts;
+      var out = [];
+      if (line.closed) {
+        var n = p.length - 1;
+        for (var a = 0; a < n; a++) {
+          var p0 = p[a];
+          var p1 = p[(a + 1) % n];
+          out.push({ x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y });
+          out.push({ x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y });
+        }
+        out.push(out[0]);
+      } else {
+        out.push(p[0]);
+        for (var b = 0; b + 1 < p.length; b++) {
+          var q0 = p[b];
+          var q1 = p[b + 1];
+          out.push({ x: 0.75 * q0.x + 0.25 * q1.x, y: 0.75 * q0.y + 0.25 * q1.y });
+          out.push({ x: 0.25 * q0.x + 0.75 * q1.x, y: 0.25 * q0.y + 0.75 * q1.y });
+        }
+        out.push(p[p.length - 1]);
+      }
+      return { closed: line.closed, pts: out };
+    }
+    function keepPoint(pt) {
+      var kk = cellIndex(pt.x, pt.y);
+      return land[kk] === 1 && dR[kk] >= RELIEF_RIVER_CLEAR && !inReserve(pt.x, pt.y);
+    }
+    var contours = [];
+    var contourCounts = {};
+    RELIEF_LEVELS.forEach(function (level) {
+      contourCounts[level.toFixed(2)] = 0;
+      contourLevel(level).forEach(function (line) {
+        var sm = chaikin(chaikin(line)).pts;
+        var keep = sm.map(keepPoint);
+        // A closed loop with a cut is rotated to start at a cut point, so
+        // its runs never wrap.
+        if (line.closed) {
+          var firstBad = keep.indexOf(false);
+          if (firstBad > 0) {
+            sm = sm.slice(firstBad, sm.length - 1).concat(sm.slice(0, firstBad + 1));
+            keep = sm.map(keepPoint);
+          }
+        }
+        var run = [];
+        function flush() {
+          if (run.length >= 2) {
+            var len = 0;
+            for (var r = 1; r < run.length; r++) {
+              var ldx = run[r].x - run[r - 1].x;
+              var ldy = run[r].y - run[r - 1].y;
+              len += Math.sqrt(ldx * ldx + ldy * ldy);
+            }
+            if (len >= RELIEF_MIN_CONTOUR) {
+              var flat = [];
+              run.forEach(function (pt) { flat.push(pt.x, pt.y); });
+              contours.push({ level: level, points: flat });
+              contourCounts[level.toFixed(2)]++;
+            }
+          }
+          run = [];
+        }
+        for (var s = 0; s < sm.length; s++) {
+          if (keep[s]) run.push(sm[s]);
+          else flush();
+        }
+        flush();
+      });
+    });
+
+    // Relief hash: FNV-1a over the salt, every height, then each contour's
+    // level and points, every value rounded to 4 decimals as the integer
+    // round(v * 10000) and fed as its four bytes (no 62k string build).
+    var hv32 = 0x811c9dc5;
+    function feed(v) {
+      var n = Math.round(v * 10000) | 0;
+      hv32 = Math.imul(hv32 ^ (n & 255), 0x01000193);
+      hv32 = Math.imul(hv32 ^ ((n >>> 8) & 255), 0x01000193);
+      hv32 = Math.imul(hv32 ^ ((n >>> 16) & 255), 0x01000193);
+      hv32 = Math.imul(hv32 ^ ((n >>> 24) & 255), 0x01000193);
+    }
+    feed(rugInfo.salt);
+    for (k = 0; k < N; k++) feed(heights[k]);
+    contours.forEach(function (c) {
+      feed(c.level);
+      feed(c.points.length);
+      for (var m = 0; m < c.points.length; m++) feed(c.points[m]);
+    });
+    var hash = (hv32 >>> 0).toString(16).padStart(8, '0');
+
+    return {
+      res: RES,
+      width: gw,
+      height: gh,
+      x0: x0,
+      y0: y0,
+      heights: heights,
+      landMask: land,
+      dC: dC,
+      dR: dR,
+      nearestRiverDn: nearestRiverDn,
+      rgba: rgba,
+      contours: contours,
+      contourCounts: contourCounts,
+      labelReserves: labelReserves,
+      ruggedness: rugInfo.ruggedness,
+      salt: rugInfo.salt,
+      meanRuggedness: { player: rugInfo.mean.player, enemy: rugInfo.mean.enemy },
+      hash: hash
+    };
+  }
+
   function buildChart(geom) {
     var chartSeed = computeChartSeed(geom);
     var key = chartLayoutKey(geom, chartSeed);
@@ -724,6 +1405,7 @@
     });
 
     var rivers = buildRivers(geom, dividerAt, coastline);
+    var relief = buildRelief(geom, coastline, rivers, chartSeed, neatline);
 
     var chartEdges = geom.edges.map(function (e) {
       var path = e.path.map(function (q) { return { x: q.x, y: q.y }; });
@@ -803,7 +1485,8 @@
       lattice: buildLattice(geom),
       chartEdges: chartEdges,
       waves: waves,
-      rivers: rivers
+      rivers: rivers,
+      relief: relief
     };
   }
 
@@ -848,6 +1531,11 @@
     SEA_SHELF: SEA_SHELF,
     SEA_SHORE: SEA_SHORE,
     LAND_LOW: LAND_LOW,
+    LAND_HIGH: LAND_HIGH,
+    CONTOUR: CONTOUR,
+    SHADE_DARK: SHADE_DARK,
+    SHADE_LIGHT: SHADE_LIGHT,
+    RELIEF_RES: RELIEF_RES,
     BEACH: BEACH,
     FRAME_PAPER: FRAME_PAPER,
     INK: INK,
@@ -864,6 +1552,7 @@
     pointInPolygon: pointInPolygon,
     fnv1a: fnv1a,
     mulberry32: mulberry32,
+    buildRelief: buildRelief,
     CHART_CONSTANTS: CHART_CONSTANTS
   };
 

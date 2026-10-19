@@ -1566,3 +1566,212 @@ test('rail ops: built rails carry ties, unbuilt rails carry dots (seed 42 is all
   const railCase = src.slice(src.indexOf("case 'rail':"), src.indexOf("case 'rail':") + 2000).split('break;')[0];
   assert.ok(railCase.indexOf('setLineDash') === -1, 'rail case uses no setLineDash');
 });
+
+// Relief tests (Cycle 23 Step 11, MAP_TREATMENT 3). Grid sizes are read from
+// the chart (RELIEF_RES and relief.width/height), never hardcoded, because
+// the 3.7 budget fallback can move RELIEF_RES from 24 to 16.
+
+function step11Nearest(relief, x, y) {
+  const i = Math.max(0, Math.min(relief.width - 1, Math.floor((x - relief.x0) * relief.res)));
+  const j = Math.max(0, Math.min(relief.height - 1, Math.floor((y - relief.y0) * relief.res)));
+  return j * relief.width + i;
+}
+
+function step11Luma(rgba, k) {
+  return 0.2126 * rgba[k * 4] + 0.7152 * rgba[k * 4 + 1] + 0.0722 * rgba[k * 4 + 2];
+}
+
+test('relief shape: grid is 12 x 9 cells at RELIEF_RES, heights and rgba sized to it, every height in 0..1', () => {
+  const { chart } = step9Chart(42);
+  const RES = AshesChart.CHART_CONSTANTS.RELIEF_RES;
+  const r = chart.relief;
+  assert.ok(RES === 24 || RES === 16, 'RELIEF_RES is 24 or the 3.7 fallback 16, got ' + RES);
+  assert.strictEqual(r.res, RES);
+  assert.strictEqual(r.width, 12 * RES);
+  assert.strictEqual(r.height, 9 * RES);
+  assert.strictEqual(r.heights.length, r.width * r.height);
+  assert.strictEqual(r.rgba.length, r.width * r.height * 4);
+  assert.strictEqual(r.dC.length, r.width * r.height);
+  assert.strictEqual(r.dR.length, r.width * r.height);
+  assert.strictEqual(r.landMask.length, r.width * r.height);
+  assert.strictEqual(r.nearestRiverDn.length, r.width * r.height);
+  for (let k = 0; k < r.heights.length; k++) {
+    assert.ok(r.heights[k] >= 0 && r.heights[k] <= 1, 'height ' + k + ' = ' + r.heights[k]);
+  }
+  const C = AshesChart.CHART_CONSTANTS;
+  assert.strictEqual(C.LAND_HIGH, '#8A7A58');
+  assert.strictEqual(C.CONTOUR, '#5A4A36');
+  assert.strictEqual(C.SHADE_DARK, '#2B2620');
+  assert.strictEqual(C.SHADE_LIGHT, '#F3EAD2');
+  // The 0.2 table rounds by hand (SHADE_LIGHT computes to 234.18), so 0.25 slack.
+  assert.ok(Math.abs(hexLuma(C.LAND_HIGH) - 123.0) < 0.25, 'LAND_HIGH luma ' + hexLuma(C.LAND_HIGH));
+  assert.ok(Math.abs(hexLuma(C.CONTOUR) - 75.9) < 0.25, 'CONTOUR luma ' + hexLuma(C.CONTOUR));
+  assert.ok(Math.abs(hexLuma(C.SHADE_LIGHT) - 234.0) < 0.25, 'SHADE_LIGHT luma ' + hexLuma(C.SHADE_LIGHT));
+});
+
+test('relief determinism: independent builds match by chartSeed, and relief does not vary by game seed', () => {
+  const a = step9Chart(42);
+  const geomB = AshesMapGeometry.buildGeometry(playerView(Sim.createGame(42)));
+  const chartB = AshesChart.buildChart(geomB);
+  // buildChart memoises, so also rebuild the relief from scratch twice.
+  const fresh1 = AshesChart.buildRelief(geomB, chartB.coastline, chartB.rivers, chartB.chartSeed, chartB.neatline);
+  const fresh2 = AshesChart.buildRelief(a.geom, a.chart.coastline, a.chart.rivers, a.chart.chartSeed, a.chart.neatline);
+  [chartB.relief, fresh1, fresh2].forEach((r, i) => {
+    assert.strictEqual(r.hash, a.chart.relief.hash, 'build ' + i + ' hash');
+    assert.strictEqual(r.salt, a.chart.relief.salt, 'build ' + i + ' salt');
+    assert.strictEqual(r.contours.length, a.chart.relief.contours.length, 'build ' + i + ' contour count');
+  });
+  assert.ok(/^[0-9a-f]{8}$/.test(a.chart.relief.hash), 'hash is 8 hex digits');
+  const seed1 = step9Chart(1);
+  const fresh3 = AshesChart.buildRelief(seed1.geom, seed1.chart.coastline, seed1.chart.rivers, seed1.chart.chartSeed, seed1.chart.neatline);
+  assert.strictEqual(seed1.chart.relief.hash, a.chart.relief.hash, 'seed 1 and seed 42 relief hashes');
+  assert.strictEqual(fresh3.hash, a.chart.relief.hash, 'fresh seed 1 relief hash');
+});
+
+test('relief coast: every land sample with dC 0 and dR above 0.60 has h exactly 0', () => {
+  // The mouth valley keeps its river level at the coast (h = hv there), so
+  // samples within 0.60 of the river network are scoped out by dR.
+  const r = step9Chart(42).chart.relief;
+  let pinned = 0;
+  for (let k = 0; k < r.heights.length; k++) {
+    if (!r.landMask[k] || r.dC[k] !== 0 || r.dR[k] <= 0.60) continue;
+    assert.strictEqual(r.heights[k], 0, 'coast sample ' + k + ' h ' + r.heights[k]);
+    pinned++;
+  }
+  assert.ok(pinned > 50, 'coast population pinned: ' + pinned);
+});
+
+test('relief rivers: river level rises monotonically with D, and the grid meets it at the source and mouth of the main component', () => {
+  const { chart } = step9Chart(42);
+  const rivers = chart.rivers;
+  const r = chart.relief;
+  // Components from nodes and edges.
+  const parent = rivers.nodes.map((n, i) => i);
+  const find = (a) => { while (parent[a] !== a) a = parent[a]; return a; };
+  rivers.edges.forEach(e => { const ra = find(e.from); const rb = find(e.to); if (ra !== rb) parent[ra] = rb; });
+  const comps = {};
+  rivers.nodes.forEach((n, i) => { (comps[find(i)] = comps[find(i)] || []).push(i); });
+  let main = null;
+  let mainMax = -1;
+  Object.keys(comps).forEach(c => {
+    const members = comps[c];
+    const maxD = Math.max.apply(null, members.map(i => rivers.nodes[i].D));
+    const sorted = members.slice().sort((p, q) => rivers.nodes[p].D - rivers.nodes[q].D);
+    let prev = -Infinity;
+    sorted.forEach(i => {
+      const hv = 0.06 + 0.24 * (maxD > 0 ? rivers.nodes[i].D / maxD : 0);
+      assert.ok(hv >= prev, 'hv non decreasing at node ' + i);
+      prev = hv;
+    });
+    if (maxD > mainMax) { mainMax = maxD; main = members; }
+  });
+  const source = main.find(i => rivers.nodes[i].source && rivers.nodes[i].D === mainMax);
+  const mouth = main.find(i => rivers.nodes[i].mouth && rivers.nodes[i].D === 0);
+  assert.ok(source !== undefined && mouth !== undefined, 'main component has a source and a mouth');
+  [[source, 0.30], [mouth, 0.06]].forEach(([i, hv]) => {
+    const n = rivers.nodes[i];
+    const k = step11Nearest(r, n.x, n.y);
+    assert.ok(Math.abs(r.heights[k] - hv) <= 0.06, 'node ' + i + ' grid h ' + r.heights[k].toFixed(4) + ' vs hv ' + hv);
+  });
+});
+
+test('relief valley floor: at 0.55 to 0.65 cell from a river, h is never below the river level at its nearest point minus 0.03', () => {
+  // Scoped to dC >= 0.45 (where the shore factor is 1). Within 0.45 cell of
+  // the coast the 3.3 guarantee "h is 0 at the coast" wins over this one:
+  // next to a river mouth the two cannot both hold, and the shore factor
+  // brings the valley floor down to the sea.
+  const r = step9Chart(42).chart.relief;
+  let pinned = 0;
+  for (let k = 0; k < r.heights.length; k++) {
+    if (!r.landMask[k] || r.dR[k] < 0.55 || r.dR[k] > 0.65 || r.dC[k] < 0.45) continue;
+    const hv = 0.06 + 0.24 * r.nearestRiverDn[k];
+    assert.ok(r.heights[k] >= hv - 0.03, 'sample ' + k + ' h ' + r.heights[k].toFixed(4) + ' hv ' + hv.toFixed(4));
+    pinned++;
+  }
+  assert.ok(pinned > 50, 'valley floor population pinned: ' + pinned);
+});
+
+test('relief fairness: salt 0..15, ruggedness in 0.25..1.0, starting nation means within 0.08, partition pinned to a fresh sim game', () => {
+  const { geom, chart } = step9Chart(42);
+  const r = chart.relief;
+  assert.ok(Number.isInteger(r.salt) && r.salt >= 0 && r.salt <= 15, 'salt ' + r.salt);
+  assert.strictEqual(Object.keys(r.ruggedness).length, geom.provinces.length);
+  Object.keys(r.ruggedness).forEach(id => {
+    assert.ok(r.ruggedness[id] >= 0.25 && r.ruggedness[id] <= 1.0, id + ' ruggedness ' + r.ruggedness[id]);
+  });
+  assert.ok(Math.abs(r.meanRuggedness.player - r.meanRuggedness.enemy) <= 0.08,
+    'means ' + r.meanRuggedness.player + ' ' + r.meanRuggedness.enemy);
+  const state = Sim.createGame(42);
+  geom.provinces.forEach(p => {
+    const expected = p.x < geom.mapW / 2 ? 'player' : 'enemy';
+    assert.strictEqual(state.provinces[p.id].owner, expected, p.id + ' starting owner');
+  });
+  // Recompute the means from the partition.
+  const sum = { player: 0, enemy: 0 };
+  const cnt = { player: 0, enemy: 0 };
+  geom.provinces.forEach(p => {
+    const o = p.x < geom.mapW / 2 ? 'player' : 'enemy';
+    sum[o] += r.ruggedness[p.id];
+    cnt[o]++;
+  });
+  assert.ok(Math.abs(sum.player / cnt.player - r.meanRuggedness.player) < 1e-12);
+  assert.ok(Math.abs(sum.enemy / cnt.enemy - r.meanRuggedness.enemy) < 1e-12);
+});
+
+test('relief contours: levels 0.30, 0.55, 0.80 only, each at least 0.25 cell long, clear of label reserves and of rivers by 0.06', () => {
+  const r = step9Chart(42).chart.relief;
+  assert.ok(r.contours.length > 0, 'some contours');
+  r.contours.forEach((c, ci) => {
+    assert.ok([0.30, 0.55, 0.80].indexOf(c.level) !== -1, 'contour ' + ci + ' level ' + c.level);
+    assert.ok(c.points.length >= 4 && c.points.length % 2 === 0, 'contour ' + ci + ' flat points');
+    let len = 0;
+    for (let i = 2; i < c.points.length; i += 2) {
+      len += Math.hypot(c.points[i] - c.points[i - 2], c.points[i + 1] - c.points[i - 1]);
+    }
+    assert.ok(len >= 0.25 - 1e-6, 'contour ' + ci + ' length ' + len);
+    for (let i = 0; i < c.points.length; i += 2) {
+      const x = c.points[i];
+      const y = c.points[i + 1];
+      r.labelReserves.forEach(lr => {
+        const e = Math.pow((x - lr.x) / lr.rx, 2) + Math.pow((y - lr.y) / lr.ry, 2);
+        assert.ok(e > 1 - 1e-6, 'contour ' + ci + ' point inside reserve ' + lr.id);
+      });
+      const k = step11Nearest(r, x, y);
+      assert.ok(r.dR[k] >= 0.06, 'contour ' + ci + ' point dR ' + r.dR[k]);
+      assert.strictEqual(r.landMask[k], 1, 'contour ' + ci + ' point on land');
+    }
+  });
+});
+
+test('relief label reserves: one per province, 0.45 by 0.11, anchored inside its own cell', () => {
+  const { geom, chart } = step9Chart(42);
+  const r = chart.relief;
+  assert.strictEqual(r.labelReserves.length, geom.provinces.length);
+  const byId = {};
+  geom.provinces.forEach(p => { byId[p.id] = p; });
+  r.labelReserves.forEach(lr => {
+    const p = byId[lr.id];
+    assert.ok(p, 'reserve for a real province ' + lr.id);
+    assert.strictEqual(lr.rx, 0.45);
+    assert.strictEqual(lr.ry, 0.11);
+    assert.ok(lr.x >= p.x - 0.01 && lr.x <= p.x + 1.01, lr.id + ' anchor x ' + lr.x);
+    assert.ok(lr.y >= p.y - 0.01 && lr.y <= p.y + 1.01, lr.id + ' anchor y ' + lr.y);
+  });
+  assert.strictEqual(new Set(r.labelReserves.map(lr => lr.id)).size, geom.provinces.length, 'ids unique');
+});
+
+test('relief raster bands: every land sample is opaque with luma 60 to 150, every sea sample is transparent', () => {
+  const r = step9Chart(42).chart.relief;
+  let land = 0;
+  for (let k = 0; k < r.heights.length; k++) {
+    if (r.landMask[k]) {
+      assert.strictEqual(r.rgba[k * 4 + 3], 255, 'land sample ' + k + ' alpha');
+      const l = step11Luma(r.rgba, k);
+      assert.ok(l >= 60 && l <= 150, 'land sample ' + k + ' luma ' + l);
+      land++;
+    } else {
+      assert.strictEqual(r.rgba[k * 4 + 3], 0, 'sea sample ' + k + ' alpha');
+    }
+  }
+  assert.ok(land > r.heights.length / 2, 'most of the neatline is land: ' + land);
+});

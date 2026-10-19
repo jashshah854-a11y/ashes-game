@@ -22,6 +22,7 @@
   var CHART_RIVER_WATER = CHART_C.RIVER_WATER;
   var CHART_RIVER_BANK = CHART_C.RIVER_BANK;
   var CHART_RIVER_GLINT = CHART_C.RIVER_GLINT;
+  var CHART_CONTOUR = CHART_C.CONTOUR;
 
   // Rail restyle (Cycle 23 Step 10, MAP_TREATMENT 2.6), in cell units.
   var RAIL_LINE_W = 0.008;
@@ -595,6 +596,56 @@
     return { scaleX: scaleX, scaleY: scaleY, tx: chart.insetX * scaleX, ty: chart.insetTop * scaleY };
   }
 
+  // Relief raster canvas (Cycle 23 Step 11), cached per relief object: the
+  // relief is computed once per geometry, so a rebake at a new canvas size
+  // reuses the same small raster.
+  var reliefRasterCache = null;
+  function reliefRaster(relief) {
+    if (reliefRasterCache && reliefRasterCache.relief === relief) return reliefRasterCache.canvas;
+    var rc = document.createElement('canvas');
+    rc.width = relief.width;
+    rc.height = relief.height;
+    var rctx = rc.getContext('2d');
+    var img = rctx.createImageData(relief.width, relief.height);
+    img.data.set(relief.rgba);
+    rctx.putImageData(img, 0, 0);
+    reliefRasterCache = { relief: relief, canvas: rc };
+    return rc;
+  }
+
+  // Relief on the base canvas (MAP_TREATMENT 3.2 to 3.5): the baked
+  // hillshade raster scaled to the neatline and clipped to the land path,
+  // then the contour polylines. Contour width is 1 device px, or 2 when
+  // scaleX is at least 240 device px per cell (DPR 2 at zoom 1 gives about
+  // 320, DPR 1 gives about 160, so 240 splits the two).
+  function drawRelief(ctx, chart, scaleX, scaleY) {
+    var relief = chart.relief;
+    if (!relief) return;
+    var neat = chart.neatline;
+    ctx.save();
+    traceClosed(ctx, coastFlat(chart), scaleX, scaleY);
+    ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(reliefRaster(relief), neat.x0 * scaleX, neat.y0 * scaleY,
+      (neat.x1 - neat.x0) * scaleX, (neat.y1 - neat.y0) * scaleY);
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = CHART_CONTOUR;
+    ctx.globalAlpha = 0.22;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = scaleX >= 240 ? 2 : 1;
+    ctx.beginPath();
+    relief.contours.forEach(function (c) {
+      var pts = c.points;
+      ctx.moveTo(pts[0] * scaleX, pts[1] * scaleY);
+      for (var i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i] * scaleX, pts[i + 1] * scaleY);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Render the base offscreen canvas. Browser only (needs document).
   // Returns {canvas, width, height, hash, ops} or null if not in browser.
   function renderBaseCanvas(geom, view, widthPx, heightPx) {
@@ -620,8 +671,20 @@
 
     ctx.save();
     ctx.translate(tf.tx, tf.ty);
+    // Draw order (MAP_TREATMENT 3, with 1.6 and 2.4): sea, land, relief,
+    // rivers, borders, rail, coast. The chart under ops lay the sea and the
+    // flat land, drawOps lays the province fills and the first river and
+    // rail pass, then the relief raster and contours cover the land, and a
+    // second drawOps call with only the river, river-mouths, and rail ops
+    // puts water and rail back above the relief (drawOps collects every
+    // river stroke, so the network redraws once). The chart over ops add
+    // the beach, coastline, and edge of the war last.
     drawChartOps(ctx, chartOps.under, scaleX, scaleY);
     drawOps(ctx, ops, scaleX, scaleY);
+    drawRelief(ctx, chart, scaleX, scaleY);
+    drawOps(ctx, ops.filter(function (op) {
+      return op.kind === 'river' || op.kind === 'river-mouths' || op.kind === 'rail';
+    }), scaleX, scaleY);
     drawChartOps(ctx, chartOps.over, scaleX, scaleY);
     ctx.restore();
 
