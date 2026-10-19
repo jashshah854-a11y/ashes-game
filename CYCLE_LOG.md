@@ -6066,3 +6066,6 @@ Claimed this run: Step 12a only. MAP_TREATMENT Step 12 (borders, ownership, name
 
 ### Mission status
 MAP_TREATMENT Step 12a is complete: province borders are dashed chart lines with the river as its own border, ownership reads from chart edge paths, hit polygon wash, and coastline ribbons, and the front is cased in paper so it stays the darkest readable line over terrain and river. Next run claims Step 12b (province names on #map-labels in IM Fell English SC on the Step 11 label reserves, the tile chip restyle and tile name line retirement of section 5.4, and the P-MT1 A and B captures for Jash). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 Step 12a sync note
+- Sync out after commits b1e3dbc and fcac558: the import script completed with exit 0 and sent 3 commits to GitHub (the pending Step 11 sync note 7303a33, plus this step's b1e3dbc and fcac558; jashshah854-a11y/ashes-game, master now at remote 4c69dad; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
