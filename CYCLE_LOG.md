@@ -5928,3 +5928,28 @@ Builder: Opus 5.5 (innovative, item 30). Run window discipline applies: the swee
 - State redraw p95 can exceed the budget even when the median is low; report the tail, not only the median.
 
 **Step split, per Run Window Discipline:** the build and the targeted proofs are claimed by this step; the full 29-check sweep is homed as Cycle 23 Step 9e, to be claimed and verified by the next run.
+
+## Cycle 23 Step 9e: the full browser sweep on the final tree (2026-10-19)
+
+Claimed this run: Step 9e only, the proof step homed by Step 9d (the full 29 check sweep, standalone, each check with its own log, on the final tree at HEAD ddc360e). No code was built or changed this run; this is a proof step. Per the standing rule, totals below are the orchestrator's own standalone runs, counted from the per check logs in /tmp/ashes-9e (29 logs for 29 checks), never transcribed from a prior run.
+
+### Baseline gates on the final tree (orchestrator, before the sweep)
+- node --check on every JS file in js, tests, and tools: all pass.
+- Sim suite 191 pass, 0 fail. Presentation suite 56 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle22.txt.
+- Asset log check clean. Python byte scan for em and en dashes across the whole repo: zero.
+
+### Sweep result: 28 of 29 checks fully green; lore intermittent (see below)
+- Full totals, all exit 0 with zero failures: battle-systems 56, battle-why 29, blockade 16, browser 6, cancel 35, chart 13, core-loop 29, drone-ew 28, efficiency 15, end-screen 29, first-touch 75, fixture 41, fog 18, fort 17, growth-view 79, intel 31, live-plaque 19, manpower 15, map-canvas 14, map-progression 37, navy 29, order-marker 19, ownership 15, plaque 22, progression 48, reinforce 31, save 19, save-hardening 42. That is 827 assertions passed across the 28 completed checks.
+- Step 9d's determinism holds inside the full sweep: save passes 19 of 19 and save-hardening passes 42 of 42 on their sweep runs, the first full sweep since the Step 9 correction in which neither save check raced the tick or stalled on the filechooser.
+
+### The lore failure, characterized honestly (not accepted on rerun)
+- Sweep run: lore fails 1 of 121, exit 1: Run A, "the war runs again after the codex (the day advances)", stuck at day 25 inside its 3000 ms window.
+- Standalone rerun 1: lore fails 1 of 121, exit 1, a DIFFERENT assertion: Run B, "the war runs again".
+- Standalone rerun 2: lore passes 121 of 121, exit 0.
+- Verdict: intermittent, 2 of 3 runs failing exactly one assertion, both failures in the resume after overlay family. Under the loop's standing rule (a flake is fixed, never accepted on rerun), Step 9e does NOT record the sweep as fully green, and the pass on rerun 2 is not quoted as the result.
+- Attribution, from the check's own code: Run B's running() helper reads two page facts in two separate round trips (day advance through waitFor, then the pause button text), the exact shape the Cycle 10 Step 2 lesson proved can fail honestly while the game is right: the war resumes, advances into the next card burst, and re-pauses before the second read lands. Run A's day advance only variant can fail the same honest way when a card queued behind the codex legitimately re-pauses the war on close. No page errors in any lore run, and every pause under card assertion around the failures passed, so the evidence points at the check's resume assertions, not at a lost pause restoration in the game. That attribution is the next step's to prove or refute, not a settled fact.
+- Homed next: Step 9f, the lore check deflake (ahead of MAP_TREATMENT Step 10, same position Step 9d took ahead of it). Shape prescribed from the Cycle 10 Step 2 and Cycle 22 Step 2 lessons: assert resumption with the fewest reads (day advance alone where pause restoration is pinned by the surrounding paused under card assertions), treat a card queued behind the codex as a legitimate re-pause and drain it before asserting, keep every wait a bounded condition wait that throws on timeout, and prove the fix with consecutive standalone runs (10, in the cancel deflake's shape), not one green rerun. Builder: Opus 5.5 (item 30), as Step 9d was.
+
+### Mission status
+Cycle 23 Step 9e is complete as a proof step with one honest exception: the sweep reproduces at 28 of 29 checks fully green (827 assertions), the save family is deterministic in the full sweep for the first time, and lore carries a characterized resume assertion flake homed at Step 9f, which the next run claims before MAP_TREATMENT Step 10 (rivers). The Step 9d tick finding also stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, and this is a check flake with a prescribed fix shape, not a verification failure of game code.
