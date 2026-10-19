@@ -5542,3 +5542,6 @@ Claimed this run: Step 4 only (visual Run 2 in STRATEGY.md section 2.7, verified
 
 ### Mission status
 Cycle 23 Step 4 is complete: visual Run 2 is proven, the canvas thresholds hold at DPR 2 on the worst case fixture with all fronts firing, at the primary config with no degradation needed, and the degradation order is proven to engage and to report honestly when a gate cannot be met. Next run claims Step 5 (visual Run 3, the plaque system: DOM plaques on lattice centres, unit glyphs, both faction shapes, numerals in the OFL font, hollow Last seen style, the out of supply alarm mark, factory and fort glyphs, verified against the section 2.8.2 thresholds). No stop condition is met: no failed verdict, no verification failure on the final tree, and no tuning of any kind.
+
+### Cycle 23 step 4 sync note
+- Sync out after commits f4bada3 and 81327bc: the import script completed with exit 0 and sent 3 commits to GitHub (315ac6e, the Cycle 23 step 3b sync note carried over, plus this step's f4bada3 and 81327bc; jashshah854-a11y/ashes-game, master now at remote db0c624; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
