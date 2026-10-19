@@ -40,6 +40,7 @@ const REPO = path.join(__dirname, '..');
 const Lore = require('../js/lore.js');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
+const H = require('./browser-helper.js');
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
 const CHROME = process.env.CHROME ||
@@ -93,20 +94,14 @@ function check(name, ok, detail) {
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
 }
 
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
-}
-
 async function readCard(page) {
   const c = {
     kicker: await page.textContent('#event-kicker'), title: await page.textContent('#event-title'),
     body: await page.textContent('#event-body'), why: await page.textContent('#event-why'),
     noeffect: await page.textContent('#event-noeffect'), day: await page.textContent('#day-counter')
   };
-  await page.waitForTimeout(900);
-  c.dayLater = await page.textContent('#day-counter');
+  const changedDuringPause = await H.tryWait(async () => (await page.textContent('#day-counter')) !== c.day, 900);
+  c.dayLater = changedDuringPause ? await page.textContent('#day-counter') : c.day;
   const card = Object.values(Lore.beats).find((b) => b.title === c.title) ||
     Object.values(Lore.textures).find((b) => b.title === c.title);
   c.textOk = !!card && Object.values(card.variants).indexOf(c.body) !== -1;
@@ -124,12 +119,12 @@ async function cardChecks(page, label) {
 
 async function running(page) {
   const a = await page.textContent('#day-counter');
-  const moved = await waitFor(page, async () => (await page.textContent('#day-counter')) !== a, 3000);
+  const moved = await H.waitFor(page, async () => (await page.textContent('#day-counter')) !== a, 3000);
   return moved && (await page.textContent('#btn-pause')) === 'Pause';
 }
 
 async function untilCard(page) {
-  return waitFor(page, () => page.isVisible('#event-overlay'), 60000);
+  return H.waitFor(page, () => page.isVisible('#event-overlay'), 60000);
 }
 
 // Read and Continue every card in the burst that is currently queued,
@@ -144,7 +139,7 @@ async function drainBurst(page, label, first) {
   let pending = first || null;
   while (true) {
     if (!pending) {
-      const visible = await waitFor(page, () => page.isVisible('#event-overlay'), 150);
+      const visible = await H.waitFor(page, () => page.isVisible('#event-overlay'), 150);
       if (!visible) break;
       pending = await cardChecks(page, label + ' card ' + (cards.length + 1));
     }
@@ -200,7 +195,7 @@ async function drainBurst(page, label, first) {
         // before a button text read lands, which is the war running
         // into its next card, not a lost restoration.
         const dayBefore = await page.textContent('#day-counter');
-        check('A: the war runs again after the codex (the day advances)', await waitFor(page, async () => (await page.textContent('#day-counter')) !== dayBefore, 3000), 'day ' + dayBefore);
+        check('A: the war runs again after the codex (the day advances)', await H.waitFor(page, async () => (await page.textContent('#day-counter')) !== dayBefore, 3000), 'day ' + dayBefore);
       } else if (run === 'C') {
         check('C: first card appears', await untilCard(page));
         await page.click('#btn-event-continue'); // day 11
@@ -234,7 +229,7 @@ async function drainBurst(page, label, first) {
           reached = true;
           await page.click('#btn-event-codex');
           await page.click('#btn-codex-close');
-          check('B: the queued second card appears after the codex closes', await waitFor(page, () => page.isVisible('#event-overlay'), 2000));
+          check('B: the queued second card appears after the codex closes', await H.waitFor(page, () => page.isVisible('#event-overlay'), 2000));
           const second = await cardChecks(page, 'B card 2');
           check('B: it is another card of the day 21 burst', second.title !== first.title, first.title + ' then ' + second.title);
           await drainBurst(page, 'B day 21 burst', second);
@@ -304,20 +299,17 @@ async function drainBurst(page, label, first) {
             pageF.click('#btn-import')
           ]);
           await fileChooserF.setFiles('/tmp/lore-F.json');
-          await waitFor(pageF, async () => {
+          await H.waitFor(pageF, async () => {
             const notice = (await pageF.textContent('#save-notice')).trim();
             return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
           }, 5000);
           // Dismiss any event overlay burst
           if (await pageF.isVisible('#event-overlay')) {
-            while (await pageF.isVisible('#event-overlay')) {
-              await pageF.click('#btn-event-continue');
-              await pageF.waitForTimeout(150);
-            }
+            await H.dismissBurst(pageF);
           }
           // Open the codex
           await pageF.click('#btn-codex');
-          await pageF.waitForTimeout(200);
+          await H.tryWait(async () => (await pageF.$$('.codex-entry')).length > 0, 2000);
           // Find the codex entry whose text contains Lore.textures.lineCapped.title
           const entriesF = await pageF.$$('.codex-entry');
           let lineCappedEntry = null;

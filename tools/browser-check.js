@@ -13,11 +13,11 @@ const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const PORT = 9337;
 const THRESHOLDS = [0, 0, 16, 24]; // CFG.lineUnlockFactoryLevels in js/sim.js
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -40,10 +40,10 @@ function getJson(url) {
   const check = (name, ok, detail) => { results.push({ name, ok }); console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + ' | ' + detail); };
   try {
     let targets = null;
-    for (let i = 0; i < 40 && !targets; i++) {
-      await sleep(500);
+    await H.tryWait(async () => {
       try { targets = await getJson('http://127.0.0.1:' + PORT + '/json'); } catch (e) { /* not up yet */ }
-    }
+      return !!targets;
+    }, 20000);
     if (!targets) throw new Error('chrome debugging endpoint never came up');
     const page = targets.find((t) => t.type === 'page' && t.url.includes('index.html')) || targets.find((t) => t.type === 'page');
     const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -61,13 +61,18 @@ function getJson(url) {
     });
     await send('Runtime.enable');
     await send('Page.enable');
-    await sleep(2500);
 
     const evaluate = async (expr) => {
       const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true });
       if (r.result && r.result.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0, 300));
       return r.result.result.value;
     };
+
+    await H.waitUntil(async () => {
+      try {
+        return await evaluate("(function () { var f = document.getElementById('stat-factories'); var d = document.getElementById('day-counter'); var rows = document.querySelectorAll('#production-lines .prod-line').length; return !!f && !!d && f.textContent.replace(/\\s+/g, '').length > 0 && d.textContent.replace(/\\s+/g, '').length > 0 && rows > 0; })()");
+      } catch (e) { return false; }
+    }, 10000, 'factory stat, day counter, and production lines render');
 
     const snap = await evaluate(`(function () {
       var rows = Array.prototype.map.call(document.querySelectorAll('#production-lines .prod-line'), function (r) {

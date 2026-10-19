@@ -41,6 +41,7 @@ const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
 const CFG = Sim.CFG;
+const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
@@ -52,50 +53,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
-}
-
-async function awaitCondition(page, fn, label, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    if (await fn()) return true;
-    await page.waitForTimeout(50);
-  }
-  throw new Error('awaitCondition timeout: ' + label);
-}
-
-async function ensurePaused(page) {
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const txt = await page.textContent('#btn-pause');
-    if (txt.trim() === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-  throw new Error('ensurePaused: pause button never read Resume after 50 attempts');
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
-}
-
-async function clickWhenClear(page, selector) {
-  for (let attempt = 0; attempt < 25; attempt++) {
-    await dismissBurst(page);
-    try {
-      await page.click(selector, { timeout: 2000 });
-      return;
-    } catch (e) { }
-  }
-  throw new Error('could not click ' + selector + ': an overlay kept covering it');
 }
 
 async function prodRows(page) {
@@ -169,8 +126,8 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
     let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Zero cancel buttons at start
     let btnsStart = await cancelButtonsInLine(page, 0);
@@ -179,8 +136,8 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
     // Click Queue on Line 1
     const queueBtns = page.locator('#production-lines .prod-line .prod-btns button:first-child');
     await queueBtns.nth(0).click();
-    await awaitCondition(page, async () => (await cancelButtonsInLine(page, 0)).length === 1, 'Scenario A: cancel button appears after queue', 5000);
-    await dismissBurst(page);
+    await H.waitUntil(async () => (await cancelButtonsInLine(page, 0)).length === 1, 5000, 'Scenario A: cancel button appears after queue');
+    await H.dismissBurst(page);
 
     // Exactly 1 cancel button in Line 1
     let btnsA1 = await cancelButtonsInLine(page, 0);
@@ -202,8 +159,8 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
 
     // Click cancel
     await page.click('#production-lines .prod-line .btn-cancel');
-    await awaitCondition(page, async () => (await prodRows(page))[0].indexOf('0 in queue') !== -1, 'Scenario A: queue reads 0 after cancel', 5000);
-    await dismissBurst(page);
+    await H.waitUntil(async () => (await prodRows(page))[0].indexOf('0 in queue') !== -1, 5000, 'Scenario A: queue reads 0 after cancel');
+    await H.dismissBurst(page);
 
     // Queue back to 0
     let rowsA2 = await prodRows(page);
@@ -226,17 +183,17 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Click Queue twice on Line 1
     const queueBtnsB = page.locator('#production-lines .prod-line .prod-btns button:first-child');
     await queueBtnsB.nth(0).click();
-    await awaitCondition(page, async () => (await cancelButtonsInLine(page, 0)).length === 1, 'Scenario B: first cancel button appears', 5000);
-    await dismissBurst(page);
+    await H.waitUntil(async () => (await cancelButtonsInLine(page, 0)).length === 1, 5000, 'Scenario B: first cancel button appears');
+    await H.dismissBurst(page);
     await queueBtnsB.nth(0).click();
-    await awaitCondition(page, async () => (await cancelButtonsInLine(page, 0)).length === 2, 'Scenario B: second cancel button appears', 5000);
-    await dismissBurst(page);
+    await H.waitUntil(async () => (await cancelButtonsInLine(page, 0)).length === 2, 5000, 'Scenario B: second cancel button appears');
+    await H.dismissBurst(page);
 
     // Exactly 2 cancel buttons
     let btnsB1 = await cancelButtonsInLine(page, 0);
@@ -253,8 +210,8 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
 
     // Click one cancel button
     await page.click('#production-lines .prod-line .btn-cancel');
-    await awaitCondition(page, async () => (await prodRows(page))[0].indexOf('1 in queue') !== -1, 'Scenario B: queue reads 1 after cancel', 5000);
-    await dismissBurst(page);
+    await H.waitUntil(async () => (await prodRows(page))[0].indexOf('1 in queue') !== -1, 5000, 'Scenario B: queue reads 1 after cancel');
+    await H.dismissBurst(page);
 
     // Exactly 1 remains
     let btnsB2 = await cancelButtonsInLine(page, 0);
@@ -275,8 +232,8 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save C
     const savePathC = '/tmp/cancel-C.json';
@@ -285,12 +242,12 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
       page.click('#btn-import')
     ]);
     await fileChooserC.setFiles(savePathC);
-    await awaitCondition(page, async () => {
+    await H.waitUntil(async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0;
-    }, 'Scenario C: save notice shows Loaded', 5000);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    }, 5000, 'Scenario C: save notice shows Loaded');
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Line 1 shows exactly 1 cancel button
     let btnsC = await cancelButtonsInLine(page, 0);
@@ -310,8 +267,8 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
 
     // Click cancel
     await page.click('#production-lines .prod-line .btn-cancel');
-    await awaitCondition(page, async () => (await prodRows(page))[0].indexOf('1 in queue') !== -1, 'Scenario C: queue reads 1 after cancel', 5000);
-    await dismissBurst(page);
+    await H.waitUntil(async () => (await prodRows(page))[0].indexOf('1 in queue') !== -1, 5000, 'Scenario C: queue reads 1 after cancel');
+    await H.dismissBurst(page);
 
     // Queue reads 1 in queue
     let rowsC2 = await prodRows(page);
@@ -330,8 +287,8 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save D
     const savePathD = '/tmp/cancel-D.json';
@@ -340,12 +297,12 @@ fs.writeFileSync('/tmp/cancel-D.json', saveTextD);
       page.click('#btn-import')
     ]);
     await fileChooserD.setFiles(savePathD);
-    await awaitCondition(page, async () => {
+    await H.waitUntil(async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0;
-    }, 'Scenario D: save notice shows Loaded', 5000);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    }, 5000, 'Scenario D: save notice shows Loaded');
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Zero cancel buttons in Line 1
     let btnsD = await cancelButtonsInLine(page, 0);

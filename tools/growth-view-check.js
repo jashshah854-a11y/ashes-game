@@ -70,6 +70,7 @@ const os = require('os');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
+const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
@@ -81,29 +82,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  throw new Error('waitFor timed out after ' + ms + 'ms');
-}
-
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await page.textContent('#btn-pause');
-    if (txt.trim() === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
 }
 
 // Vocabulary audit: banned words in any progression card text
@@ -274,20 +252,20 @@ const enemyDay1D = freshD.history.enemy[0];
 // ---------- Browser checks ----------
 
 async function importSave(page, savePath) {
-  await dismissBurst(page);
+  await H.dismissBurst(page);
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.click('#btn-import')
   ]);
   await chooser.setFiles(savePath);
-  await waitFor(page, async () => {
+  await H.waitFor(page, async () => {
     const notice = (await page.textContent('#save-notice')).trim();
     const cls = (await page.getAttribute('#save-notice', 'class')) || '';
     return notice.indexOf('Loaded from file') === 0 || cls.indexOf('save-notice-error') !== -1;
   }, 5000);
   const notice = (await page.textContent('#save-notice')).trim();
-  await ensurePaused(page);
-  await dismissBurst(page);
+  await H.ensurePaused(page);
+  await H.dismissBurst(page);
   return notice;
 }
 
@@ -320,12 +298,12 @@ function nationChangeRows(page, ni) {
     let page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     const noticeA = await importSave(page, savePathA);
     check('Scenario A: import reports a load from file', noticeA.indexOf('Loaded from file') === 0, noticeA);
-    await waitFor(page, async () => (await page.textContent('#progression-blocks')).indexOf('Day 1') !== -1, 5000);
+    await H.waitFor(page, async () => (await page.textContent('#progression-blocks')).indexOf('Day 1') !== -1, 5000);
 
     check('Scenario A: progression card exists', await page.isVisible('#progression-card'), 'card not visible');
     const blocksA = await page.$$eval('#progression-blocks .progression-nation', els => els.length);
@@ -360,12 +338,12 @@ function nationChangeRows(page, ni) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     const noticeB = await importSave(page, savePathB);
     check('Scenario B: import reports a load from file', noticeB.indexOf('Loaded from file') === 0, noticeB);
-    await waitFor(page, async () => (await page.textContent('#progression-blocks')).indexOf('Day 30') !== -1, 5000);
+    await H.waitFor(page, async () => (await page.textContent('#progression-blocks')).indexOf('Day 30') !== -1, 5000);
 
     const snapsB = histB ? [histB.player, histB.enemy] : [[], []];
     for (let ni = 1; ni <= 2; ni++) {
@@ -399,12 +377,12 @@ function nationChangeRows(page, ni) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     const noticeC = await importSave(page, savePathC);
     check('Scenario C: import reports a load from file', noticeC.indexOf('Loaded from file') === 0, noticeC);
-    await waitFor(page, async () => (await page.textContent('#progression-blocks')).indexOf('Day 150') !== -1, 5000);
+    await H.waitFor(page, async () => (await page.textContent('#progression-blocks')).indexOf('Day 150') !== -1, 5000);
 
     const snapsC = histC ? [histC.player, histC.enemy] : [[], []];
     for (let ni = 1; ni <= 2; ni++) {
@@ -438,8 +416,8 @@ function nationChangeRows(page, ni) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     const noticeD = await importSave(page, savePathD);
     check('Scenario D: notice text equals the node expected reason exactly', noticeD === expectedDNotice, 'got: ' + noticeD + ' expected: ' + expectedDNotice);

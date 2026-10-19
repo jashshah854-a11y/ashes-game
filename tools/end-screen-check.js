@@ -58,6 +58,7 @@ const path = require('path');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const CFG = Sim.CFG;
+const H = require('./browser-helper.js');
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
 const CHROME = process.env.CHROME ||
@@ -140,16 +141,6 @@ function expectedExplain() {
 
 // ---------- The passive driver ----------
 
-async function waitForEither(page, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    if (await page.isVisible('#event-overlay')) return 'card';
-    if (await page.isVisible('#banner')) return 'end';
-    await page.waitForTimeout(80);
-  }
-  return null;
-}
-
 // Drive a passive player to game over: speed 2, then dismiss every card until
 // the end banner is visible. Returns null on success, or a failure reason.
 async function driveToEnd(page) {
@@ -159,12 +150,24 @@ async function driveToEnd(page) {
   while (guard < 4000) {
     guard++;
     if (Date.now() > deadline) return 'the overall loop limit passed with no game over';
-    const what = await waitForEither(page, 30000);
+    const endWait = Date.now() + 30000;
+    let what = null;
+    while (Date.now() < endWait) {
+      const remaining = endWait - Date.now();
+      if (await H.tryWait(async () => await page.isVisible('#event-overlay'), remaining)) {
+        what = 'card';
+        break;
+      }
+      if (await H.tryWait(async () => await page.isVisible('#banner'), remaining)) {
+        what = 'end';
+        break;
+      }
+    }
     if (what === 'card') {
       // A card is up and the war is paused; continue it. A card queued behind
       // this one appears synchronously, so a short wait detects the burst.
       await page.click('#btn-event-continue');
-      await page.waitForTimeout(60);
+      await H.tryWait(async () => !(await page.isVisible('#event-overlay')) || await page.isVisible('#banner'), 1000);
       continue;
     }
     if (what === 'end') return null;

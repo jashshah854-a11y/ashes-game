@@ -67,6 +67,7 @@ const path = require('path');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
+const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
@@ -78,40 +79,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
-}
-
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await page.textContent('#btn-pause');
-    if (txt.trim() === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
-}
-
-async function clickWhenClear(page, selector) {
-  for (let attempt = 0; attempt < 25; attempt++) {
-    await dismissBurst(page);
-    try {
-      await page.click(selector, { timeout: 2000 });
-      return;
-    } catch (e) { }
-  }
-  throw new Error('could not click ' + selector + ': an overlay kept covering it');
 }
 
 // ---------- Build the three staged saves in node ----------
@@ -228,7 +195,7 @@ function checkVocabulary(whyText) {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
 
-    await ensurePaused(page);
+    await H.ensurePaused(page);
 
     // Helper: import a save file and return log items text
     async function importSaveAndReadLog(saveText, label) {
@@ -240,11 +207,11 @@ function checkVocabulary(whyText) {
       ]);
       await fileChooser.setFiles(savePath);
       // Wait for the load to complete (notice appears)
-      await waitFor(page, async () => {
+      await H.waitFor(page, async () => {
         const notice = (await page.textContent('#save-notice')).trim();
         return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
       }, 5000);
-      await dismissBurst(page);
+      await H.dismissBurst(page);
       // Read log items
       const items = await page.evaluate(() => {
         const lis = Array.from(document.querySelectorAll('#log li'));

@@ -44,6 +44,7 @@ const path = require('path');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
+const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
@@ -55,40 +56,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
-}
-
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await page.textContent('#btn-pause');
-    if (txt.trim() === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
-}
-
-async function clickWhenClear(page, selector) {
-  for (let attempt = 0; attempt < 25; attempt++) {
-    await dismissBurst(page);
-    try {
-      await page.click(selector, { timeout: 2000 });
-      return;
-    } catch (e) { }
-  }
-  throw new Error('could not click ' + selector + ': an overlay kept covering it');
 }
 
 // Vocabulary audit: banned words in order marker text
@@ -206,8 +173,8 @@ fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
 
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Helper: count order markers on page
     async function countMarkers() {
@@ -229,11 +196,11 @@ fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
         page.click('#btn-import')
       ]);
       await fileChooser.setFiles(savePath);
-      await waitFor(page, async () => {
+      await H.waitFor(page, async () => {
         const notice = (await page.textContent('#save-notice')).trim();
         return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
       }, 5000);
-      await dismissBurst(page);
+      await H.dismissBurst(page);
     }
 
     // ---- (a) Pause and assert zero markers before any order ----
@@ -248,9 +215,9 @@ fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
       // Click the province button containing the chip (the tile)
       const playerTile = await playerChip.evaluateHandle(el => el.closest('.province'));
       const playerProvId = await playerTile.evaluate(el => el.getAttribute('data-prov'));
-      await clickWhenClear(page, '.province[data-prov="' + playerProvId + '"]');
-      await page.waitForTimeout(100);
-      await dismissBurst(page);
+      await H.clickWhenClear(page, '.province[data-prov="' + playerProvId + '"]');
+      await H.tryWait(async () => (await page.$$('.province.reachable')).length > 0, 2000);
+      await H.dismissBurst(page);
 
       // Find a reachable neighbor tile (dashed green outline)
       const reachableTiles = await page.$$('.province.reachable');
@@ -258,9 +225,12 @@ fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
       if (reachableTiles.length > 0) {
         const targetTile = reachableTiles[0];
         const targetProvId = await targetTile.getAttribute('data-prov');
-        await clickWhenClear(page, '.province[data-prov="' + targetProvId + '"]');
-        await page.waitForTimeout(100);
-        await dismissBurst(page);
+        await H.clickWhenClear(page, '.province[data-prov="' + targetProvId + '"]');
+        await H.tryWait(async () => {
+          const markers = await countMarkers();
+          return markers.length > 0;
+        }, 2000);
+        await H.dismissBurst(page);
 
         // Assert exactly one marker on the target tile
         const markersAfterClick = await countMarkers();

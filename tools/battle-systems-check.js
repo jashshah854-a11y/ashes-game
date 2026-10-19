@@ -10,11 +10,11 @@ const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
 const Sim = require('../js/sim.js');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const PORT = 9343;
 const USER_DATA = '/tmp/chrome-ashes-battle-systems';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -37,10 +37,10 @@ function getJson(url) {
   const check = (name, ok, detail) => { results.push({ name, ok }); console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + ' | ' + detail); };
   try {
     let targets = null;
-    for (let i = 0; i < 40 && !targets; i++) {
-      await sleep(500);
+    await H.tryWait(async () => {
       try { targets = await getJson('http://127.0.0.1:' + PORT + '/json'); } catch (e) { /* not up yet */ }
-    }
+      return !!targets;
+    }, 20000);
     if (!targets) throw new Error('chrome debugging endpoint never came up');
     const page = targets.find((t) => t.type === 'page' && t.url.includes('index.html')) || targets.find((t) => t.type === 'page');
     const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -58,7 +58,6 @@ function getJson(url) {
     });
     await send('Runtime.enable');
     await send('Page.enable');
-    await sleep(2500);
 
     const evaluate = async (expr) => {
       const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true });
@@ -66,12 +65,18 @@ function getJson(url) {
       return r.result.result.value;
     };
 
+    await H.waitUntil(async () => {
+      try {
+        return await evaluate("(function () { var el = document.querySelector('#map-legend + .hint'); return !!el && el.textContent.replace(/\\s+/g, '').length > 0 && document.querySelectorAll('.province').length > 0; })()");
+      } catch (e) { return false; }
+    }, 10000, 'map hint paragraph renders');
+
     // Every expected number below comes from the sim, never a copied literal.
     const CFG = Sim.CFG;
 
     // ---- 1. Pause the game with the real Pause button ----
     await evaluate("document.getElementById('btn-pause').click()");
-    await sleep(200);
+    await H.tryWait(async () => (await evaluate("document.getElementById('btn-pause').textContent.trim()")) === 'Resume', 3000);
     const pauseLabel = await evaluate("document.getElementById('btn-pause').textContent.trim()");
     check('pause button reads Resume after click', pauseLabel === 'Resume', pauseLabel);
 
@@ -131,7 +136,7 @@ function getJson(url) {
 
     // ---- 6. Unit card from a real tile holding a player unit chip ----
     const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.province .unit-chip.mine'); if (!t) return null; var p = t.closest('.province'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
-    await sleep(200);
+    await H.tryWait(async () => (await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()")).indexOf('No unit selected') === -1, 3000);
     check('clicked a tile holding a player unit chip', !!clickedUnitProv, String(clickedUnitProv));
     const unitText = await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()");
     check('unit details rendered', unitText.replace(/\\s+/g, '').length > 0, unitText.slice(0, 120));
@@ -157,7 +162,7 @@ function getJson(url) {
     const finalLabel = await evaluate("document.getElementById('btn-pause').textContent.trim()");
     if (finalLabel === 'Resume') {
       await evaluate("document.getElementById('btn-pause').click()");
-      await sleep(150);
+      await H.tryWait(async () => (await evaluate("document.getElementById('btn-pause').textContent.trim()")) === 'Pause', 3000);
       const afterResume = await evaluate("document.getElementById('btn-pause').textContent.trim()");
       check('game resumed at the end', afterResume === 'Pause', afterResume);
     } else {

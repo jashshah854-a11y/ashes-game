@@ -51,6 +51,7 @@ const path = require('path');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
+const H = require('./browser-helper.js');
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
 const CHROME = process.env.CHROME ||
@@ -62,12 +63,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
 }
 
 async function dayCounter(page) {
@@ -86,42 +81,8 @@ async function ensureRunning(page) {
     const txt = await pauseButtonText(page);
     if (txt === 'Pause') return; // already running
     await page.click('#btn-pause');
-    await page.waitForTimeout(50);
+    await H.tryWait(async () => (await pauseButtonText(page)) === 'Pause', 500);
   }
-}
-
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await pauseButtonText(page);
-    if (txt === 'Resume') return; // already paused
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-// Dismiss an open event card through its real Continue button. A card
-// queued behind one appears synchronously, so a short wait detects it, and
-// the next tick's cards are game days away. When nothing appears within the
-// window the burst is over and the war has resumed.
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
-}
-
-// Click a control that an open overlay can cover: clear the overlay first,
-// then click, and if a card opened in between, clear it and try again.
-async function clickWhenClear(page, selector) {
-  for (let attempt = 0; attempt < 25; attempt++) {
-    await dismissBurst(page);
-    try {
-      await page.click(selector, { timeout: 2000 });
-      return;
-    } catch (e) { /* a card opened mid-click; dismiss it and retry */ }
-  }
-  throw new Error('could not click ' + selector + ': an overlay kept covering it');
 }
 
 (async () => {
@@ -168,20 +129,20 @@ async function clickWhenClear(page, selector) {
     let dayNow = await dayCounter(page);
     const targetDay = savedDay + 4;
     while (dayNow < targetDay && Date.now() < advanceDeadline) {
-      await dismissBurst(page);
+      await H.dismissBurst(page);
       dayNow = await dayCounter(page);
-      if (dayNow < targetDay) await page.waitForTimeout(200);
+      if (dayNow < targetDay) await H.tryWait(async () => (await dayCounter(page)) >= targetDay, 200);
     }
     check('Advance: the campaign reached at least saved day plus 4', dayNow >= targetDay, 'day ' + dayNow + ' target ' + targetDay);
 
     // 3. Load it back: day equals savedDay, same steel as right after the save.
-    await clickWhenClear(page, '#btn-load-slot');
+    await H.clickWhenClear(page, '#btn-load-slot');
     // Poll for the Loaded notice text to appear.
-    const loadNoticed = await waitFor(page, async () => {
+    const loadNoticed = await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
       return t.indexOf('Loaded. Day ') === 0;
     }, 5000);
-    await ensurePaused(page);
+    await H.ensurePaused(page);
     const dayAfterLoad = await dayCounter(page);
     const steelAfterLoad = (await page.textContent('#stat-steel')).trim();
     check('Load: the day counter equals the saved day', dayAfterLoad === savedDay, 'day ' + dayAfterLoad + ' expected ' + savedDay);
@@ -223,13 +184,13 @@ async function clickWhenClear(page, selector) {
       page.click('#btn-import')
     ]);
     await chooser.setFiles(exportPath);
-    const importNoticed = await waitFor(page, async () =>
+    const importNoticed = await H.waitFor(page, async () =>
       (await page.textContent('#save-notice')).indexOf('Loaded from file') === 0, 3000);
     const importMsg = (await page.textContent('#save-notice')).trim();
     const expectedImportNotice = 'Loaded from file. Day ' + savedDay + ', ' + savedNation + ', seed ' + savedSeed + '.';
     check('Import: the notice says loaded from file with saved day and seed',
       importNoticed && importMsg === expectedImportNotice, importMsg);
-    await ensurePaused(page);
+    await H.ensurePaused(page);
     check('Import: the day counter equals the saved day',
       (await dayCounter(page)) === savedDay, 'day ' + await dayCounter(page));
 
@@ -239,7 +200,7 @@ async function clickWhenClear(page, selector) {
 
     // 5. A corrupted slot: plain error, and the game keeps running.
     await page.evaluate((key) => { localStorage.setItem(key, 'not a save at all'); }, SAVE_SLOT_KEY);
-    await clickWhenClear(page, '#btn-load-slot');
+    await H.clickWhenClear(page, '#btn-load-slot');
     const corruptMsg = (await page.textContent('#save-notice')).trim();
     check('Corrupted load: the notice shows a plain error',
       corruptMsg.length > 0 && corruptMsg.indexOf('Loaded') === -1, corruptMsg);
@@ -247,8 +208,8 @@ async function clickWhenClear(page, selector) {
       (await page.getAttribute('#save-notice', 'class')) === 'save-notice-error',
       String(await page.getAttribute('#save-notice', 'class')));
     const dayBeforeCorruptRun = await dayCounter(page);
-    const keptRunning = await waitFor(page, async () => {
-      await dismissBurst(page);
+    const keptRunning = await H.waitFor(page, async () => {
+      await H.dismissBurst(page);
       return (await dayCounter(page)) !== dayBeforeCorruptRun;
     }, 15000);
     check('Corrupted load: the game keeps running, the day counter advances at speed 2',
@@ -256,7 +217,7 @@ async function clickWhenClear(page, selector) {
 
     // 6. An empty slot.
     await page.evaluate((key) => { localStorage.removeItem(key); }, SAVE_SLOT_KEY);
-    await clickWhenClear(page, '#btn-load-slot');
+    await H.clickWhenClear(page, '#btn-load-slot');
     const emptyMsg = (await page.textContent('#save-notice')).trim();
     check('Empty slot: the notice says the slot holds no save yet',
       emptyMsg === 'The browser slot holds no save yet.', emptyMsg);

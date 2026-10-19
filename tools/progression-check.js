@@ -50,6 +50,7 @@ const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
 const CFG = Sim.CFG;
+const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
@@ -61,40 +62,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
-}
-
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await page.textContent('#btn-pause');
-    if (txt.trim() === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
-}
-
-async function clickWhenClear(page, selector) {
-  for (let attempt = 0; attempt < 25; attempt++) {
-    await dismissBurst(page);
-    try {
-      await page.click(selector, { timeout: 2000 });
-      return;
-    } catch (e) { }
-  }
-  throw new Error('could not click ' + selector + ': an overlay kept covering it');
 }
 
 // Vocabulary audit: banned words in any progression card text
@@ -171,8 +138,8 @@ const interval = CFG.historyIntervalDays;
     let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Progression card exists
     check('Scenario A: progression card exists',
@@ -229,8 +196,8 @@ const interval = CFG.historyIntervalDays;
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save B
     const [fileChooserB] = await Promise.all([
@@ -238,19 +205,19 @@ const interval = CFG.historyIntervalDays;
       page.click('#btn-import')
     ]);
     await fileChooserB.setFiles(savePathB);
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
     }, 5000);
-    await dismissBurst(page);
+    await H.dismissBurst(page);
 
     // Wait until #progression-blocks contains 'Day 30'
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const text = await page.textContent('#progression-blocks');
       return text.indexOf('Day 30') !== -1;
     }, 5000);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Expected snapshots from node staged state
     const playerSnapsB = sB.history.player;
@@ -298,8 +265,8 @@ const interval = CFG.historyIntervalDays;
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save C
     const [fileChooserC] = await Promise.all([
@@ -307,14 +274,14 @@ const interval = CFG.historyIntervalDays;
       page.click('#btn-import')
     ]);
     await fileChooserC.setFiles(savePathC);
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
     }, 5000);
-    await dismissBurst(page);
+    await H.dismissBurst(page);
 
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Expected snapshots from node staged state
     const playerSnapsC = sC.history.player;

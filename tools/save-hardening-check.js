@@ -82,6 +82,7 @@ const path = require('path');
 
 const REPO = path.join(__dirname, '..');
 const Save = require('../js/save.js');
+const H = require('./browser-helper.js');
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
 const CHROME = process.env.CHROME ||
@@ -94,12 +95,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
 }
 
 async function dayCounter(page) {
@@ -115,36 +110,8 @@ async function ensureRunning(page) {
     const txt = await pauseButtonText(page);
     if (txt === 'Pause') return;
     await page.click('#btn-pause');
-    await page.waitForTimeout(50);
+    await H.tryWait(async () => (await pauseButtonText(page)) === 'Pause', 500);
   }
-}
-
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await pauseButtonText(page);
-    if (txt === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
-}
-
-async function clickWhenClear(page, selector) {
-  for (let attempt = 0; attempt < 25; attempt++) {
-    await dismissBurst(page);
-    try {
-      await page.click(selector, { timeout: 2000 });
-      return;
-    } catch (e) { }
-  }
-  throw new Error('could not click ' + selector + ': an overlay kept covering it');
 }
 
 async function readSlotText(page) {
@@ -205,7 +172,7 @@ function checkTextNoBrokenLabels(text) {
     await page.evaluate((key) => { localStorage.removeItem(key); }, SAVE_SLOT_KEY);
     await page.evaluate((key) => { localStorage.removeItem(key); }, SAVE_SLOT_META_KEY);
     await page.reload();
-    await page.waitForTimeout(200);
+    await H.tryWait(async () => (await page.textContent('#save-slot-meta')).trim().length > 0, 2000);
     const emptyMeta = (await page.textContent('#save-slot-meta')).trim();
     const expectedEmptyMeta = 'Browser slot: empty. Nothing is saved in the browser slot yet.';
     check('Slot meta empty: matches exact empty wording', emptyMeta === expectedEmptyMeta,
@@ -218,7 +185,7 @@ function checkTextNoBrokenLabels(text) {
     // and contains a colon after "saved at".
     await ensureRunning(page);
     await page.click('#btn-save-slot');
-    await page.waitForTimeout(100);
+    await H.tryWait(async () => (await readSlotText(page)) !== null, 2000);
     const slotText = await readSlotText(page);
     const deser = Save.deserializeSave(slotText);
     const savedState = deser.state;
@@ -243,20 +210,20 @@ function checkTextNoBrokenLabels(text) {
     let dayNow = await dayCounter(page);
     const targetDay = savedDay + 3;
     while (dayNow < targetDay && Date.now() < advanceDeadline) {
-      await dismissBurst(page);
+      await H.dismissBurst(page);
       dayNow = await dayCounter(page);
-      if (dayNow < targetDay) await page.waitForTimeout(200);
+      if (dayNow < targetDay) await H.tryWait(async () => (await dayCounter(page)) >= targetDay, 200);
     }
     check('Advance before load: reached at least saved day plus 3', dayNow >= targetDay,
       'day ' + dayNow + ' target ' + targetDay);
 
     const savedSeed = savedState.seed;
-    await clickWhenClear(page, '#btn-load-slot');
-    const loadNoticed = await waitFor(page, async () => {
+    await H.clickWhenClear(page, '#btn-load-slot');
+    const loadNoticed = await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
       return t.indexOf('Loaded. Day ') === 0;
     }, 5000);
-    await ensurePaused(page);
+    await H.ensurePaused(page);
     const dayAfterLoad = await dayCounter(page);
     const loadMsg = await getSaveNotice(page);
     const expectedLoadMsg = 'Loaded. Day ' + savedDay + ', ' + savedNation + ', seed ' + savedSeed + '.';
@@ -271,8 +238,8 @@ function checkTextNoBrokenLabels(text) {
     await ensureRunning(page);
     await page.click('#btn-speed1');
     const dayBeforeSpeed1 = await dayCounter(page);
-    let advanced1 = await waitFor(page, async () => {
-      await dismissBurst(page);
+    let advanced1 = await H.waitFor(page, async () => {
+      await H.dismissBurst(page);
       return (await dayCounter(page)) > dayBeforeSpeed1;
     }, 15000);
     check('Continuation at speed 1: day advanced at least 1', advanced1,
@@ -280,8 +247,8 @@ function checkTextNoBrokenLabels(text) {
 
     await page.click('#btn-speed2');
     const dayBeforeSpeed2 = await dayCounter(page);
-    let advanced2 = await waitFor(page, async () => {
-      await dismissBurst(page);
+    let advanced2 = await H.waitFor(page, async () => {
+      await H.dismissBurst(page);
       return (await dayCounter(page)) > dayBeforeSpeed2;
     }, 10000);
     check('Continuation at speed 2: day advanced at least 1 more', advanced2,
@@ -305,7 +272,7 @@ function checkTextNoBrokenLabels(text) {
       };
     });
     await page.click('#btn-save-slot');
-    await page.waitForTimeout(200);
+    await H.tryWait(async () => (await getSaveNotice(page)).length > 0, 2000);
     const quotaMsg = await getSaveNotice(page);
     const quotaClass = await getSaveNoticeClass(page);
     const expectedQuotaMsg = 'The browser slot is full, so this save was not stored. Export the save to a file instead.';
@@ -326,8 +293,8 @@ function checkTextNoBrokenLabels(text) {
     envelope.saveVersion = 99;
     const version99Text = JSON.stringify(envelope);
     await page.evaluate((args) => { localStorage.setItem(args.key, args.text); }, { key: SAVE_SLOT_KEY, text: version99Text });
-    await clickWhenClear(page, '#btn-load-slot');
-    await waitFor(page, async () => {
+    await H.clickWhenClear(page, '#btn-load-slot');
+    await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
       return t.length > 0 && t.indexOf('Loaded') === -1;
     }, 5000);
@@ -349,7 +316,7 @@ function checkTextNoBrokenLabels(text) {
       page.click('#btn-import')
     ]);
     await emptyChooser.setFiles({ name: 'empty.json', mimeType: 'application/json', buffer: emptyFile });
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
       return t.length > 0;
     }, 3000);
@@ -373,7 +340,7 @@ function checkTextNoBrokenLabels(text) {
     await binaryChooser.setFiles({ name: 'binary.json', mimeType: 'application/json', buffer: binaryBuffer });
     // readAsText decodes asynchronously, so wait for a notice actually
     // written by this import, never the one already on screen.
-    const binaryNoticed = await waitFor(page, async () => {
+    const binaryNoticed = await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
       return t !== noticeBeforeBinary;
     }, 5000);
@@ -387,8 +354,8 @@ function checkTextNoBrokenLabels(text) {
     await ensureRunning(page);
     await page.click('#btn-speed2');
     const dayBeforeBinary = await dayCounter(page);
-    let binaryRuns = await waitFor(page, async () => {
-      await dismissBurst(page);
+    let binaryRuns = await H.waitFor(page, async () => {
+      await H.dismissBurst(page);
       return (await dayCounter(page)) !== dayBeforeBinary;
     }, 15000);
     check('Binary file: game still runs (day advances at speed 2)', binaryRuns,
@@ -427,7 +394,7 @@ function checkTextNoBrokenLabels(text) {
     const expectedFrMsg = 'The browser could not read that file, so nothing was loaded. Your current game keeps running.';
     // The stub calls onerror on a later task, so wait for the exact message
     // this import writes, never whatever notice is already on screen.
-    const frNoticed = await waitFor(page, async () =>
+    const frNoticed = await H.waitFor(page, async () =>
       (await page.textContent('#save-notice')).trim() === expectedFrMsg, 5000);
     const frMsg = await getSaveNotice(page);
     check('FileReader error: notice matches expected reader error message',
@@ -447,7 +414,7 @@ function checkTextNoBrokenLabels(text) {
       page.click('#btn-import')
     ]);
     await reImportChooser.setFiles(exportPath);
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
       return t.indexOf('Loaded from file') === 0;
     }, 3000);
@@ -459,7 +426,7 @@ function checkTextNoBrokenLabels(text) {
     const expectedReImportMsg = 'Loaded from file. Day ' + exportDay + ', ' + exportNation + ', seed ' + exportSeed + '.';
     check('Re-import first load: notice matches expected loaded from file', reImportMsg === expectedReImportMsg,
       'got: ' + reImportMsg + ' expected: ' + expectedReImportMsg);
-    await ensurePaused(page);
+    await H.ensurePaused(page);
     const dayAfterFirstImport = await dayCounter(page);
     check('Re-import first load: day counter equals saved day', dayAfterFirstImport === exportDay,
       'day ' + dayAfterFirstImport + ' expected ' + exportDay);
@@ -471,9 +438,9 @@ function checkTextNoBrokenLabels(text) {
     let dayNow2 = await dayCounter(page);
     const targetDay2 = exportDay + 3;
     while (dayNow2 < targetDay2 && Date.now() < advanceDeadline2) {
-      await dismissBurst(page);
+      await H.dismissBurst(page);
       dayNow2 = await dayCounter(page);
-      if (dayNow2 < targetDay2) await page.waitForTimeout(200);
+      if (dayNow2 < targetDay2) await H.tryWait(async () => (await dayCounter(page)) >= targetDay2, 200);
     }
     check('Re-import advance: reached at least saved day plus 3', dayNow2 >= targetDay2,
       'day ' + dayNow2 + ' target ' + targetDay2);
@@ -487,13 +454,13 @@ function checkTextNoBrokenLabels(text) {
       page.click('#btn-import')
     ]);
     await reImportChooser2.setFiles(exportPath);
-    const secondImportNoticed = await waitFor(page, async () =>
+    const secondImportNoticed = await H.waitFor(page, async () =>
       (await page.textContent('#save-notice')).trim() === expectedReImportMsg, 5000);
     const reImportMsg2 = await getSaveNotice(page);
     check('Re-import second load: notice matches expected loaded from file again',
       secondImportNoticed && reImportMsg2 === expectedReImportMsg,
       'got: ' + reImportMsg2 + ' expected: ' + expectedReImportMsg);
-    await ensurePaused(page);
+    await H.ensurePaused(page);
     const dayAfterSecondImport = await dayCounter(page);
     check('Re-import second load: day counter returns to saved day', dayAfterSecondImport === exportDay,
       'day ' + dayAfterSecondImport + ' expected ' + exportDay);
@@ -509,7 +476,7 @@ function checkTextNoBrokenLabels(text) {
     async function saveValidSlot() {
       await ensureRunning(page);
       await page.click('#btn-save-slot');
-      await page.waitForTimeout(100);
+      await H.tryWait(async () => (await readSlotText(page)) !== null, 2000);
     }
     // Read the current slot, mutate it with the given function, write it back,
     // click Load, and return the notice text and class.
@@ -522,8 +489,8 @@ function checkTextNoBrokenLabels(text) {
       envelope.checksum = Save.checksumFor(envelope.payload);
       const mutatedText = JSON.stringify(envelope);
       await page.evaluate((args) => { localStorage.setItem(args.key, args.text); }, { key: SAVE_SLOT_KEY, text: mutatedText });
-      await clickWhenClear(page, '#btn-load-slot');
-      await waitFor(page, async () => {
+      await H.clickWhenClear(page, '#btn-load-slot');
+      await H.waitFor(page, async () => {
         const t = (await page.textContent('#save-notice')).trim();
         return t.length > 0 && t.indexOf('Loaded') !== 0;
       }, 5000);
@@ -577,9 +544,9 @@ function checkTextNoBrokenLabels(text) {
     await page.click('#btn-speed2');
     let dayForTwoSnaps = await dayCounter(page);
     while (dayForTwoSnaps < 31 && Date.now() < Date.now() + 120000) {
-      await dismissBurst(page);
+      await H.dismissBurst(page);
       dayForTwoSnaps = await dayCounter(page);
-      if (dayForTwoSnaps < 31) await page.waitForTimeout(200);
+      if (dayForTwoSnaps < 31) await H.tryWait(async () => (await dayCounter(page)) >= 31, 200);
     }
     await saveValidSlot();
     result = await loadMutatedSave((payload) => {

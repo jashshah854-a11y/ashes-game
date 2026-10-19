@@ -32,6 +32,7 @@ const PW = process.env.PLAYWRIGHT ||
 const CHROME = process.env.CHROME ||
   ['/opt/pw-browsers/chromium', '/opt/meta-chromium/chrome'].find((p) => fs.existsSync(p));
 const URL = 'file://' + path.join(REPO, 'index.html') + '?seed=7';
+const H = require('./browser-helper.js');
 
 const results = [];
 function check(name, ok, detail) {
@@ -77,15 +78,7 @@ async function allBadgesOnTop(page, provId) {
   }, provId);
 }
 
-async function untilText(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    if (await page.isVisible('#event-overlay')) await page.click('#btn-event-continue');
-    if (await fn()) return true;
-    await page.waitForTimeout(150);
-  }
-  return false;
-}
+
 
 (async () => {
   if (!PW) throw new Error('Playwright not found; set PLAYWRIGHT to its path');
@@ -98,8 +91,8 @@ async function untilText(page, fn, ms) {
     // Run 1: the unmodified game.
     let page = await newPage();
     await page.goto(URL);
-    await page.click('#btn-pause');
-    await page.click('[data-prov="p1_3"]');
+    await H.clickWhenClear(page,'#btn-pause');
+    await H.clickWhenClear(page,'[data-prov="p1_3"]');
     const cost1 = CFG.fortCostPerLevel;
     const label = await page.textContent('#btn-fort');
     check('button states cost, days, bonus, and why it is disabled',
@@ -112,21 +105,21 @@ async function untilText(page, fn, ms) {
     page = await newPage();
     await withExtraEquipment(page, 'player', 5000);
     await page.goto(URL);
-    await page.click('#btn-pause');
-    await page.click('[data-prov="p0_3"]');
-    await page.click('#btn-fort');
+    await H.clickWhenClear(page,'#btn-pause');
+    await H.clickWhenClear(page,'[data-prov="p0_3"]');
+    await H.clickWhenClear(page,'#btn-fort');
     check('paid up front', (await page.textContent('#stat-equipment')) === String(5000 - cost1));
     check('work in progress on the card and button',
       /Being raised to level 1, 5 days left/.test(await page.textContent('#prov-details')) && (await page.textContent('#btn-fort')) === 'Fortifying: 5 days left');
     let badge = await badgeOnTop(page, 'p0_3');
     check('work in progress badge is visible on top of the unit chips', badge.ok && badge.text === 'Fort 1 in 5d', String(badge.text));
-    await page.click('#btn-speed2');
-    await page.click('#btn-pause');
-    await untilText(page, async () => (await badgeOnTop(page, 'p0_3')).text === 'Fort 1', 30000);
-    await page.click('#btn-pause');
+    await H.clickWhenClear(page,'#btn-speed2');
+    await H.clickWhenClear(page,'#btn-pause');
+    await H.untilText(page, async () => (await badgeOnTop(page, 'p0_3')).text === 'Fort 1', 30000);
+    await H.clickWhenClear(page,'#btn-pause');
     badge = await badgeOnTop(page, 'p0_3');
     check('finished badge is visible on top of the unit chips', badge.ok && badge.text === 'Fort 1', String(badge.text));
-    await page.click('[data-prov="p0_3"]');
+    await H.clickWhenClear(page,'[data-prov="p0_3"]');
     check('card states the exact bonus', /level 1 of 2, \+25% defense for your units defending here/.test(await page.textContent('#prov-details')));
     check('unit card names the walls', /\(includes \+25% from fortifications here\)/.test(await page.textContent('#unit-details')));
     await page.close();
@@ -136,15 +129,15 @@ async function untilText(page, fn, ms) {
     page = await newPage();
     await withExtraEquipment(page, 'player', 5000);
     await page.goto(URL);
-    await page.click('#btn-pause');
-    await page.click('[data-prov="p0_3"]');
-    await page.click('#btn-fort');
-    await page.click('#btn-speed2');
-    await page.click('#btn-pause');
-    await untilText(page, async () => (await badgeOnTop(page, 'p0_3')).text === 'Fort 1', 30000);
-    await page.click('#btn-pause');
-    await page.click('[data-prov="p0_3"]');
-    await page.click('#btn-fort');
+    await H.clickWhenClear(page,'#btn-pause');
+    await H.clickWhenClear(page,'[data-prov="p0_3"]');
+    await H.clickWhenClear(page,'#btn-fort');
+    await H.clickWhenClear(page,'#btn-speed2');
+    await H.clickWhenClear(page,'#btn-pause');
+    await H.untilText(page, async () => (await badgeOnTop(page, 'p0_3')).text === 'Fort 1', 30000);
+    await H.clickWhenClear(page,'#btn-pause');
+    await H.clickWhenClear(page,'[data-prov="p0_3"]');
+    await H.clickWhenClear(page,'#btn-fort');
     const combined = await allBadgesOnTop(page, 'p0_3');
     const combinedTexts = combined.map((b) => b.text);
     check('combined state: tile carries both the current level badge and the building badge',
@@ -168,13 +161,13 @@ async function untilText(page, fn, ms) {
     page = await newPage();
     await withExtraEquipment(page, 'enemy', 2000);
     await page.goto(URL);
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page,'#btn-speed2');
     const river = Sim.provinceId(CFG.mapW / 2, 3);
-    await untilText(page, async () => (await badgeOnTop(page, river)).text === 'Fort 1', 30000);
-    await page.click('#btn-pause');
+    await H.untilText(page, async () => (await badgeOnTop(page, river)).text === 'Fort 1', 30000);
+    await H.clickWhenClear(page,'#btn-pause');
     const forts = await page.textContent('#stat-enemy-forts');
     check('enemy card lists Dominion walls', forts !== 'none' && /Khessograd/.test(forts), forts);
-    await page.click('[data-prov="p4_3"]');
+    await H.clickWhenClear(page,'[data-prov="p4_3"]');
     const preview = await page.textContent('#unit-details');
     check('attack preview names the walls inside their defense', /their defense \d+ \(supply effects included; includes \+25% from level 1 fortifications\)/.test(preview));
     await page.close();
@@ -182,7 +175,7 @@ async function untilText(page, fn, ms) {
     // Run 4: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
-    await page.click('#btn-pause');
+    await H.clickWhenClear(page,'#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);
     await page.close();

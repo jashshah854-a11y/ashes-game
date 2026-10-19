@@ -9,11 +9,11 @@
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const PORT = 9341;
 const USER_DATA = '/tmp/chrome-ashes-first-touch';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -36,10 +36,10 @@ function getJson(url) {
   const check = (name, ok, detail) => { results.push({ name, ok }); console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + ' | ' + detail); };
   try {
     let targets = null;
-    for (let i = 0; i < 40 && !targets; i++) {
-      await sleep(500);
+    await H.tryWait(async () => {
       try { targets = await getJson('http://127.0.0.1:' + PORT + '/json'); } catch (e) { /* not up yet */ }
-    }
+      return !!targets;
+    }, 20000);
     if (!targets) throw new Error('chrome debugging endpoint never came up');
     const page = targets.find((t) => t.type === 'page' && t.url.includes('index.html')) || targets.find((t) => t.type === 'page');
     const ws = new WebSocket(page.webSocketDebuggerUrl);
@@ -57,13 +57,18 @@ function getJson(url) {
     });
     await send('Runtime.enable');
     await send('Page.enable');
-    await sleep(2500);
 
     const evaluate = async (expr) => {
       const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true });
       if (r.result && r.result.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails).slice(0, 300));
       return r.result.result.value;
     };
+
+    await H.waitUntil(async () => {
+      try {
+        return await evaluate("(function () { var a = document.getElementById('start-statement'); var b = document.getElementById('controls-explain'); var c = document.getElementById('map-legend'); return !!a && !!b && !!c && a.textContent.replace(/\\s+/g, '').length > 0 && b.textContent.replace(/\\s+/g, '').length > 0 && c.textContent.replace(/\\s+/g, '').length > 0 && document.querySelectorAll('.province').length > 0; })()");
+      } catch (e) { return false; }
+    }, 10000, 'start statement, controls explanation, and map legend render');
 
     // ---- 1. Start statement ----
     const startText = await evaluate("document.getElementById('start-statement') ? document.getElementById('start-statement').textContent.replace(/\\s+/g, ' ').trim() : ''");
@@ -93,17 +98,17 @@ function getJson(url) {
 
     // ---- 4. Pause freezes the days ----
     await evaluate("document.getElementById('btn-pause').click()");
-    await sleep(150);
+    await H.tryWait(async () => (await evaluate("document.getElementById('btn-pause').textContent.trim()")) === 'Resume', 3000);
     const pauseLabel = await evaluate("document.getElementById('btn-pause').textContent.trim()");
     check('pause button reads Resume after click', pauseLabel === 'Resume', pauseLabel);
     const dayBefore = await evaluate("document.getElementById('day-counter').textContent");
-    await sleep(1150);
+    const changed = await H.tryWait(async () => (await evaluate("document.getElementById('day-counter').textContent")) !== dayBefore, 1150);
     const dayAfter = await evaluate("document.getElementById('day-counter').textContent");
     check('day counter does not advance while paused', dayBefore === dayAfter, dayBefore + ' -> ' + dayAfter);
 
     // ---- 5. Speed 2x becomes the active speed ----
     await evaluate("document.getElementById('btn-speed2').click()");
-    await sleep(150);
+    await H.tryWait(async () => (await evaluate("document.getElementById('btn-speed2').classList.contains('active')")) === true, 3000);
     const speed2Active = await evaluate("document.getElementById('btn-speed2').classList.contains('active')");
     const speed1Active = await evaluate("document.getElementById('btn-speed1').classList.contains('active')");
     check('speed 2x button is active', speed2Active === true, 'speed2=' + speed2Active);
@@ -111,7 +116,10 @@ function getJson(url) {
 
     // ---- 6. Province card from a real player owned tile ----
     const clickedProv = await evaluate("(function () { var t = document.querySelector('.province.owner-player.intel-live'); if (!t) return null; t.click(); return t.getAttribute('data-prov'); })()");
-    await sleep(150);
+    await H.tryWait(async () => {
+      const t = await evaluate("document.getElementById('prov-name').textContent.trim()");
+      return !!t && t.indexOf('No province selected') === -1;
+    }, 3000);
     const provName = await evaluate("document.getElementById('prov-name').textContent.trim()");
     const provDetails = await evaluate("document.getElementById('prov-details').textContent.replace(/\\s+/g, ' ').trim()");
     check('clicked a player owned province tile', !!clickedProv, String(clickedProv));
@@ -120,7 +128,7 @@ function getJson(url) {
 
     // ---- 7. Unit card from a real tile holding a player unit chip ----
     const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.province .unit-chip.mine'); if (!t) return null; var p = t.closest('.province'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
-    await sleep(150);
+    await H.tryWait(async () => (await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()")).length > 0, 3000);
     const unitText = await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()");
     check('clicked a tile holding a player unit chip', !!clickedUnitProv, String(clickedUnitProv));
     check('unit card shows hit points', unitText.indexOf('hit points') !== -1, unitText.slice(0, 120));
@@ -147,7 +155,7 @@ function getJson(url) {
     const finalLabel = await evaluate("document.getElementById('btn-pause').textContent.trim()");
     if (finalLabel === 'Resume') {
       await evaluate("document.getElementById('btn-pause').click()");
-      await sleep(150);
+      await H.tryWait(async () => (await evaluate("document.getElementById('btn-pause').textContent.trim()")) === 'Pause', 3000);
       const afterResume = await evaluate("document.getElementById('btn-pause').textContent.trim()");
       check('game resumed at the end', afterResume === 'Pause', afterResume);
     } else {

@@ -35,6 +35,7 @@ const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
 const CFG = Sim.CFG;
+const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
@@ -48,39 +49,7 @@ function check(name, ok, detail) {
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
 }
 
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
-}
 
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await page.textContent('#btn-pause');
-    if (txt.trim() === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
-}
-
-async function clickWhenClear(page, selector) {
-  for (let attempt = 0; attempt < 25; attempt++) {
-    await dismissBurst(page);
-    try {
-      await page.click(selector, { timeout: 2000 });
-      return;
-    } catch (e) { }
-  }
-  throw new Error('could not click ' + selector + ': an overlay kept covering it');
-}
 
 async function getUnitReinforceLine(page) {
   return page.textContent('#unit-reinforce .unit-reinforce-line');
@@ -235,8 +204,8 @@ if (!desE.ok) {
     let page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save A (strength 5, equipment 90)
     const [fileChooserA] = await Promise.all([
@@ -244,16 +213,19 @@ if (!desE.ok) {
       page.click('#btn-import')
     ]);
     await fileChooserA.setFiles('/tmp/reinforce-A.json');
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
     }, 5000);
-    await dismissBurst(page);
+    await H.dismissBurst(page);
 
     // Click the capital province to select it (and its unit)
-    await clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
-    await page.waitForTimeout(100);
-    await dismissBurst(page);
+    await H.clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
+    await H.tryWait(async () => {
+      const txt = await page.textContent('#unit-reinforce .unit-reinforce-line');
+      return txt && txt.trim().length > 0;
+    }, 2000);
+    await H.dismissBurst(page);
 
     // Check reinforce UI
     const btnsA = await getUnitReinforceButtons(page);
@@ -273,9 +245,12 @@ if (!desE.ok) {
     check('Scenario A: unit details show 5 of 12 hp', detailsA.indexOf('strength 5 hit points of 12 hit points') !== -1, detailsA);
 
     // Click the reinforce button
-    await clickWhenClear(page, '#unit-reinforce .btn-reinforce');
-    await page.waitForTimeout(100);
-    await dismissBurst(page);
+    await H.clickWhenClear(page, '#unit-reinforce .btn-reinforce');
+    await H.tryWait(async () => {
+      const txt = await page.textContent('#unit-details');
+      return txt && txt.indexOf('strength 11 hit points of 12 hit points') !== -1;
+    }, 2000);
+    await H.dismissBurst(page);
 
     // After click: details show 11 of 12 hp
     const detailsA2 = await getUnitDetails(page);
@@ -306,8 +281,8 @@ if (!desE.ok) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save B (full strength)
     const [fileChooserB] = await Promise.all([
@@ -315,16 +290,19 @@ if (!desE.ok) {
       page.click('#btn-import')
     ]);
     await fileChooserB.setFiles('/tmp/reinforce-B.json');
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
     }, 5000);
-    await dismissBurst(page);
+    await H.dismissBurst(page);
 
     // Click the capital province
-    await clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
-    await page.waitForTimeout(100);
-    await dismissBurst(page);
+    await H.clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
+    await H.tryWait(async () => {
+      const txt = await page.textContent('#unit-reinforce .unit-reinforce-line');
+      return txt && txt.trim().length > 0;
+    }, 2000);
+    await H.dismissBurst(page);
 
     // Zero reinforce buttons
     const btnsB = await getUnitReinforceButtons(page);
@@ -347,8 +325,8 @@ if (!desE.ok) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save C (fought today)
     const [fileChooserC] = await Promise.all([
@@ -356,16 +334,19 @@ if (!desE.ok) {
       page.click('#btn-import')
     ]);
     await fileChooserC.setFiles('/tmp/reinforce-C.json');
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
     }, 5000);
-    await dismissBurst(page);
+    await H.dismissBurst(page);
 
     // Click the capital province
-    await clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
-    await page.waitForTimeout(100);
-    await dismissBurst(page);
+    await H.clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
+    await H.tryWait(async () => {
+      const txt = await page.textContent('#unit-reinforce .unit-reinforce-line');
+      return txt && txt.trim().length > 0;
+    }, 2000);
+    await H.dismissBurst(page);
 
     // Zero reinforce buttons
     const btnsC = await getUnitReinforceButtons(page);
@@ -393,8 +374,8 @@ if (!desE.ok) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     // Import save D (not enough equipment)
     const [fileChooserD] = await Promise.all([
@@ -402,16 +383,19 @@ if (!desE.ok) {
       page.click('#btn-import')
     ]);
     await fileChooserD.setFiles('/tmp/reinforce-D.json');
-    await waitFor(page, async () => {
+    await H.waitFor(page, async () => {
       const notice = (await page.textContent('#save-notice')).trim();
       return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
     }, 5000);
-    await dismissBurst(page);
+    await H.dismissBurst(page);
 
     // Click the capital province
-    await clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
-    await page.waitForTimeout(100);
-    await dismissBurst(page);
+    await H.clickWhenClear(page, '.province[data-prov="' + capitalId + '"]');
+    await H.tryWait(async () => {
+      const txt = await page.textContent('#unit-reinforce .unit-reinforce-line');
+      return txt && txt.trim().length > 0;
+    }, 2000);
+    await H.dismissBurst(page);
 
     // Zero reinforce buttons
     const btnsD = await getUnitReinforceButtons(page);
@@ -435,8 +419,8 @@ if (!desE.ok) {
       page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(URL);
-      await ensurePaused(page);
-      await dismissBurst(page);
+      await H.ensurePaused(page);
+      await H.dismissBurst(page);
 
       // Import save E
       const [fileChooserE] = await Promise.all([
@@ -444,11 +428,11 @@ if (!desE.ok) {
         page.click('#btn-import')
       ]);
       await fileChooserE.setFiles('/tmp/reinforce-E.json');
-      await waitFor(page, async () => {
+      await H.waitFor(page, async () => {
         const notice = (await page.textContent('#save-notice')).trim();
         return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
       }, 5000);
-      await dismissBurst(page);
+      await H.dismissBurst(page);
 
       // Read war log element #log text and check it contains the exact expected message
       const logText = await page.textContent('#log');

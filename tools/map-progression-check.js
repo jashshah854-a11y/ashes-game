@@ -52,6 +52,7 @@ const os = require('os');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
+const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
@@ -63,29 +64,6 @@ const results = [];
 function check(name, ok, detail) {
   results.push(ok);
   console.log((ok ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + detail : ''));
-}
-
-async function waitFor(page, fn, ms) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) { if (await fn()) return true; await page.waitForTimeout(100); }
-  return false;
-}
-
-async function ensurePaused(page) {
-  while (true) {
-    const txt = await page.textContent('#btn-pause');
-    if (txt.trim() === 'Resume') return;
-    await page.click('#btn-pause');
-    await page.waitForTimeout(50);
-  }
-}
-
-async function dismissBurst(page) {
-  if (!(await page.isVisible('#event-overlay'))) return;
-  while (await page.isVisible('#event-overlay')) {
-    await page.click('#btn-event-continue');
-    await page.waitForTimeout(150);
-  }
 }
 
 // Find an edge in the read back state by its two province ids, using the
@@ -194,18 +172,18 @@ async function badgeStyle(page, provId) {
 }
 
 async function importSave(page, savePath) {
-  await dismissBurst(page);
+  await H.dismissBurst(page);
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.click('#btn-import')
   ]);
   await chooser.setFiles(savePath);
-  await waitFor(page, async () => {
+  await H.waitFor(page, async () => {
     const notice = (await page.textContent('#save-notice')).trim();
     return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1;
   }, 5000);
-  await ensurePaused(page);
-  await dismissBurst(page);
+  await H.ensurePaused(page);
+  await H.dismissBurst(page);
 }
 
 // ---------- Browser checks ----------
@@ -221,11 +199,11 @@ async function importSave(page, savePath) {
     let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errorsA.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     await importSave(page, earlyPath);
-    await waitFor(page, async () => await page.$('.province[data-prov="p0_3"] .factory-badge') !== null, 5000);
+    await H.waitFor(page, async () => await page.$('.province[data-prov="p0_3"] .factory-badge') !== null, 5000);
 
     const badgeA = await tileFactoryBadges(page, 'p0_3');
     check('Scenario A: p0_3 has one factory badge', badgeA.length === 1, 'found ' + badgeA.length);
@@ -259,11 +237,11 @@ async function importSave(page, savePath) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errorsB.push(e.message));
     await page.goto(URL);
-    await ensurePaused(page);
-    await dismissBurst(page);
+    await H.ensurePaused(page);
+    await H.dismissBurst(page);
 
     await importSave(page, devPath);
-    await waitFor(page, async () => await page.$('.province[data-prov="p0_3"] .factory-badge.lvl3') !== null, 5000);
+    await H.waitFor(page, async () => await page.$('.province[data-prov="p0_3"] .factory-badge.lvl3') !== null, 5000);
 
     const badgeLvl1 = await tileFactoryBadges(page, 'p3_0');
     const badgeLvl2 = await tileFactoryBadges(page, 'p1_2');
