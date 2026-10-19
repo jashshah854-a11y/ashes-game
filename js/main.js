@@ -344,7 +344,7 @@
       return '<span class="rail-bar ' + side + ' building"></span>' +
         '<span class="rail-tag">Converting ' + e.rail.converting.daysLeft + 'd</span>';
     }
-    return '<span class="rail-bar ' + side + '"></span>';
+    return '<span class="rail-bar ' + side + ' built"></span>';
   }
 
   // River state of the edge from this province toward a neighbor id,
@@ -431,9 +431,10 @@
             html += '<span class="units">';
             units.forEach(function (u) {
               var st = Sim.unitStats(state, u);
-              var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + 'hp A' + st.attack;
+              var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + '/' + u.maxStrength + 'hp A' + st.attack;
               if (st.supplyPenalty > 0) label += ' <span class="sup-tag">-' + st.supplyPenalty + '%</span>';
               var c = 'unit-chip ' + (u.nation === 'player' ? 'mine' : 'theirs');
+              if (u.strength < u.maxStrength) c += ' damaged';
               if (u.id === selectedUnitId) c += ' picked';
               html += '<span class="' + c + '">' + label + '</span>';
             });
