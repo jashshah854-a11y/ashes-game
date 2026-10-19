@@ -213,3 +213,58 @@ test('asset log check: the real repo passes, and a temp fixture fails once then 
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('fixture: the committed worst case board reads back with its section 2.8.1 counts', () => {
+  const Save = require('../js/save.js');
+  const fixturePath = path.join(__dirname, '..', 'tools', 'fixture', 'worst-case.json');
+  const fixtureText = fs.readFileSync(fixturePath, 'utf8');
+  const readBack = Save.deserializeSave(fixtureText);
+  assert.strictEqual(readBack.ok, true, readBack.reason || 'deserialize failed');
+  const s = readBack.state;
+
+  assert.ok(s.day >= 140, 'day at least 140, got ' + s.day);
+  assert.strictEqual(s.gameOver, false, 'gameOver must be false');
+  assert.strictEqual(Object.keys(s.provinces).length, 70, 'province count must be 70');
+
+  let factoryTotal = 0;
+  let factoryMin = Infinity;
+  Object.keys(s.provinces).forEach(function (id) {
+    const p = s.provinces[id];
+    factoryTotal += p.factoryLevel;
+    if (p.factoryLevel < factoryMin) factoryMin = p.factoryLevel;
+  });
+  assert.ok(factoryTotal >= 120, 'factoryTotal at least 120, got ' + factoryTotal);
+  assert.ok(factoryMin >= 1, 'factoryMin at least 1, got ' + factoryMin);
+
+  let railBuilt = 0;
+  s.edgeList.forEach(function (e) {
+    if (e.rail && !e.rail.converting && e.rail.daysLeft === 0) railBuilt++;
+  });
+  assert.ok(railBuilt >= 55, 'railBuilt at least 55, got ' + railBuilt);
+
+  assert.ok(s.units.length >= 160, 'units at least 160, got ' + s.units.length);
+  const damagedUnits = s.units.filter(function (u) { return u.strength < u.maxStrength; }).length;
+  assert.ok(damagedUnits >= 40, 'damagedUnits at least 40, got ' + damagedUnits);
+
+  var supply = {};
+  ['player', 'enemy'].forEach(function (nation) {
+    var per = Sim.computeSupply(s, nation) || {};
+    Object.keys(per).forEach(function (id) { supply[id] = per[id]; });
+  });
+  const outOfSupplyUnits = s.units.filter(function (u) {
+    var entry = supply[u.provinceId];
+    return !entry || !entry.supplied;
+  }).length;
+  assert.ok(outOfSupplyUnits >= 30, 'outOfSupplyUnits at least 30, got ' + outOfSupplyUnits);
+
+  const view = playerView(s);
+  const viewRemembered = view.provinces.filter(function (p) { return p.intel === 'remembered'; });
+  const viewDark = view.provinces.filter(function (p) { return p.intel === 'dark'; });
+  const CORNER_IDS = ['p0_0', 'p9_0', 'p0_6', 'p9_6'];
+  const rememberedCorner = viewRemembered.filter(function (p) { return CORNER_IDS.indexOf(p.id) !== -1; }).length;
+  const darkCorner = viewDark.filter(function (p) { return CORNER_IDS.indexOf(p.id) !== -1; }).length;
+  assert.ok(viewRemembered.length >= 8, 'remembered at least 8, got ' + viewRemembered.length);
+  assert.ok(rememberedCorner >= 1, 'remembered corner at least 1, got ' + rememberedCorner);
+  assert.ok(viewDark.length >= 12, 'dark at least 12, got ' + viewDark.length);
+  assert.ok(darkCorner >= 1, 'dark corner at least 1, got ' + darkCorner);
+});
