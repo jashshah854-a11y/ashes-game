@@ -8,20 +8,23 @@
 // DOM, the only readable surface, exactly as the player sees it.
 //
 // The run does not assume any particular day or tick at save time. After
-// clicking Save, the slot text is read back through page.evaluate, then
+// pausing and clicking Save, the slot text is read back through page.evaluate, then
 // deserialized in node with js/save.js. The expected day, tickCount, seed,
 // and player steel come from that artifact, and the notice assertion compares
 // against 'Saved. Day ' + day + ', seed ' + seed + '.' built from those
 // values. No expectation in the file assumes day 1 or tick 0.
 //
 // Checks, in order:
-// 1. Save to the browser slot (game running, no pause race): notice text and
-//    success style asserted against the artifact derived values; also assert
-//    the DOM steel at save time equals the deserialized player steel.
+// 1. Save to the browser slot: the game is paused for the save (any open card
+//    dismissed first), so no tick can land between the save and the reads of
+//    the notice, the slot artifact, and the DOM steel. Notice text and success
+//    style asserted against the artifact derived values; also assert the DOM
+//    steel at save time equals the deserialized player steel.
 // 2. Advance: ensureRunning, click speed 2, dismiss bursts, wait until the
 //    day counter reaches at least the saved day plus 4 (relative target),
 //    generous deadline.
-// 3. Load from the slot through clickWhenClear: poll for the Loaded notice,
+// 3. Speed 1 first, then load from the slot through clickWhenClear: poll for
+//    the Loaded notice,
 //    ensurePaused promptly, then assert the day counter equals the saved day
 //    and the DOM steel equals the saved steel; no event overlay visible;
 //    codex closed.
@@ -30,7 +33,8 @@
 //    savedSeed + '.json'; parse the envelope and assert saveVersion 3, seed
 //    equals savedSeed, and tick equals the saved tickCount; assert the
 //    envelope carries no filename or name field; deserialize in node is ok.
-//    Import through the real Import button and file chooser; poll for the
+//    Import (speed 1 still in force) through the real Import button and file
+//    chooser; poll for the
 //    notice and assert it equals 'Loaded from file. Day ' + savedDay + ', ' +
 //    savedNation + ', seed ' + savedSeed + '.'; ensurePaused promptly and
 //    assert the day counter equals the saved day. In a comment, state the margin honestly: the notice
@@ -76,13 +80,34 @@ async function pauseButtonText(page) {
 }
 
 // Click the Pause button only when the current state differs from the target.
+// Burst aware: an open card holds the pause and covers the button, so dismiss
+// it first, and click with a short timeout so a card that opens in between
+// costs one loop pass instead of a 30 s stall.
 async function ensureRunning(page) {
   while (true) {
+    await H.dismissBurst(page);
     const txt = await pauseButtonText(page);
     if (txt === 'Pause') return; // already running
-    await page.click('#btn-pause');
+    try {
+      await page.click('#btn-pause', { timeout: 2000 });
+    } catch (e) { }
     await H.tryWait(async () => (await pauseButtonText(page)) === 'Pause', 500);
   }
+}
+
+// Pause with no card open. A card pauses the game too (the button reads
+// Resume under it), so dismiss first; once the button reads Resume with the
+// overlay hidden, the pause is the player's own and no tick can run.
+async function ensurePausedClear(page) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    await H.dismissBurst(page);
+    if (!(await page.isVisible('#event-overlay')) && (await pauseButtonText(page)) === 'Resume') return;
+    try {
+      await page.click('#btn-pause', { timeout: 2000 });
+    } catch (e) { }
+    await H.tryWait(async () => (await pauseButtonText(page)) === 'Resume', 500);
+  }
+  throw new Error('ensurePausedClear: never reached a clear paused state');
 }
 
 (async () => {
@@ -96,13 +121,15 @@ async function ensureRunning(page) {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
 
-    // Start with the game running (do not pause on load). The first save will
-    // capture whatever day and tick the sim has reached by the time the Save
-    // handler runs. All expectations derive from the saved artifact.
+    // Start with the game running, then pause for the save. The save captures
+    // whatever day and tick the sim has reached when the pause lands. All
+    // expectations derive from the saved artifact.
     await ensureRunning(page);
 
-    // 1. Save to the browser slot (game running, no pause race).
-    await page.click('#btn-save-slot');
+    // 1. Save to the browser slot, paused, so no tick lands between the save
+    // and the reads below.
+    await ensurePausedClear(page);
+    await H.clickWhenClear(page, '#btn-save-slot');
     const saveMsg = (await page.textContent('#save-notice')).trim();
     const slotText = await page.evaluate((key) => localStorage.getItem(key), SAVE_SLOT_KEY);
     const deser = Save.deserializeSave(slotText);
@@ -124,7 +151,7 @@ async function ensureRunning(page) {
 
     // 2. Advance to at least savedDay + 4, dismissing any card through Continue.
     await ensureRunning(page);
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page, '#btn-speed2');
     const advanceDeadline = Date.now() + 120000;
     let dayNow = await dayCounter(page);
     const targetDay = savedDay + 4;
@@ -136,6 +163,10 @@ async function ensureRunning(page) {
     check('Advance: the campaign reached at least saved day plus 4', dayNow >= targetDay, 'day ' + dayNow + ' target ' + targetDay);
 
     // 3. Load it back: day equals savedDay, same steel as right after the save.
+    // Margin, stated honestly: the load restarts the timer, so at speed 1 the
+    // first post load tick is a full 900 ms interval away, and the prompt pause
+    // below lands inside that window. Day and steel are then read while paused.
+    await H.clickWhenClear(page, '#btn-speed1');
     await H.clickWhenClear(page, '#btn-load-slot');
     // Poll for the Loaded notice text to appear.
     const loadNoticed = await H.waitFor(page, async () => {
@@ -156,7 +187,7 @@ async function ensureRunning(page) {
     // 4. The file round trip, taken while the restored campaign sits paused.
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('#btn-export')
+      H.clickWhenClear(page, '#btn-export')
     ]);
     const exportPath = await download.path();
     const exportText = fs.readFileSync(exportPath, 'utf8');
@@ -177,11 +208,12 @@ async function ensureRunning(page) {
 
     // Import that same file through the real Import button and file chooser.
     // The notice is written in the same handler that swaps the state, so it is
-    // exact. The day read happens after a prompt pause at speed 1, inside one
-    // 900 ms tick window.
+    // exact. Speed 1 is still in force from the load above, so the timer the
+    // import restarts gives a full 900 ms window; the prompt pause lands inside
+    // it and the day is read while paused.
     const [chooser] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.click('#btn-import')
+      H.clickWhenClear(page, '#btn-import')
     ]);
     await chooser.setFiles(exportPath);
     const importNoticed = await H.waitFor(page, async () =>
@@ -191,12 +223,13 @@ async function ensureRunning(page) {
     check('Import: the notice says loaded from file with saved day and seed',
       importNoticed && importMsg === expectedImportNotice, importMsg);
     await H.ensurePaused(page);
+    const dayAfterImport = await dayCounter(page);
     check('Import: the day counter equals the saved day',
-      (await dayCounter(page)) === savedDay, 'day ' + await dayCounter(page));
+      dayAfterImport === savedDay, 'day ' + dayAfterImport);
 
     // Back to running at speed 2 for the corrupted slot check.
     await ensureRunning(page);
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page, '#btn-speed2');
 
     // 5. A corrupted slot: plain error, and the game keeps running.
     await page.evaluate((key) => { localStorage.setItem(key, 'not a save at all'); }, SAVE_SLOT_KEY);

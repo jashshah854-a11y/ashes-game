@@ -13,6 +13,13 @@
 // and player nation name come from that artifact, and notice assertions are
 // built from those values. No expectation in the file assumes day 1 or tick 0.
 //
+// Every button click that can sit under the event overlay (a lore card
+// covers the page and holds the pause) goes through H.clickWhenClear, which
+// dismisses any open card first and clicks with a short timeout. Each load or
+// import whose day is asserted runs at speed 1: the load restarts the timer,
+// so the first post load tick is a full 900 ms interval away, and the prompt
+// pause after the notice lands inside that window before the day is read.
+//
 // Checks, in order:
 // 1. Contents: the save-contents element text mentions the cost exchange
 //    ledger, the intel snapshots, production lines and queues, and both
@@ -27,10 +34,11 @@
 //    "Browser slot: Day " + day + ", " + nation name + ", saved at " + a time
 //    text that contains a colon; assert the meta starts with that prefix shape
 //    and contains a colon after "saved at".
-// 5. Post load confirmation: advance at least 3 days, load from the slot
-//    through the real button, poll for the notice, and assert it equals
-//    "Loaded. Day " + savedDay + ", " + savedNation + ", seed " + savedSeed
-//    + "." and the day counter equals the saved day after a prompt pause.
+// 5. Post load confirmation: advance at least 3 days, put speed 1 in force,
+//    load from the slot through the real button, poll for the notice, pause
+//    promptly, and assert it equals "Loaded. Day " + savedDay + ", " +
+//    savedNation + ", seed " + savedSeed + "." and the day counter read while
+//    paused equals the saved day.
 // 6. Browser continuation through main.js: after that load, run at speed 1
 //    and see the day advance at least 1, then click speed 2 and see the day
 //    advance at least 1 more, dismissing event cards through Continue; this
@@ -59,18 +67,22 @@
 //     file, so nothing was loaded. Your current game keeps running.", then
 //     restore the real FileReader. To get a valid file, export one first
 //     through the real Export button and the download event.
-// 12. Re-import: import that exported file, note the Loaded from file notice
-//     with nation, advance at least 3 days, import the same file again
-//     through the chooser, assert the Loaded from file notice appears again
-//     with the saved day and the day counter returns to the saved day after a
-//     prompt pause. This pins the input reset.
+// 12. Re-import: at speed 1, import that exported file, pause promptly after
+//     the Loaded from file notice, and assert the notice with nation and the
+//     day read while paused; advance at least 3 days, save, put speed 1 back
+//     in force, import the same file again through the chooser, assert the
+//     Loaded from file notice appears again with the saved day and, after a
+//     prompt pause, the day counter returns to the saved day. This pins the
+//     input reset.
 // 13. History validation: prove three malformed history cases through the
 //     browser slot path. For each case, take the current valid slot save,
 //     mutate the history (not a list; a snapshot field as text; snapshot days
 //     not starting at 1 or not increasing), recompute the checksum, write the
 //     mutated envelope to the slot, click Load, and assert the notice starts
 //     with the exact damage prefix, has the error style, and does not start
-//     with Loaded. Each case is its own check.
+//     with Loaded. Each case is its own check. Case 4 first advances to day
+//     31 at speed 2 under a stored 120 s deadline so the save holds two
+//     snapshots.
 // 14. Broken labels: the save card texts checked contain no undefined, NaN,
 //     or [object.
 // 15. No page errors.
@@ -105,11 +117,17 @@ async function pauseButtonText(page) {
   return (await page.textContent('#btn-pause')).trim();
 }
 
+// Burst aware: an open card holds the pause and covers the button, so dismiss
+// it first, and click with a short timeout so a card that opens in between
+// costs one loop pass instead of a 30 s stall.
 async function ensureRunning(page) {
   while (true) {
+    await H.dismissBurst(page);
     const txt = await pauseButtonText(page);
     if (txt === 'Pause') return;
-    await page.click('#btn-pause');
+    try {
+      await page.click('#btn-pause', { timeout: 2000 });
+    } catch (e) { }
     await H.tryWait(async () => (await pauseButtonText(page)) === 'Pause', 500);
   }
 }
@@ -184,7 +202,7 @@ function checkTextNoBrokenLabels(text) {
     // text that contains a colon; assert the meta starts with that prefix shape
     // and contains a colon after "saved at".
     await ensureRunning(page);
-    await page.click('#btn-save-slot');
+    await H.clickWhenClear(page, '#btn-save-slot');
     await H.tryWait(async () => (await readSlotText(page)) !== null, 2000);
     const slotText = await readSlotText(page);
     const deser = Save.deserializeSave(slotText);
@@ -205,7 +223,7 @@ function checkTextNoBrokenLabels(text) {
     // "Loaded. Day " + savedDay + ", " + savedNation + ", seed " + savedSeed
     // + "." and the day counter equals the saved day after a prompt pause.
     await ensureRunning(page);
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page, '#btn-speed2');
     const advanceDeadline = Date.now() + 120000;
     let dayNow = await dayCounter(page);
     const targetDay = savedDay + 3;
@@ -218,6 +236,9 @@ function checkTextNoBrokenLabels(text) {
       'day ' + dayNow + ' target ' + targetDay);
 
     const savedSeed = savedState.seed;
+    // Speed 1 first: the load restarts the timer, so the first post load
+    // tick is a full 900 ms away and the prompt pause lands inside it.
+    await H.clickWhenClear(page, '#btn-speed1');
     await H.clickWhenClear(page, '#btn-load-slot');
     const loadNoticed = await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
@@ -236,7 +257,7 @@ function checkTextNoBrokenLabels(text) {
     // 1 and see the day advance at least 1, then click speed 2 and see the
     // day advance at least 1 more, dismissing event cards through Continue.
     await ensureRunning(page);
-    await page.click('#btn-speed1');
+    await H.clickWhenClear(page, '#btn-speed1');
     const dayBeforeSpeed1 = await dayCounter(page);
     let advanced1 = await H.waitFor(page, async () => {
       await H.dismissBurst(page);
@@ -245,7 +266,7 @@ function checkTextNoBrokenLabels(text) {
     check('Continuation at speed 1: day advanced at least 1', advanced1,
       'held at day ' + dayBeforeSpeed1);
 
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page, '#btn-speed2');
     const dayBeforeSpeed2 = await dayCounter(page);
     let advanced2 = await H.waitFor(page, async () => {
       await H.dismissBurst(page);
@@ -271,7 +292,7 @@ function checkTextNoBrokenLabels(text) {
         return window._originalSetItem.call(this, key, value);
       };
     });
-    await page.click('#btn-save-slot');
+    await H.clickWhenClear(page, '#btn-save-slot');
     await H.tryWait(async () => (await getSaveNotice(page)).length > 0, 2000);
     const quotaMsg = await getSaveNotice(page);
     const quotaClass = await getSaveNoticeClass(page);
@@ -313,7 +334,7 @@ function checkTextNoBrokenLabels(text) {
     fs.writeFileSync(emptyPath, emptyFile);
     const [emptyChooser] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.click('#btn-import')
+      H.clickWhenClear(page, '#btn-import')
     ]);
     await emptyChooser.setFiles({ name: 'empty.json', mimeType: 'application/json', buffer: emptyFile });
     await H.waitFor(page, async () => {
@@ -334,7 +355,7 @@ function checkTextNoBrokenLabels(text) {
     fs.writeFileSync(binaryPath, binaryBuffer);
     const [binaryChooser] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.click('#btn-import')
+      H.clickWhenClear(page, '#btn-import')
     ]);
     const noticeBeforeBinary = await getSaveNotice(page);
     await binaryChooser.setFiles({ name: 'binary.json', mimeType: 'application/json', buffer: binaryBuffer });
@@ -352,7 +373,7 @@ function checkTextNoBrokenLabels(text) {
     check('Binary file: notice is styled as error', binaryClass === 'save-notice-error', binaryClass);
     // Game still runs: ensure running at speed 2 and day advances
     await ensureRunning(page);
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page, '#btn-speed2');
     const dayBeforeBinary = await dayCounter(page);
     let binaryRuns = await H.waitFor(page, async () => {
       await H.dismissBurst(page);
@@ -383,12 +404,12 @@ function checkTextNoBrokenLabels(text) {
     // Export a valid file first
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('#btn-export')
+      H.clickWhenClear(page, '#btn-export')
     ]);
     const exportPath = await download.path();
     const [frChooser] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.click('#btn-import')
+      H.clickWhenClear(page, '#btn-import')
     ]);
     await frChooser.setFiles(exportPath);
     const expectedFrMsg = 'The browser could not read that file, so nothing was loaded. Your current game keeps running.';
@@ -408,16 +429,19 @@ function checkTextNoBrokenLabels(text) {
     // notice with nation, advance at least 3 days, import the same file
     // again through the chooser, assert the Loaded from file notice appears
     // again with the saved day and the day counter returns to the saved day
-    // after a prompt pause. This pins the input reset.
+    // after a prompt pause. This pins the input reset. Speed 1 first so the
+    // timer the import restarts gives the 900 ms window for the pause.
+    await H.clickWhenClear(page, '#btn-speed1');
     const [reImportChooser] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.click('#btn-import')
+      H.clickWhenClear(page, '#btn-import')
     ]);
     await reImportChooser.setFiles(exportPath);
     await H.waitFor(page, async () => {
       const t = (await page.textContent('#save-notice')).trim();
       return t.indexOf('Loaded from file') === 0;
     }, 3000);
+    await H.ensurePaused(page);
     const reImportMsg = await getSaveNotice(page);
     const deserExport = Save.deserializeSave(fs.readFileSync(exportPath, 'utf8'));
     const exportDay = deserExport.state.day;
@@ -426,14 +450,13 @@ function checkTextNoBrokenLabels(text) {
     const expectedReImportMsg = 'Loaded from file. Day ' + exportDay + ', ' + exportNation + ', seed ' + exportSeed + '.';
     check('Re-import first load: notice matches expected loaded from file', reImportMsg === expectedReImportMsg,
       'got: ' + reImportMsg + ' expected: ' + expectedReImportMsg);
-    await H.ensurePaused(page);
     const dayAfterFirstImport = await dayCounter(page);
     check('Re-import first load: day counter equals saved day', dayAfterFirstImport === exportDay,
       'day ' + dayAfterFirstImport + ' expected ' + exportDay);
 
     // Advance at least 3 days
     await ensureRunning(page);
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page, '#btn-speed2');
     const advanceDeadline2 = Date.now() + 120000;
     let dayNow2 = await dayCounter(page);
     const targetDay2 = exportDay + 3;
@@ -448,10 +471,11 @@ function checkTextNoBrokenLabels(text) {
     // Import the same file again. Save first so the notice holds Saved, not
     // the first import's text: the poll below can then only pass on a Loaded
     // from file notice written by this second import.
-    await page.click('#btn-save-slot');
+    await H.clickWhenClear(page, '#btn-save-slot');
+    await H.clickWhenClear(page, '#btn-speed1');
     const [reImportChooser2] = await Promise.all([
       page.waitForEvent('filechooser'),
-      page.click('#btn-import')
+      H.clickWhenClear(page, '#btn-import')
     ]);
     await reImportChooser2.setFiles(exportPath);
     const secondImportNoticed = await H.waitFor(page, async () =>
@@ -475,7 +499,7 @@ function checkTextNoBrokenLabels(text) {
     // Save a valid game to the slot first, to have a clean baseline for each case.
     async function saveValidSlot() {
       await ensureRunning(page);
-      await page.click('#btn-save-slot');
+      await H.clickWhenClear(page, '#btn-save-slot');
       await H.tryWait(async () => (await readSlotText(page)) !== null, 2000);
     }
     // Read the current slot, mutate it with the given function, write it back,
@@ -541,9 +565,10 @@ function checkTextNoBrokenLabels(text) {
     // Case 4: snapshot days not strictly increasing (second day <= first day)
     // This requires a save with at least 2 snapshots. Tick until we have 2.
     await ensureRunning(page);
-    await page.click('#btn-speed2');
+    await H.clickWhenClear(page, '#btn-speed2');
     let dayForTwoSnaps = await dayCounter(page);
-    while (dayForTwoSnaps < 31 && Date.now() < Date.now() + 120000) {
+    const deadline = Date.now() + 120000;
+    while (dayForTwoSnaps < 31 && Date.now() < deadline) {
       await H.dismissBurst(page);
       dayForTwoSnaps = await dayCounter(page);
       if (dayForTwoSnaps < 31) await H.tryWait(async () => (await dayCounter(page)) >= 31, 200);
