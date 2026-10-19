@@ -216,11 +216,37 @@
     return { byCell: byCell, polygons: polygons, neighbours: neighbours };
   }
 
+  // Single entry memo cache. The chart is a pure function of the static map
+  // layout (province polygons, cell positions, coastal flags, edge paths), and
+  // buildChart runs on every render, so a repeat call with the same layout
+  // returns the SAME chart object. Callers (js/main.js, js/map-canvas.js)
+  // treat the chart as read only, so sharing the object is safe; do not
+  // mutate a returned chart.
+  var chartCache = null;
+
+  // Layout key: chartSeed plus each province's id, x, y, and coastal flag
+  // in geom.provinces order.
+  function chartLayoutKey(geom, chartSeed) {
+    var parts = [String(chartSeed)];
+    geom.provinces.forEach(function (p) {
+      parts.push(p.id + ',' + p.x + ',' + p.y + ',' + (p.coastal ? 1 : 0));
+    });
+    return parts.join('|');
+  }
+
   function buildChart(geom) {
+    var chartSeed = computeChartSeed(geom);
+    var key = chartLayoutKey(geom, chartSeed);
+    if (chartCache && chartCache.key === key) return chartCache.chart;
+    var chart = computeChart(geom, chartSeed);
+    chartCache = { key: key, chart: chart };
+    return chart;
+  }
+
+  function computeChart(geom, chartSeed) {
     var W = geom.mapW;
     var H = geom.mapH;
     var L = 2 * (W + H);
-    var chartSeed = computeChartSeed(geom);
     var N = makeNoise(chartSeed, L);
 
     var extent = {
