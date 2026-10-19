@@ -266,24 +266,16 @@
     return lookup;
   }
 
-  // Check if a polygon segment lies exactly on the map boundary.
-  function isBoundarySegment(p1, p2, mapW, mapH) {
-    // x===0 or x===mapW or y===0 or y===mapH
-    var eps = 1e-9;
-    var onLeft = Math.abs(p1.x) < eps && Math.abs(p2.x) < eps;
-    var onRight = Math.abs(p1.x - mapW) < eps && Math.abs(p2.x - mapW) < eps;
-    var onTop = Math.abs(p1.y) < eps && Math.abs(p2.y) < eps;
-    var onBottom = Math.abs(p1.y - mapH) < eps && Math.abs(p2.y - mapH) < eps;
-    return onLeft || onRight || onTop || onBottom;
-  }
-
   // Build state operations from geometry and view.
   // Rules:
+  // - For each province with known owner: emit one fill op (drawn first, at FILL_ALPHA).
   // - For each edge where BOTH owners known and different: emit front op, then band ops for both sides.
   // - For each edge where EXACTLY ONE owner known: emit band op for known side only.
-  // - For each province with known owner, for each polygon segment on map boundary: emit band op.
+  // - For each province with known owner, for each side on the lattice boundary: emit band op.
+  //   Boundary membership comes from the pre-jitter lattice cell (p.x, p.y), never from
+  //   the jittered polygon coordinates (Cycle 23 Step 7c).
   // - Same-owner edges and unknown-unknown edges emit nothing.
-  // - Sorted by province id then edge a then b.
+  // - Sorted fills, then bands, then fronts; by province id, then edge a then b.
   function buildStateOps(geom, view) {
     var ops = [];
     var ownerLookup = buildOwnerLookup(view);
@@ -307,6 +299,13 @@
       }
       return flat;
     }
+
+    // 0. One ownership fill per province with a known owner (Cycle 23 Step 7c)
+    geom.provinces.forEach(function (p) {
+      var owner = ownerLookup[p.id];
+      if (!owner) return;
+      ops.push({ kind: 'fill', provinceId: p.id, owner: owner, polygon: polygonToFlat(p.polygon) });
+    });
 
     // 1. Process interior edges (from geom.edges)
     geom.edges.forEach(function (e) {
@@ -347,15 +346,16 @@
 
       // Polygon has 8 points: TL(0), topMid(1), TR(2), rightMid(3), BR(4), bottomMid(5), BL(6), leftMid(7)
       // Segments: 0-1 (top), 2-3 (right), 4-5 (bottom), 6-7 (left)
+      // A side is on the map boundary when its lattice cell sits on that edge of the grid.
       var segments = [
-        { p1: poly[0], p2: poly[1] }, // top
-        { p1: poly[2], p2: poly[3] }, // right
-        { p1: poly[4], p2: poly[5] }, // bottom
-        { p1: poly[6], p2: poly[7] }  // left
+        { p1: poly[0], p2: poly[1], onBoundary: p.y === 0 },             // top
+        { p1: poly[2], p2: poly[3], onBoundary: p.x === geom.mapW - 1 }, // right
+        { p1: poly[4], p2: poly[5], onBoundary: p.y === geom.mapH - 1 }, // bottom
+        { p1: poly[6], p2: poly[7], onBoundary: p.x === 0 }              // left
       ];
 
       segments.forEach(function (seg) {
-        if (isBoundarySegment(seg.p1, seg.p2, geom.mapW, geom.mapH)) {
+        if (seg.onBoundary) {
           var key = p.id + ':' + seg.p1.x.toFixed(4) + ',' + seg.p1.y.toFixed(4) + '-' + seg.p2.x.toFixed(4) + ',' + seg.p2.y.toFixed(4);
           if (!seenBoundary[key]) {
             seenBoundary[key] = true;
@@ -370,16 +370,15 @@
     // Actually: front ops have a,b; band ops have provinceId. Sort by provinceId for bands, by a then b for fronts.
     // But we built them in order already: edges in geom.edges order (which comes from view.edges sorted), then boundary segments in province order.
     // This should be deterministic. Let's ensure a stable sort.
+    // Fills sort first so they draw under every band and front.
+    var KIND_RANK = { fill: 0, band: 1, front: 2 };
     ops.sort(function (a, b) {
-      if (a.kind === 'front' && b.kind === 'front') {
+      if (a.kind !== b.kind) return KIND_RANK[a.kind] - KIND_RANK[b.kind];
+      if (a.kind === 'front') {
         if (a.a !== b.a) return a.a.localeCompare(b.a);
         return a.b.localeCompare(b.b);
       }
-      if (a.kind === 'band' && b.kind === 'band') {
-        return a.provinceId.localeCompare(b.provinceId);
-      }
-      // Put bands before fronts for consistent grouping
-      return a.kind === 'band' ? -1 : 1;
+      return a.provinceId.localeCompare(b.provinceId);
     });
 
     return ops;
@@ -399,6 +398,23 @@
     var frontW = 0.025 * scaleX;
 
     ctx.lineJoin = 'round';
+
+    // Ownership fills first, under every band and front (Cycle 23 Step 7c).
+    ops.forEach(function (op) {
+      if (op.kind !== 'fill') return;
+      var polygon = op.polygon;
+      if (polygon.length < 6) return;
+      ctx.beginPath();
+      ctx.moveTo(polygon[0] * scaleX, polygon[1] * scaleY);
+      for (var i = 2; i < polygon.length; i += 2) {
+        ctx.lineTo(polygon[i] * scaleX, polygon[i + 1] * scaleY);
+      }
+      ctx.closePath();
+      ctx.fillStyle = (op.owner === 'player') ? PLAYER_COLOR : ENEMY_COLOR;
+      ctx.globalAlpha = FILL_ALPHA;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
 
     ops.forEach(function (op) {
       if (op.kind === 'front') {

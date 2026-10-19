@@ -1,5 +1,5 @@
 'use strict';
-// Ashes of Empires, Cycle 23 Step 7a, ownership layer browser check.
+// Ashes of Empires, Cycle 23 Step 7a, ownership layer browser check (Step 7c adds fill checks).
 // Proves: #map-state canvas exists, debug counts, pixel sampling, redraw discipline.
 // Pattern from tools/map-canvas-check.js.
 // Uses playwright-core from PLAYWRIGHT env var and Chromium from CHROME env var.
@@ -32,6 +32,21 @@ async function main() {
   const state = Sim.createGame(42);
   const view = playerView(state);
   const geom = MapGeom.buildGeometry(view);
+
+  // Cycle 23 Step 7c: fill count and one live player and one live enemy province centre.
+  const ownerLookup = {};
+  view.provinces.forEach(function (p) {
+    if (p.intel === 'live' && (p.owner === 'player' || p.owner === 'enemy')) ownerLookup[p.id] = p.owner;
+  });
+  const expectedFills = Object.keys(ownerLookup).length;
+  const playerProv = geom.provinces.find(function (p) { return ownerLookup[p.id] === 'player'; });
+  const enemyProv = geom.provinces.find(function (p) { return ownerLookup[p.id] === 'enemy'; });
+  const centres = {
+    mapW: geom.mapW,
+    mapH: geom.mapH,
+    player: { id: playerProv.id, x: playerProv.center.x, y: playerProv.center.y },
+    enemy: { id: enemyProv.id, x: enemyProv.center.x, y: enemyProv.center.y }
+  };
 
   // ---------- Browser part ----------
   if (!PW) throw new Error('Playwright not found; set PLAYWRIGHT to its path');
@@ -108,6 +123,41 @@ async function main() {
     });
     check('browser: at least 100 strongly blue pixels', pixelCounts.blueCount >= 100, 'blue=' + pixelCounts.blueCount);
     check('browser: at least 100 strongly red pixels', pixelCounts.redCount >= 100, 'red=' + pixelCounts.redCount);
+
+    // Cycle 23 Step 7c: fill ops count, faint interior fill pixels, transparent live owner tiles
+    check('browser: AshesStateDebug.fillOps equals node fill count', dbg.fillOps === expectedFills, 'fillOps=' + dbg.fillOps + ' expected=' + expectedFills);
+
+    const centrePx = await page.evaluate((c) => {
+      const cv = document.getElementById('map-state');
+      const ctx = cv.getContext('2d');
+      function sample(pt) {
+        const px = Math.floor(pt.x * cv.width / c.mapW);
+        const py = Math.floor(pt.y * cv.height / c.mapH);
+        const d = ctx.getImageData(px, py, 1, 1).data;
+        return { px: px, py: py, r: d[0], g: d[1], b: d[2], a: d[3] };
+      }
+      return { player: sample(c.player), enemy: sample(c.enemy) };
+    }, centres);
+    const pc = centrePx.player;
+    const ec = centrePx.enemy;
+    check('browser: player province centre pixel is the faint blue fill',
+      pc.a > 0 && pc.a <= 40 && pc.b > pc.r,
+      centres.player.id + ' at ' + pc.px + ',' + pc.py + ' rgba=' + pc.r + ',' + pc.g + ',' + pc.b + ',' + pc.a);
+    check('browser: enemy province centre pixel is the faint red fill',
+      ec.a > 0 && ec.a <= 40 && ec.r > ec.b,
+      centres.enemy.id + ' at ' + ec.px + ',' + ec.py + ' rgba=' + ec.r + ',' + ec.g + ',' + ec.b + ',' + ec.a);
+
+    const tileBg = await page.evaluate(() => {
+      const pt = document.querySelector('.province.owner-player.intel-live');
+      const et = document.querySelector('.province.owner-enemy.intel-live');
+      return {
+        player: pt ? window.getComputedStyle(pt).backgroundColor : null,
+        enemy: et ? window.getComputedStyle(et).backgroundColor : null
+      };
+    });
+    check('browser: live owner tile background is fully transparent',
+      tileBg.player === 'rgba(0, 0, 0, 0)' && tileBg.enemy === 'rgba(0, 0, 0, 0)',
+      'player=' + tileBg.player + ' enemy=' + tileBg.enemy);
 
     // 4. Redraw discipline: read drawCount, click three different province tiles, read drawCount again, assert equal
     const drawCountBefore = await page.evaluate(() => window.AshesStateDebug.drawCount);

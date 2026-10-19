@@ -222,6 +222,7 @@
 
     var bandOps = ops.filter(function (op) { return op.kind === 'band'; }).length;
     var frontOps = ops.filter(function (op) { return op.kind === 'front'; }).length;
+    var fillOps = ops.filter(function (op) { return op.kind === 'fill'; }).length;
 
     // If hash matches and canvas size matches, do nothing
     if (stateFingerprint === hash && el.mapState &&
@@ -230,7 +231,8 @@
         hash: hash,
         drawCount: stateDrawCount,
         bandOps: bandOps,
-        frontOps: frontOps
+        frontOps: frontOps,
+        fillOps: fillOps
       };
       return;
     }
@@ -254,7 +256,8 @@
       hash: hash,
       drawCount: stateDrawCount,
       bandOps: bandOps,
-      frontOps: frontOps
+      frontOps: frontOps,
+      fillOps: fillOps
     };
   }
 

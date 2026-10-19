@@ -836,36 +836,74 @@ test('state ops: on fresh seed 42, band ops exist for both owners; every band op
       expectedBands += 1; // only b
     }
   });
-  // Boundary segments
-  var seenBoundary = {};
+  var interiorBands = expectedBands;
+  // Boundary sides, from the pre-jitter lattice cell only (Cycle 23 Step 7c):
+  // one per side of a known-owner province that sits on the grid edge.
+  var expectedBoundary = 0;
   geom.provinces.forEach(function (p) {
-    var owner = ownerLookup[p.id];
-    if (!owner) return;
-    var poly = p.polygon;
-    var segments = [
-      { p1: poly[0], p2: poly[1] }, // top
-      { p1: poly[2], p2: poly[3] }, // right
-      { p1: poly[4], p2: poly[5] }, // bottom
-      { p1: poly[6], p2: poly[7] }  // left
-    ];
-    segments.forEach(function (seg) {
-      var eps = 1e-9;
-      var onLeft = Math.abs(seg.p1.x) < eps && Math.abs(seg.p2.x) < eps;
-      var onRight = Math.abs(seg.p1.x - geom.mapW) < eps && Math.abs(seg.p2.x - geom.mapW) < eps;
-      var onTop = Math.abs(seg.p1.y) < eps && Math.abs(seg.p2.y) < eps;
-      var onBottom = Math.abs(seg.p1.y - geom.mapH) < eps && Math.abs(seg.p2.y - geom.mapH) < eps;
-      if (onLeft || onRight || onTop || onBottom) {
-        var key = p.id + ':' + seg.p1.x.toFixed(4) + ',' + seg.p1.y.toFixed(4) + '-' + seg.p2.x.toFixed(4) + ',' + seg.p2.y.toFixed(4);
-        if (!seenBoundary[key]) {
-          seenBoundary[key] = true;
-          expectedBands++;
-        }
-      }
-    });
+    if (!ownerLookup[p.id]) return;
+    if (p.y === 0) expectedBoundary++;
+    if (p.x === geom.mapW - 1) expectedBoundary++;
+    if (p.y === geom.mapH - 1) expectedBoundary++;
+    if (p.x === 0) expectedBoundary++;
   });
+  expectedBands += expectedBoundary;
 
   var bandOps = ops.filter(function (op) { return op.kind === 'band'; });
   assert.strictEqual(bandOps.length, expectedBands, 'band ops ' + bandOps.length + ' vs expected ' + expectedBands);
+
+  // Positive boundary assertion: the boundary bands implied by the built ops are present
+  var builtBoundary = bandOps.length - interiorBands;
+  assert.ok(builtBoundary > 0, 'boundary bands on seed 42 must be greater than 0: ' + builtBoundary);
+  assert.strictEqual(builtBoundary, expectedBoundary, 'boundary bands ' + builtBoundary + ' vs lattice expected ' + expectedBoundary);
+});
+
+test('state ops: fill ops on fresh seed 42, one per live known-owner province, polygon matches geometry, none for remembered or dark (Cycle 23 Step 7c)', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildStateOps(geom, view);
+
+  var viewById = {};
+  view.provinces.forEach(function (p) { viewById[p.id] = p; });
+  var geomById = {};
+  geom.provinces.forEach(function (p) { geomById[p.id] = p; });
+
+  var expectedFills = view.provinces.filter(function (p) {
+    return p.intel === 'live' && (p.owner === 'player' || p.owner === 'enemy');
+  }).length;
+  var fillOps = ops.filter(function (op) { return op.kind === 'fill'; });
+  assert.ok(expectedFills > 0, 'seed 42 has live known-owner provinces');
+  assert.strictEqual(fillOps.length, expectedFills, 'fill ops ' + fillOps.length + ' vs expected ' + expectedFills);
+
+  var seen = {};
+  fillOps.forEach(function (op) {
+    var vp = viewById[op.provinceId];
+    assert.ok(vp, 'fill op province exists in view: ' + op.provinceId);
+    assert.strictEqual(vp.intel, 'live', 'fill op province live: ' + op.provinceId);
+    assert.strictEqual(op.owner, vp.owner, 'fill op owner matches view for ' + op.provinceId);
+    assert.ok(op.owner === 'player' || op.owner === 'enemy', 'fill op owner known for ' + op.provinceId);
+    assert.ok(!seen[op.provinceId], 'one fill op per province: ' + op.provinceId);
+    seen[op.provinceId] = true;
+    var flat = [];
+    geomById[op.provinceId].polygon.forEach(function (pt) { flat.push(pt.x, pt.y); });
+    assert.deepStrictEqual(op.polygon, flat, 'fill polygon equals flattened geometry polygon for ' + op.provinceId);
+  });
+
+  view.provinces.forEach(function (p) {
+    if (p.intel === 'remembered' || p.intel === 'dark') {
+      assert.ok(!seen[p.id], 'no fill op for remembered or dark province ' + p.id);
+    }
+  });
+
+  // Fills sort ahead of every band and front so they draw underneath
+  var lastFill = -1;
+  var firstOther = ops.length;
+  ops.forEach(function (op, idx) {
+    if (op.kind === 'fill') lastFill = idx;
+    else if (idx < firstOther) firstOther = idx;
+  });
+  assert.ok(lastFill < firstOther, 'fill ops precede band and front ops');
 });
 
 test('state ops: determinism - two buildStateOps calls produce identical hash; flipped owner produces different hash', () => {
