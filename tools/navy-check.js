@@ -15,8 +15,9 @@
 // troops and there are no invasions; a production row offers a
 // Retool to Flotilla button and the summary names the flotilla
 // stock; every coastal tile carries the coast badge and no tile
-// carries a flotilla badge; the river edge east of the front
-// province draws an unsupported river bar; the province card for an
+// carries a flotilla badge; no tile draws a river bar (retired in
+// Cycle 23 Step 12b) and the river edge east of the front province is
+// unsupported by the readout; the province card for an
 // owned coastal province states its coastal and river status, that
 // no flotilla is stationed, and offers the Deploy control naming
 // the province and the stock; an inland province that is neither
@@ -27,7 +28,8 @@
 // Run 2, checker edit stated plainly: the served js/sim.js wraps
 // createGame and stages two flotillas in the player's stockpile.
 // Deploying one on the front river province through the real
-// control stations it (badge on the tile, supported river bar, the
+// control stations it (badge on the tile, the crossing supported by
+// the readout with no tile river bar, the
 // card stating the station and the supported crossing, and the
 // preview now stating the penalty does not apply at full attack);
 // deploying the second on an owned coastal province through the
@@ -70,8 +72,7 @@ async function tile(page, id) {
     return {
       text: t.textContent.replace(/\s+/g, ' ').trim(),
       coast: !!t.querySelector('.coast-badge'),
-      flotilla: Array.prototype.map.call(t.querySelectorAll('.flotilla-badge'), (b) => b.textContent.replace(/\s+/g, ' ').trim()),
-      riverBars: Array.prototype.map.call(t.querySelectorAll('.river-bar'), (b) => b.className)
+      flotilla: Array.prototype.map.call(t.querySelectorAll('.flotilla-badge'), (b) => b.textContent.replace(/\s+/g, ' ').trim())
     };
   }, id);
 }
@@ -155,10 +156,14 @@ async function tile(page, id) {
       coastCount === coastalIds.length, coastCount + ' badged of ' + coastalIds.length + ' coastal, of ' + total);
     check('no tile carries a flotilla badge before any flotilla is stationed',
       flotillaTiles === 0, String(flotillaTiles));
-    const frontTile = await tile(page, front);
-    check('the river edge east of the front province draws an unsupported river bar',
-      frontTile.riverBars.length === 1 && frontTile.riverBars[0].indexOf('supported') === -1,
-      frontTile.riverBars.join(','));
+    // Cycle 23 Step 12b: the tile river bars are retired. The base canvas has
+    // drawn the river since Step 10 and MAP_TREATMENT retires river as an edge
+    // style, so this check now asserts no tile carries a river bar while the
+    // staged crossing fact (unsupported at the start) still holds in the sim.
+    const riverBarsRun1 = await page.evaluate(() => document.querySelectorAll('#map .province .river-bar').length);
+    check('no tile draws a river bar (retired), and the river edge east of the front province is unsupported by the readout',
+      riverBarsRun1 === 0 && Sim.riverCrossingSupported(fresh, 'player', front, target) === false,
+      'riverBars=' + riverBarsRun1);
     await page.click('[data-prov="' + ownCoastal + '"]');
     let details = (await page.textContent('#prov-details')).replace(/\s+/g, ' ').trim();
     check('province card for an owned coastal province states its coastal and river status and that no flotilla is stationed',
@@ -212,10 +217,12 @@ async function tile(page, id) {
         (await tile(page, front)).flotilla.length === 1 &&
         (await tile(page, front)).flotilla[0] === 'Flotilla: Yours',
       (await tile(page, front)).text);
-    const frontTile2 = await tile(page, front);
-    check('the river bar for the stationed edge now draws in the supported style',
-      frontTile2.riverBars.length === 1 && frontTile2.riverBars[0].indexOf('supported') !== -1,
-      frontTile2.riverBars.join(','));
+    // Cycle 23 Step 12b: river bars retired (see run 1); the supported
+    // crossing is asserted through the sim readout on the mirror instead.
+    const riverBarsRun2 = await page.evaluate(() => document.querySelectorAll('#map .province .river-bar').length);
+    check('no tile draws a river bar (retired), and the stationed edge is supported by the readout',
+      riverBarsRun2 === 0 && Sim.riverCrossingSupported(mirror2, 'player', front, target) === true,
+      'riverBars=' + riverBarsRun2);
     details = (await page.textContent('#prov-details')).replace(/\s+/g, ' ').trim();
     check('the front province card now states the stationed flotilla and the supported crossing',
       details.indexOf('Flotilla: stationed here, yours') !== -1 &&

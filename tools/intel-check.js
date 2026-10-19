@@ -183,10 +183,17 @@ function plaqueKeys(state, provId) {
       map[capId].cls.indexOf('intel-dark') !== -1 && map[capId].cls.indexOf('owner-fog') !== -1 &&
         map[capId].cls.indexOf('owner-enemy') === -1,
       map[capId].cls);
+    // Cycle 23 Step 12b, MAP_TREATMENT 5.5: province names moved off the tiles
+    // onto #map-labels, so the name is asserted on its label (dark at 0.75).
+    const capLabel = await page.evaluate((id) => {
+      const node = document.querySelector('#map-labels .map-label[data-prov="' + id + '"]');
+      return node ? { text: node.textContent, opacity: getComputedStyle(node).opacity } : null;
+    }, String(capId));
     check('dark capital tile shows the map only: no badges, rail, or unit plaques, name and steel kept',
       map[capId].badges === 0 && map[capId].rail === 0 && map[capId].plaques.length === 0 &&
-        map[capId].text.indexOf(capName) !== -1 && map[capId].text.indexOf('Steel ' + fresh.provinces[capId].steel) !== -1,
-      map[capId].text);
+        capLabel !== null && capLabel.text === capName && capLabel.opacity === '0.75' &&
+        map[capId].text.indexOf('Steel ' + fresh.provinces[capId].steel) !== -1,
+      map[capId].text + ' label=' + JSON.stringify(capLabel));
     const frontKeys = plaqueKeys(fresh, front);
     const frontDomKeys = map[front].plaques.map((p) => p.nation + '|' + p.type + '|' + p.numeral).sort();
     check('live enemy tile shows its current unit plaques with numerals and no hollow plaques',

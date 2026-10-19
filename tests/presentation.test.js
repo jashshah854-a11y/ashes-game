@@ -1980,3 +1980,41 @@ test('border draw: dashed Ink at alpha 0.50, width 0.009 * scaleX, round cap, da
   assert.deepStrictEqual(dash, [], 'dash reset after the border pass');
   assert.strictEqual(ctx.globalAlpha, 1, 'alpha reset after the border pass');
 });
+
+// Cycle 23 Step 12b: the label reserves the province names sit on (MAP_TREATMENT 3.6 and 5.5).
+test('label reserves: one per province at the polygon vertex centroid lifted 0.30 cell, half axes 0.45 by 0.11', () => {
+  const view = playerView(Sim.createGame(42));
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const chart = AshesChart.buildChart(geom);
+  const reserves = chart.relief.labelReserves;
+  assert.strictEqual(reserves.length, geom.provinces.length, 'one reserve per province');
+  const byId = {};
+  reserves.forEach(function (lr) { byId[lr.id] = lr; });
+  assert.strictEqual(Object.keys(byId).length, geom.provinces.length, 'reserve ids are unique');
+  geom.provinces.forEach(function (p) {
+    const lr = byId[p.id];
+    assert.ok(lr, 'reserve for ' + p.id);
+    let cx = 0;
+    let cy = 0;
+    p.polygon.forEach(function (pt) { cx += pt.x; cy += pt.y; });
+    cx /= p.polygon.length;
+    cy /= p.polygon.length;
+    assert.ok(Math.abs(lr.x - cx) < 1e-9, p.id + ' reserve x at the centroid');
+    assert.ok(Math.abs(lr.y - (cy - 0.30)) < 1e-9, p.id + ' reserve y at the centroid lifted 0.30');
+    assert.strictEqual(lr.rx, 0.45, p.id + ' rx');
+    assert.strictEqual(lr.ry, 0.11, p.id + ' ry');
+  });
+});
+
+test('label wiring: #map-labels in index.html, registered in main.js, tile name line and river bars retired, Fell face and layer rule in style.css', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const main = fs.readFileSync(path.join(REPO_ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  assert.ok(html.indexOf('id="map-labels"') !== -1, 'index.html has the #map-labels layer');
+  assert.ok(main.indexOf("'map-labels'") !== -1, 'main.js registers map-labels');
+  assert.strictEqual(main.indexOf('class="pname"'), -1, 'tile name line retired');
+  assert.strictEqual(main.indexOf('riverBar'), -1, 'tile river bars retired');
+  assert.ok(/@font-face\s*\{[^}]*font-family:\s*"IM Fell English SC"[^}]*IMFellEnglishSC-Regular\.ttf/.test(css),
+    'style.css declares the IM Fell English SC face');
+  assert.ok(/#map-labels\s*\{/.test(css), 'style.css has a #map-labels rule');
+});

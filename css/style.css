@@ -45,38 +45,33 @@ main {
 .province {
   position: relative;
   min-height: 74px;
-  border: 1px solid rgba(0,0,0,0.55);
-  border-radius: 3px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   padding: 3px;
   cursor: pointer;
   font-size: 10px;
   overflow: hidden;
   text-align: left;
-  color: #f2ecd9;
+  color: #2B2620;
 }
-.province.owner-player { background: #33567d; }
-.province.owner-enemy { background: #7d3333; }
 .province.selected { outline: 3px solid #e8c87a; outline-offset: -1px; }
 .province.reachable { outline: 3px dashed #9fe08a; outline-offset: -3px; }
-.province .pname { display: block; font-size: 10px; opacity: 0.9; white-space: nowrap; overflow: hidden; }
-.province .capital-mark { color: #ffd94d; font-size: 13px; }
 .province .steel { opacity: 0.85; }
 .factory-badge {
   display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: 2px;
-  background: rgba(0,0,0,0.45); color: #e8c87a; font-weight: bold;
+  background: rgba(230, 216, 181, 0.92); color: #2B2620; border: 1px solid #2B2620; font-weight: bold;
 }
 .factory-badge.lvl1 { font-size: 10px; }
-.factory-badge.lvl2 { font-size: 12px; background: rgba(80,60,0,0.75); border: 1px solid #e8c87a; }
-.factory-badge.lvl3 { font-size: 14px; background: rgba(140,100,0,0.9); color: #fff2c4; border: 2px solid #fff2c4; }
+.factory-badge.lvl2 { font-size: 12px; }
+.factory-badge.lvl3 { font-size: 14px; border-width: 2px; background: rgb(230, 216, 181); }
 .units { position: absolute; bottom: 3px; left: 3px; right: 3px; display: flex; gap: 3px; flex-wrap: wrap; }
 .unit-chip {
-  font-size: 10px; padding: 1px 4px; border-radius: 8px; line-height: 1.5;
-  background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.35);
+  font-size: 10px; padding: 1px 4px; border-radius: 2px; line-height: 1.5;
+  background: rgba(230, 216, 181, 0.92); color: #2B2620; border: 1px solid #2B2620;
 }
-.unit-chip.mine { border-color: #9fc3ee; }
-.unit-chip.theirs { border-color: #ee9f9f; }
-.unit-chip.picked { background: #e8c87a; color: #191b1e; font-weight: bold; }
-.unit-chip.damaged { color: #ff9d9d; border-color: #ee9f9f; }
+.unit-chip.picked { background: #2B2620; color: rgba(230, 216, 181, 0.92); font-weight: bold; }
+.unit-chip.damaged { font-style: italic; }
 /* Cycle 23 step 9: the selected unit's plaque. css/plaques.css owns the plaque look. */
 .plaque-selected { outline: 2px solid #e8c87a; outline-offset: 1px; }
 .hint { color: #b9b09a; font-size: 13px; max-width: 640px; }
@@ -111,7 +106,7 @@ main {
 .rail-bar.building { background: repeating-linear-gradient(45deg, #d8cf9f 0 3px, rgba(0,0,0,0.35) 3px 6px); }
 .rail-tag {
   position: absolute; top: 2px; right: 2px; font-size: 9px; padding: 0 3px;
-  background: rgba(0,0,0,0.65); color: #e8c87a; border-radius: 2px; z-index: 3;
+  background: rgba(230, 216, 181, 0.92); color: #2B2620; border: 1px solid #2B2620; border-radius: 2px; z-index: 3;
 }
 .sup-tag { color: #ff9d9d; font-weight: bold; }
 
@@ -219,9 +214,9 @@ button.linkish:hover { background: none; color: #fff2c4; }
   /* Pinned to the tile's top right, where unit chips never reach. */
   position: absolute; top: 2px; right: 2px; z-index: 1;
   display: inline-block; padding: 0 4px; border-radius: 2px;
-  background: rgba(0, 0, 0, 0.5); color: #d9d2c0; border: 1px solid #8a8070; font-weight: bold;
+  background: rgba(230, 216, 181, 0.92); color: #2B2620; border: 1px solid #2B2620; font-weight: bold;
 }
-.fort-badge.lvl2 { background: rgba(60, 60, 60, 0.85); color: #fff; border-color: #d9d2c0; }
+.fort-badge.lvl2 { border-width: 2px; }
 .fort-badge.building { font-weight: normal; border-style: dashed; }
 /* Cycle 9 step 0 (Cycle 8 judge Flag 1): during an upgrade both badges
    exist on one tile, so the building badge sits below the level badge
@@ -233,10 +228,6 @@ button.linkish:hover { background: none; color: #fff2c4; }
    dimmed with the supply overlay's hatched language over their
    snapshot owner's color; dark provinces lose owner color entirely.
    Ghost chips are a snapshot's unit figures, marked with their day. */
-.province.intel-remembered {
-  background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.38) 0 6px, rgba(0, 0, 0, 0) 6px 12px);
-}
-.province.owner-fog { background: #26262b; color: #99937f; }
 .province.owner-fog .steel { opacity: 0.6; }
 .unit-chip.ghost { border-style: dashed; opacity: 0.8; font-style: italic; }
 .intel-legend {
@@ -247,24 +238,17 @@ button.linkish:hover { background: none; color: #fff2c4; }
 
 /* Cycle 14 step 2: navy marks on the map. Coast and flotilla badges
    sit in the tile text flow like the factory badge, never over the
-   fort badge at the top right. River edges draw as a blue bar on the
-   shared border, offset from the rail bar; a supported river edge
-   draws thicker and green, so support is visible at a glance. */
+   fort badge at the top right. The river bars on the tile borders are
+   retired (Cycle 23 Step 12b): the base canvas draws the river. */
 .coast-badge {
   display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: 2px;
-  background: rgba(20, 60, 90, 0.8); color: #bfe3f5; font-weight: bold;
+  background: rgba(230, 216, 181, 0.92); color: #2B2620; border: 1px solid #2B2620; font-weight: bold;
 }
 .flotilla-badge {
   display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: 2px;
-  background: rgba(10, 40, 60, 0.9); color: #9fe0d8; font-weight: bold;
-  border: 1px solid #5f8f8a;
+  background: rgba(230, 216, 181, 0.92); color: #2B2620; font-weight: bold;
+  border: 1px solid #2B2620;
 }
-.river-bar { position: absolute; background: #7fb3d9; z-index: 1; }
-.river-bar.r { right: 6px; top: 18%; bottom: 18%; width: 3px; }
-.river-bar.b { bottom: 6px; left: 18%; right: 18%; height: 3px; }
-.river-bar.supported { background: #9fe08a; }
-.river-bar.r.supported { width: 5px; }
-.river-bar.b.supported { height: 5px; }
 
 /* Cycle 15 step 2a: the campaign end screen banner. The banner container
    sets NO display property of its own, so the shared .hidden rule still
@@ -354,9 +338,9 @@ button.linkish:hover { background: none; color: #fff2c4; }
   margin-top: 2px;
   padding: 0 4px;
   border-radius: 2px;
-  background: rgba(109, 90, 38, 0.9);
-  color: #fff2c4;
-  border: 1px dashed #e8c87a;
+  background: rgba(230, 216, 181, 0.92);
+  color: #2B2620;
+  border: 1px solid #2B2620;
   font-weight: bold;
 }
 
@@ -374,24 +358,39 @@ button.linkish:hover { background: none; color: #fff2c4; }
 #map-state { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
 #map { position: relative; z-index: 1; }
 .map-zoom { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
-/* Cycle 23 Step 7c: live owner tiles go transparent; the state canvas fill carries the ownership tint. */
-.province.owner-player { background: transparent; }
-.province.owner-enemy { background: transparent; }
-.province.owner-fog { background: rgba(38,38,43,0.94); }
 
 /* Cycle 23 Step 8: fog canvas between the base canvas and the tiles.
    Fogged tiles turn translucent so the fog treatments show through. */
 #map-fog { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
 #map { z-index: 2; }
 #map-state { z-index: 3; }
-.province.owner-fog { background: rgba(236,226,200,0.25); color: #3a352a; }
-.province.owner-player.intel-remembered,
-.province.owner-enemy.intel-remembered {
-  background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.38) 0 6px, rgba(0, 0, 0, 0) 6px 12px);
-}
-.province.owner-player.intel-remembered { background-color: rgba(51,86,125,0.45); }
-.province.owner-enemy.intel-remembered { background-color: rgba(125,51,51,0.45); }
 
 /* Cycle 23 Step 9, chart board: the board padding (the chart margins) is set
    from js/main.js and counts inside the board box. */
 #map-board { box-sizing: border-box; }
+
+/* Cycle 23 Step 12b (MAP_TREATMENT 5.4 and 5.5): province names move off the
+   tiles onto #map-labels, set in IM Fell English SC on the label reserves.
+   Tiles keep no background, border, or box; their badges and chips are
+   Paper chips with an Ink hairline, set in the rules above. */
+@font-face {
+  font-family: "IM Fell English SC";
+  src: url("../assets/fonts/IMFellEnglishSC-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+#map-labels { position: absolute; z-index: 4; pointer-events: none; }
+.map-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: "IM Fell English SC", Georgia, serif;
+  font-size: 12px;
+  color: #2B2620;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  line-height: 1.2;
+  text-shadow: 0 0 2px rgba(230, 216, 181, 0.9), 0 0 4px rgba(230, 216, 181, 0.6);
+}
+.map-label.capital { font-size: 14px; }
+.map-label.dark { opacity: 0.75; }

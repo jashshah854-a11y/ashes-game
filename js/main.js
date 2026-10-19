@@ -65,7 +65,7 @@
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
    'progression-blocks', 'progression-explain',
-   'map-base', 'map-fog', 'map-state', 'map-board', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
+   'map-base', 'map-fog', 'map-state', 'map-board', 'map-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -554,19 +554,6 @@
     return '<span class="rail-bar ' + side + ' built"></span>';
   }
 
-  // River state of the edge from this province toward a neighbor id,
-  // as a blue bar on the shared border (Cycle 14 step 2). A river edge
-  // a flotilla of yours supports (stationed at either bank) draws in
-  // the supported style, so a supported crossing is distinguishable
-  // from an unsupported one where the player plans. Presentation
-  // only: support itself is Sim.riverCrossingSupported.
-  function riverBar(p, neighborId, side) {
-    var e = Sim.edgeBetween(state, p.id, neighborId);
-    if (!e || e.terrain !== 'river') return '';
-    var supported = Sim.riverCrossingSupported(state, 'player', p.id, neighborId);
-    return '<span class="river-bar ' + side + (supported ? ' supported' : '') + '"></span>';
-  }
-
   function renderMap() {
     var reach = reachableIds();
     var playerSupply = Sim.computeSupply(state, 'player');
@@ -602,7 +589,6 @@
         if (reach[p.id]) cls += ' reachable';
         if (p.owner === 'player' && playerSupply[p.id] && !playerSupply[p.id].supplied) cls += ' unsupplied';
         html += '<button type="button" class="' + cls + '" data-prov="' + p.id + '" data-intel="' + intel + '">';
-        html += '<span class="pname">' + (p.isCapital ? '<span class="capital-mark">&#9733;</span> ' : '') + p.name + '</span>';
         html += '<span class="steel">Steel ' + p.steel + '</span>';
         // Navy marks (Cycle 14 step 2): coastal is map geography, so
         // its badge shows in every intel state; a stationed flotilla
@@ -619,8 +605,6 @@
           }
           if (x + 1 < state.mapW) html += railBar(p, Sim.provinceId(x + 1, y), 'r');
           if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
-          if (x + 1 < state.mapW) html += riverBar(p, Sim.provinceId(x + 1, y), 'r');
-          if (y + 1 < state.mapH) html += riverBar(p, Sim.provinceId(x, y + 1), 'b');
         } else if (intel === 'remembered' && snap) {
           if (snap.factoryLevel > 0) {
             html += ' <span class="factory-badge lvl' + snap.factoryLevel + '">Factory ' + snap.factoryLevel + '</span>';
@@ -659,6 +643,125 @@
     renderStateCanvasNow();
     // Plaque layer (Cycle 23 step 9): unit plaques above the state canvas.
     renderPlaqueLayerNow(view);
+    // Province names (Cycle 23 Step 12b): the name layer under the plaques.
+    renderLabels();
+  }
+
+  // Province names on terrain (MAP_TREATMENT 5.5, Cycle 23 Step 12b). Each
+  // name sits on its Step 11 label reserve, then one measurement pass fits it
+  // inside its province: tighter letter-spacing, then 11px, then a clamp of
+  // the anchor into the province bounds inset by 0.06 cell. Every name and
+  // position comes from the sim and chart readouts; nothing here is a game fact.
+  var labelFontHooked = false;
+  // Fit cache: a fitted label depends only on its name, capital flag, hit
+  // polygon, the layer's client size, and whether the face has loaded, so the
+  // measurement pass runs once per key instead of on every tick render.
+  var labelFitCache = {};
+  var labelFitChart = null;
+  function renderLabels() {
+    var layer = el.mapLabels;
+    if (!layer || !el.mapBoard) return;
+    var cw = lastChart ? lastChart.widthCells : 12.6;
+    var chh = lastChart ? lastChart.heightCells : 9.85;
+    var ix = lastChart ? lastChart.insetX : 1.3;
+    var it = lastChart ? lastChart.insetTop : 1.3;
+    var lw = lastChart ? lastChart.mapW : 10;
+    var lh = lastChart ? lastChart.mapH : 7;
+    layer.style.left = (ix / cw * 100) + '%';
+    layer.style.top = (it / chh * 100) + '%';
+    layer.style.width = (lw / cw * 100) + '%';
+    layer.style.height = (lh / chh * 100) + '%';
+    var mapW = state.mapW;
+    var mapH = state.mapH;
+    var reserves = {};
+    var fit = !!(lastChart && lastChart.relief && lastChart.relief.labelReserves && lastChart.hitPolygons);
+    if (fit) {
+      lastChart.relief.labelReserves.forEach(function (lr) { reserves[lr.id] = lr; });
+    }
+    var items = [];
+    layer.innerHTML = '';
+    for (var gy = 0; gy < mapH; gy++) {
+      for (var gx = 0; gx < mapW; gx++) {
+        items.push(labelSpan(state.provinces[Sim.provinceId(gx, gy)]));
+      }
+    }
+    function labelSpan(p) {
+      var lr = reserves[p.id];
+      var ax = lr ? lr.x : p.x + 0.5;
+      var ay = lr ? lr.y : p.y + 0.2;
+      var span = document.createElement('span');
+      span.className = 'map-label' + (p.isCapital ? ' capital' : '');
+      if (Sim.intelState(state, 'player', p.id) === 'dark') span.className += ' dark';
+      span.setAttribute('data-prov', String(p.id));
+      span.textContent = p.name;
+      span.style.left = (ax / mapW * 100) + '%';
+      span.style.top = (ay / mapH * 100) + '%';
+      layer.appendChild(span);
+      return { p: p, span: span, x: ax, y: ay, fit: fit && !!lr };
+    }
+    var pxX = layer.clientWidth / mapW;
+    var pxY = layer.clientHeight / mapH;
+    if (!fit || !(pxX > 0) || !(pxY > 0)) return;
+    var INSET = 0.06;
+    // The fit measures the face itself: until the font has loaded, refit once
+    // it lands so a paused board does not keep fallback metrics.
+    if (!labelFontHooked && document.fonts && document.fonts.status !== 'loaded' && document.fonts.ready) {
+      labelFontHooked = true;
+      document.fonts.ready.then(function () { labelFitCache = {}; renderLabels(); });
+    }
+    if (labelFitChart !== lastChart) {
+      labelFitCache = {};
+      labelFitChart = lastChart;
+    }
+    var fontKey = document.fonts ? document.fonts.status : 'none';
+    items.forEach(function (item) {
+      if (!item.fit) return;
+      var poly = lastChart.hitPolygons[item.p.id];
+      if (!poly || !poly.length) return;
+      var span = item.span;
+      var key = item.p.id + '|' + item.p.name + '|' + (item.p.isCapital ? 1 : 0) + '|' +
+        layer.clientWidth + '|' + layer.clientHeight + '|' + fontKey;
+      var hit = labelFitCache[key];
+      if (hit) {
+        span.style.letterSpacing = hit.letterSpacing;
+        span.style.fontSize = hit.fontSize;
+        span.style.left = hit.left;
+        span.style.top = hit.top;
+        return;
+      }
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      poly.forEach(function (pt) {
+        if (pt.x < minX) minX = pt.x;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.y > maxY) maxY = pt.y;
+      });
+      minX += INSET; maxX -= INSET; minY += INSET; maxY -= INSET;
+      var bw = span.offsetWidth / pxX;
+      var bh = span.offsetHeight / pxY;
+      if (bw > maxX - minX) {
+        span.style.letterSpacing = '0.02em';
+        bw = span.offsetWidth / pxX;
+        bh = span.offsetHeight / pxY;
+      }
+      if (bw > maxX - minX) {
+        span.style.fontSize = '11px';
+        bw = span.offsetWidth / pxX;
+        bh = span.offsetHeight / pxY;
+      }
+      var x = bw > maxX - minX ? (minX + maxX) / 2 : Math.min(Math.max(item.x, minX + bw / 2), maxX - bw / 2);
+      var y = bh > maxY - minY ? (minY + maxY) / 2 : Math.min(Math.max(item.y, minY + bh / 2), maxY - bh / 2);
+      var left = (x / mapW * 100) + '%';
+      var top = (y / mapH * 100) + '%';
+      span.style.left = left;
+      span.style.top = top;
+      labelFitCache[key] = {
+        left: left,
+        top: top,
+        letterSpacing: span.style.letterSpacing,
+        fontSize: span.style.fontSize
+      };
+    });
   }
 
   // Unit plaques from js/plaques.js. Every number shown comes from the
