@@ -5365,3 +5365,6 @@ BACKLOG.md already carries a section headed "Cycle 23: the visual transformation
 
 ### Mission status
 Cycle 22 is complete: Steps 0 to 5 done, judge PASS WITH FIX-NOW FLAGS, all three flags homed in the next cycle by the judge itself. No stop condition is met: the verdict is a pass, no verification failure stands on the final tree (the fort first attempt failure is a check flake, graded as flag F2 with a named home, not a build failure), and no tuning of any kind was made. Next run reconciles the Cycle 23 scope conflict above, then claims the reconciled Cycle 23 Step 0.
+
+### Cycle 22 step 5 sync note
+- Sync out after commit a118f90: the import script completed with exit 0 and sent the step 5 documentation commit to GitHub (jashshah854-a11y/ashes-game, master now at remote 7f8a302; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit. This note rides the next run's sync, as prior sync notes have.
