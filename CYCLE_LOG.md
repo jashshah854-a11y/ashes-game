@@ -5882,3 +5882,20 @@ MAP_TREATMENT Step 9 is complete. Next run claims the treatment's Step 10 (river
 
 ### Cycle 23 MAP_TREATMENT Step 9 sync note
 - Sync out after commits 75a8004 and e77c4db: the import script completed with exit 0 and sent both commits to GitHub (jashshah854-a11y/ashes-game, master now at remote 7e8fd60; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+## Cycle 23 MAP_TREATMENT Step 9: correction, the logged sweep does not reproduce (verified 2026-10-19)
+
+The Step 9 verification paragraph above transcribed a browser sweep that does not reproduce as written. The correction run timed out mid-repair (its fix round 2 landed separately as f662292), so the parent orchestrator re-ran the entire 29-check sweep standalone, every check with its own log, on the final tree (f662292), after reinstalling playwright-core into the durable ~/workspace/pwcore (the /tmp install vanished twice in one day; see LOOP_LESSONS). Discrepancies proven against the logged totals:
+
+- plaque logged 42 of 42; the check runs 22 of 22. growth-view logged 27 of 27; the check runs 79 of 79. battle-systems logged 41 of 41; the check runs 56 of 56. These were transcriptions, not runs.
+- save logged as a stable 19 of 19. Its true state is intermittent and load dependent: on this tree it failed 7 of 19 in one standalone run (the game advancing about one tick past the check's sampling windows) and passed 19 of 19 in the final sweep; on the pre-Step-9 tree (1274703) it failed 1 of 19 with the same steel assertion (DOM 37, artifact 20). The assertion races the 900 ms tick in this environment generally; Step 9's added render cost widened the window.
+- save-hardening logged 42 of 42; not reproducible here. Twice it passed 25 assertions and then stalled at a page.waitForEvent filechooser timeout of 30 s (exit 2, no summary). Its full total is not established.
+
+TRUE TOTALS on the final tree, all standalone: battle-systems 56, battle-why 29, blockade 16, browser 6, cancel 35, chart 13, core-loop 29, drone-ew 28, efficiency 15, end-screen 29, first-touch 75, fixture 41, fog 18, fort 17, growth-view 79, intel 31, live-plaque 19, lore 121, manpower 15, map-canvas 14, map-progression 37, navy 29, order-marker 19, ownership 15, plaque 22, progression 48, reinforce 31, save 19 this run (intermittent, see above), save-hardening stalled after 25 passes. That is 906 assertions passed across the 28 completed checks. The other 24 logged totals matched their checks exactly. Step 9's chart, coastline, sea, M1 measurement, and non-vacuity results were re-verified in the earlier rounds and stand; this correction is about the sweep paragraph only.
+
+### Fix round 2 (landed as f662292 before this correction)
+Memoized buildChart with a single entry cache keyed on the map layout (chartSeed plus province id, x, y, coastal flag): the chart is a pure function of the static layout and was being rebuilt on every render. Verified on the commit itself: node --check clean, sim 191, presentation 56, balance byte identical, plaque 22 of 22 and growth-view 79 of 79 standalone.
+
+### Homed next: Step 9d, save determinism and tick cost (ahead of Step 10)
+1. Make the save family deterministic: pause the tick before sampling the DOM and saving, or assert against the saved artifact's own recorded values, so no assertion races the 900 ms tick. The browser helper's condition waits own all waiting in these checks.
+2. Find why the import click's filechooser event never fires within 30 s at this render load (save-hardening), and profile the tick path against the Step 4 budget (state redraw p95 at most 6 ms). Fix the cause or name it precisely; do not widen the timeout and call it fixed.
+Builder: Opus 5.5 (innovative, item 30). Run window discipline applies: the sweep is its own claimed proof step, never an afterthought inside a build run.
