@@ -5295,3 +5295,6 @@ Claimed this run: Step 4 only (visible progression part two, the growth view on 
 
 ### Mission status
 Cycle 22 Step 4 is complete: the Campaign growth card is proven in a real browser over saves holding 1, 3, and 6 snapshots, every save read back before use, every rendered value equal to the saved value, a one field shift mutant failing, and a damaged history save refused before the view with its plain language reason on the save card. Next run claims Step 5 (verification and close: full suite, balance, every browser check standalone, diff attribution for the cycle, the stackPower byte proof, the three prescribed LOOP_LESSONS, and the milestone review), carrying the reinforce check deflake note above into its close notes. No stop condition is met: no failed verdict, no verification failure on the final tree, and no tuning of any kind.
+
+### Cycle 22 step 4 sync note
+- Sync out after commit 0b1290a: the import script completed with exit 0 and sent 3 commits to GitHub (0daec63, the Cycle 22 step 3 sync note carried over, plus this step's 17d02e2 and 0b1290a; jashshah854-a11y/ashes-game, master now at remote 1395d6b; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
