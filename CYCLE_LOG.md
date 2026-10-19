@@ -5899,3 +5899,32 @@ Memoized buildChart with a single entry cache keyed on the map layout (chartSeed
 1. Make the save family deterministic: pause the tick before sampling the DOM and saving, or assert against the saved artifact's own recorded values, so no assertion races the 900 ms tick. The browser helper's condition waits own all waiting in these checks.
 2. Find why the import click's filechooser event never fires within 30 s at this render load (save-hardening), and profile the tick path against the Step 4 budget (state redraw p95 at most 6 ms). Fix the cause or name it precisely; do not widen the timeout and call it fixed.
 Builder: Opus 5.5 (innovative, item 30). Run window discipline applies: the sweep is its own claimed proof step, never an afterthought inside a build run.
+## Cycle 23 Step 9d: save determinism and tick profile (2026-10-19)
+
+**Claimed this run:** Step 9d (MAP_TREATMENT sequence), covering save and load determinism and the tick cost check.
+
+**Builder:** Claude Opus 5.5 (innovative, item 30).
+**Files touched (exact set):** tools/save-check.js, tools/save-hardening-check.js, tools/tick-profile.js.
+**Files not touched:** js/sim.js, js/save.js, js/lore.js, js/adapter.js, js/map-geometry.js, tests/sim.test.js, tests/presentation.test.js, css files, index.html.
+
+**What was built:**
+- save-check.js: pause before the first save, speed 1 before load and import sections, burst-aware local ensureRunning, all saves and DOM reads kept while paused.
+- save-hardening-check.js: burst-aware local ensureRunning, H.clickWhenClear replaces bare page.click for every import/export/save/speed button that can sit under a card overlay, speed 1 before load/import assertions, history case 4 deadline stored.
+- tick-profile.js: new profile tool measuring the live state redraw at the map-state canvas size.
+
+**Acceptance run by the orchestrator (not taken from the builder):**
+- Node syntax: ok on all three tools.
+- Sim suite: 191 pass, 0 fail.
+- Presentation suite: 56 pass, 0 fail.
+- Balance: byte identical to tools/baseline-cycle22.txt.
+- Determinism: save-check.js 5 x 19 of 19; save-hardening-check.js 3 x 42 of 42.
+- Dash scan: zero em/en dash bytes in the three files.
+
+**Tick cost measurement:** tick-profile.js state redraw p95 16.6 ms on the reported run (fails the Step 4 budget of 6 ms). Median 3.9 ms, max 29.1 ms. The profile is committed as evidence; budget widening was not done. Cause is noted (some redraws are slow; renderStateCanvas creates a canvas each call) and the fix was not applied in this step per the brief, per Run Window Discipline.
+
+**Lessons:**
+- Cards block clicks: any bare page.click while the event overlay is open times out or hides the filechooser; using burst-aware helpers is mandatory anywhere a button can be covered.
+- A pause before sampling makes save-family assertions genuinely deterministic without widening timeouts.
+- State redraw p95 can exceed the budget even when the median is low; report the tail, not only the median.
+
+**Step split, per Run Window Discipline:** the build and the targeted proofs are claimed by this step; the full 29-check sweep is homed as Cycle 23 Step 9e, to be claimed and verified by the next run.
