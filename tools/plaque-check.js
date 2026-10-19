@@ -151,6 +151,22 @@ async function main() {
       return window.PLAQUE_PAGE.counts();
     });
 
+    // SVG glyph rendering evidence, captured before the page closes
+    const svgChecks = await page.evaluate(() => {
+      const board = document.getElementById('board');
+      const unitGlyphs = board.querySelectorAll('.plaque .glyph');
+      const buildingGlyphs = board.querySelectorAll('.building-mark .glyph');
+      let unitHasSvg = false;
+      let buildingHasSvg = false;
+      for (let i = 0; i < unitGlyphs.length; i++) {
+        if (unitGlyphs[i].innerHTML.trim().startsWith('<svg')) { unitHasSvg = true; break; }
+      }
+      for (let i = 0; i < buildingGlyphs.length; i++) {
+        if (buildingGlyphs[i].innerHTML.trim().startsWith('<svg')) { buildingHasSvg = true; break; }
+      }
+      return { unitHasSvg, buildingHasSvg };
+    });
+
     await page.close();
 
     // Assert DOM counts equal node expectations
@@ -174,6 +190,10 @@ async function main() {
 
     // No page errors occurred
     check('browser: no page errors', errors.length === 0, errors.join('; ') || 'none');
+
+    // SVG glyph rendering checks (evidence captured above, before page close)
+    check('browser: unit plaque glyph spans contain SVG', svgChecks.unitHasSvg === true, '');
+    check('browser: building mark glyph spans contain SVG', svgChecks.buildingHasSvg === true, '');
 
   } finally {
     await browser.close();

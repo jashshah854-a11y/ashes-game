@@ -14,9 +14,9 @@
   };
 
   var GLYPHS = {
-    soldier: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 18c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm-5-7h10v2H7v-2zm0-4h10v2H7v-2zm0-4h10v2H7V8z"/></svg>',
-    drone: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM12 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 10c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM6 12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm10 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>',
-    ship: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 10c0 2.21-1.79 4-4 4h-2V8h2c2.21 0 4 1.79 4 4zm-6 4h2v-4h-2c-2.21 0-4-1.79-4-4V4c0-1.11-.89-2-2-2H6c-1.11 0-2 .89-2 2v16c0 1.11.89 2 2 2h12c1.11 0 2-.89 2-2v-4h-2c0 2.21-1.79 4-4 4z"/></svg>',
+    soldier: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.9 4.5A2.1 2.1 0 1 1 14.1 4.5A2.1 2.1 0 1 1 9.9 4.5ZM9.1 8.1L14.9 8.1L14.4 12.7L9.6 12.7ZM9.2 12.1L11.3 12.5L7.6 21.3L5.7 20.7ZM12.7 12.5L14.8 12.1L19.9 20.9L18 21.4ZM5.77 12.41L17.37 6.01L18.23 7.59L6.63 13.99Z"/></svg>',
+    drone: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.43 7.57L7.57 6.43L17.57 16.43L16.43 17.57ZM17.57 7.57L7.57 17.57L6.43 16.43L16.43 6.43ZM9.3 12A2.7 2.7 0 1 1 14.7 12A2.7 2.7 0 1 1 9.3 12ZM3.4 5.6A2.2 2.2 0 1 1 7.8 5.6A2.2 2.2 0 1 1 3.4 5.6ZM16.2 5.6A2.2 2.2 0 1 1 20.6 5.6A2.2 2.2 0 1 1 16.2 5.6ZM3.4 18.4A2.2 2.2 0 1 1 7.8 18.4A2.2 2.2 0 1 1 3.4 18.4ZM16.2 18.4A2.2 2.2 0 1 1 20.6 18.4A2.2 2.2 0 1 1 16.2 18.4Z"/></svg>',
+    ship: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.2 11.8L5.5 13L20 13L20 17.2L7.5 18.6ZM9 8.5L16 8.5L16 13L9 13ZM10.5 5.5L14 5.5L14 8.5L10.5 8.5ZM11.3 3L12.7 3L12.7 8.5L11.3 8.5Z"/></svg>',
     factory: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H6v-2h6v2zm4 0h-6v-2h6v2zm4 0h-6v-2h6v2zm-4-4H6v-2h6v2zm4 0h-6v-2h6v2zm4 0h-6v-2h6v2zm-4-4H6V7h6v2zm4 0h-6V7h6v2zm4 0h-6V7h6v2zM8 5h2v2H8V5zm4 0h2v2h-2V5zm4 0h2v2h-2V5z"/></svg>',
     fort: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v8H3v-8zm4 8H5v-8h2v8zm4-8H7v8h2v-8zm4 8h-2v-8h2v8zm4-8v8h2v-8h-2zM3 3v8h2V3H3zm4 0v8h2V3H7zm4 0v8h2V3h-2zm4 0v8h2V3h-2zm4 0v8h2V3h-2zM16 17.01V10h2v7.01h-2z"/></svg>',
     alarm: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>'
@@ -175,7 +175,7 @@
 
       var glyphSpan = document.createElement('span');
       glyphSpan.className = 'glyph';
-      glyphSpan.innerHTML = d.glyph;
+      glyphSpan.innerHTML = GLYPHS[d.glyph] || '';
       el.appendChild(glyphSpan);
 
       if (d.numeral !== null) {
@@ -205,7 +205,7 @@
 
       var glyphSpan = document.createElement('span');
       glyphSpan.className = 'glyph';
-      glyphSpan.innerHTML = d.glyph;
+      glyphSpan.innerHTML = GLYPHS[d.glyph] || '';
       el.appendChild(glyphSpan);
 
       var levelSpan = document.createElement('span');
