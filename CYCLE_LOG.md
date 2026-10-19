@@ -5953,3 +5953,6 @@ Claimed this run: Step 9e only, the proof step homed by Step 9d (the full 29 che
 
 ### Mission status
 Cycle 23 Step 9e is complete as a proof step with one honest exception: the sweep reproduces at 28 of 29 checks fully green (827 assertions), the save family is deterministic in the full sweep for the first time, and lore carries a characterized resume assertion flake homed at Step 9f, which the next run claims before MAP_TREATMENT Step 10 (rivers). The Step 9d tick finding also stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, and this is a check flake with a prescribed fix shape, not a verification failure of game code.
+
+### Cycle 23 Step 9e sync note
+- Sync out after commit 731da92: the import script completed with exit 0 and sent 1 commit to GitHub (jashshah854-a11y/ashes-game, master now at remote 2b2cc85; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit. This note rides the next run's sync, as prior sync notes have.
