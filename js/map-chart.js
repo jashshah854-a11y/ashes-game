@@ -26,6 +26,20 @@
   var BEACH = '#B9AA80';
   var FRAME_PAPER = '#E6D8B5';
   var INK = '#2B2620';
+  var RIVER_WATER = '#6F8C8F';
+  var RIVER_BANK = '#4A4335';
+  var RIVER_GLINT = '#8FA6A3';
+
+  // River parameters (MAP_TREATMENT 2.3 and 2.5).
+  var W_SRC = 0.055;
+  var W_MOUTH = 0.100;
+  var RIVER_FULL_LEN = 6.0;
+  var RIVER_STEP = 0.04;
+  var ESTUARY_LEN = 0.15;
+  var ESTUARY_WIDEN = 1.8;
+  var FAN_OFFSET = 0.10;
+  var FAN_RX = 0.22;
+  var FAN_RY = 0.12;
 
   // Coastline parameters (MAP_TREATMENT 1.3).
   var COAST_STEP = 0.05;
@@ -225,13 +239,236 @@
   var chartCache = null;
 
   // Layout key: chartSeed plus each province's id, x, y, and coastal flag
-  // in geom.provinces order.
+  // in geom.provinces order, plus every river segment path (Step 10).
   function chartLayoutKey(geom, chartSeed) {
     var parts = [String(chartSeed)];
     geom.provinces.forEach(function (p) {
       parts.push(p.id + ',' + p.x + ',' + p.y + ',' + (p.coastal ? 1 : 0));
     });
+    (geom.riverSegments || []).forEach(function (rs) {
+      parts.push('r' + rs.a + ',' + rs.b + rs.path.map(function (q) {
+        return ',' + q.x.toFixed(6) + ',' + q.y.toFixed(6);
+      }).join(''));
+    });
     return parts.join('|');
+  }
+
+  // Polyline length of a path of {x, y} points.
+  function polylineLength(path) {
+    var len = 0;
+    for (var i = 1; i < path.length; i++) {
+      len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+    }
+    return len;
+  }
+
+  // Points along a polyline from its start, consecutive points at most
+  // RIVER_STEP apart. Each point carries s, its arc length from the start.
+  function subdividePath(path) {
+    var out = [];
+    if (path.length === 0) return out;
+    var s = 0;
+    out.push({ x: path[0].x, y: path[0].y, s: 0 });
+    for (var i = 1; i < path.length; i++) {
+      var a = path[i - 1];
+      var b = path[i];
+      var segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      var n = Math.max(1, Math.ceil(segLen / RIVER_STEP));
+      for (var k = 1; k <= n; k++) {
+        var t = k / n;
+        out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, s: s + segLen * t });
+      }
+      s += segLen;
+    }
+    return out;
+  }
+
+  // River width at accumulated upstream length A (MAP_TREATMENT 2.3).
+  function riverWidth(A) {
+    return W_SRC + (W_MOUTH - W_SRC) * Math.pow(Math.min(1, A / RIVER_FULL_LEN), 0.6);
+  }
+
+  // River graph, flow, widths, mouth extensions, and estuary fans
+  // (MAP_TREATMENT 2.1 to 2.5). Reads geom.riverSegments, dividerAt (grid
+  // corner key to coastline point), and the coastline (pseudo mouth choice).
+  function buildRivers(geom, dividerAt, coastline) {
+    var W = geom.mapW;
+    var H = geom.mapH;
+    var segments = geom.riverSegments || [];
+    var nodes = [];
+    var adj = [];
+
+    // 2.2 nodes: path endpoints merged within 1e-6 cell.
+    function nodeFor(q) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (Math.abs(nodes[i].x - q.x) <= 1e-6 && Math.abs(nodes[i].y - q.y) <= 1e-6) return i;
+      }
+      var gx = Math.round(q.x);
+      var gy = Math.round(q.y);
+      var boundary = gx === 0 || gx === W || gy === 0 || gy === H;
+      var key = boundary ? gx + ':' + gy : q.x.toFixed(6) + ',' + q.y.toFixed(6);
+      nodes.push({
+        x: q.x,
+        y: q.y,
+        key: key,
+        D: Infinity,
+        mouth: boundary && !!dividerAt[gx + ':' + gy],
+        source: false
+      });
+      adj.push([]);
+      return nodes.length - 1;
+    }
+
+    var edgeData = segments.map(function (rs, ei) {
+      var path = rs.path;
+      var na = nodeFor(path[0]);
+      var nb = nodeFor(path[path.length - 1]);
+      var length = polylineLength(path);
+      adj[na].push({ node: nb, edge: ei, len: length });
+      adj[nb].push({ node: na, edge: ei, len: length });
+      return { a: rs.a, b: rs.b, start: na, end: nb, length: length, path: path };
+    });
+
+    // Connected components.
+    var comp = nodes.map(function () { return -1; });
+    var nComp = 0;
+    nodes.forEach(function (n0, i0) {
+      if (comp[i0] >= 0) return;
+      var stack = [i0];
+      comp[i0] = nComp;
+      while (stack.length) {
+        var u = stack.pop();
+        adj[u].forEach(function (nb) {
+          if (comp[nb.node] < 0) { comp[nb.node] = nComp; stack.push(nb.node); }
+        });
+      }
+      nComp++;
+    });
+
+    // Pseudo mouth for a component with no mouth: its degree 1 node closest
+    // to the coastline (ties: lower y, then lower x). No estuary.
+    function coastDist(q) {
+      var best = Infinity;
+      for (var i = 0; i < coastline.length; i++) {
+        var a = coastline[i];
+        var b = coastline[(i + 1) % coastline.length];
+        var d = distToSegment(q.x, q.y, a.x, a.y, b.x, b.y);
+        if (d < best) best = d;
+      }
+      return best;
+    }
+    var seeds = [];
+    for (var ci = 0; ci < nComp; ci++) {
+      var members = [];
+      nodes.forEach(function (n1, i1) { if (comp[i1] === ci) members.push(i1); });
+      var mouths = members.filter(function (i2) { return nodes[i2].mouth; });
+      if (mouths.length) { seeds = seeds.concat(mouths); continue; }
+      var ends = members.filter(function (i3) { return adj[i3].length === 1; });
+      if (!ends.length) ends = members;
+      var bestI = -1;
+      var bestD = Infinity;
+      ends.forEach(function (i4) {
+        var d = coastDist(nodes[i4]);
+        var n4 = nodes[i4];
+        if (bestI < 0 || d < bestD ||
+          (d === bestD && (n4.y < nodes[bestI].y || (n4.y === nodes[bestI].y && n4.x < nodes[bestI].x)))) {
+          bestI = i4;
+          bestD = d;
+        }
+      });
+      seeds.push(bestI);
+    }
+
+    // 2.2 flow rule 1: multi source Dijkstra from the mouths.
+    var done = nodes.map(function () { return false; });
+    seeds.forEach(function (i5) { nodes[i5].D = 0; });
+    for (;;) {
+      var u = -1;
+      for (var i6 = 0; i6 < nodes.length; i6++) {
+        if (!done[i6] && nodes[i6].D < Infinity && (u < 0 || nodes[i6].D < nodes[u].D)) u = i6;
+      }
+      if (u < 0) break;
+      done[u] = true;
+      adj[u].forEach(function (nb) {
+        var nd = nodes[u].D + nb.len;
+        if (nd < nodes[nb.node].D) nodes[nb.node].D = nd;
+      });
+    }
+
+    // 2.2 flow rule 2: from the higher D end; ties flow toward lower y, then lower x.
+    function downstreamOf(i, j) {
+      var p = nodes[i];
+      var q = nodes[j];
+      if (p.D !== q.D) return p.D < q.D ? i : j;
+      if (p.y !== q.y) return p.y < q.y ? i : j;
+      return p.x <= q.x ? i : j;
+    }
+    edgeData.forEach(function (e) {
+      e.to = downstreamOf(e.start, e.end);
+      e.from = e.to === e.start ? e.end : e.start;
+    });
+
+    // 2.2 flow rule 3: sources have no neighbour of higher D.
+    nodes.forEach(function (n7, i7) {
+      n7.source = !adj[i7].some(function (nb) { return nodes[nb.node].D > n7.D; });
+    });
+
+    // 2.3: accumulated upstream length per node, every edge upstream counted once.
+    var inEdges = nodes.map(function () { return []; });
+    edgeData.forEach(function (e, ei) { inEdges[e.to].push(ei); });
+    var accum = nodes.map(function (n8, i8) {
+      var seen = {};
+      var total = 0;
+      var stack = [i8];
+      while (stack.length) {
+        var v = stack.pop();
+        inEdges[v].forEach(function (ei) {
+          if (seen[ei]) return;
+          seen[ei] = true;
+          total += edgeData[ei].length;
+          stack.push(edgeData[ei].from);
+        });
+      }
+      return total;
+    });
+
+    var edges = edgeData.map(function (e) {
+      var forward = e.from === e.start;
+      var aUp = accum[e.from];
+      var samples = subdividePath(e.path).map(function (q) {
+        var sUp = forward ? q.s : e.length - q.s;
+        return { x: q.x, y: q.y, w: riverWidth(aUp + sUp) };
+      });
+      return { a: e.a, b: e.b, from: e.from, to: e.to, length: e.length, samples: samples };
+    });
+
+    // 2.5: mouth extensions along the divider ray, and estuary fans.
+    var mouthList = [];
+    var fans = [];
+    nodes.forEach(function (n9, i9) {
+      if (!n9.mouth) return;
+      var coast = dividerAt[n9.key];
+      var dx = coast.x - n9.x;
+      var dy = coast.y - n9.y;
+      var len = Math.hypot(dx, dy);
+      var ux = len > 0 ? dx / len : 0;
+      var uy = len > 0 ? dy / len : 0;
+      var samples = subdividePath([{ x: n9.x, y: n9.y }, { x: coast.x, y: coast.y }]).map(function (q) {
+        var into = q.s - (len - ESTUARY_LEN);
+        var w = into > 0 ? W_MOUTH * (1 + (ESTUARY_WIDEN - 1) * Math.min(1, into / ESTUARY_LEN)) : W_MOUTH;
+        return { x: q.x, y: q.y, w: w };
+      });
+      mouthList.push({ node: i9, x: n9.x, y: n9.y, coastX: coast.x, coastY: coast.y, samples: samples });
+      fans.push({
+        cx: coast.x + FAN_OFFSET * ux,
+        cy: coast.y + FAN_OFFSET * uy,
+        rx: FAN_RX,
+        ry: FAN_RY,
+        angle: Math.atan2(uy, ux)
+      });
+    });
+
+    return { nodes: nodes, edges: edges, mouths: mouthList, fans: fans };
   }
 
   function buildChart(geom) {
@@ -486,6 +723,8 @@
       if (kEnd !== null && !dividerAt[kEnd]) dividerAt[kEnd] = ch[ch.length - 1];
     });
 
+    var rivers = buildRivers(geom, dividerAt, coastline);
+
     var chartEdges = geom.edges.map(function (e) {
       var path = e.path.map(function (q) { return { x: q.x, y: q.y }; });
       var extended = false;
@@ -563,7 +802,8 @@
       provinceOrder: geom.provinces.map(function (p) { return p.id; }),
       lattice: buildLattice(geom),
       chartEdges: chartEdges,
-      waves: waves
+      waves: waves,
+      rivers: rivers
     };
   }
 
@@ -610,7 +850,12 @@
     LAND_LOW: LAND_LOW,
     BEACH: BEACH,
     FRAME_PAPER: FRAME_PAPER,
-    INK: INK
+    INK: INK,
+    RIVER_WATER: RIVER_WATER,
+    RIVER_BANK: RIVER_BANK,
+    RIVER_GLINT: RIVER_GLINT,
+    W_SRC: W_SRC,
+    W_MOUTH: W_MOUTH
   };
 
   var AshesChart = {

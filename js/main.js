@@ -136,7 +136,10 @@
         seed: lastChart.chartSeed,
         coastlinePoints: lastChart.coastline.length,
         waves: lastChart.waves.length,
-        hitProvinces: Object.keys(lastChart.hitPolygons).length
+        hitProvinces: Object.keys(lastChart.hitPolygons).length,
+        riverEdges: lastChart.rivers.edges.length,
+        riverMouths: lastChart.rivers.mouths.length,
+        riverFans: lastChart.rivers.fans.length
       };
     }
     var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);

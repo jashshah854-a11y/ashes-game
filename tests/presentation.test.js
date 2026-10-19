@@ -1411,3 +1411,158 @@ test('chart ops: under and over lists follow MAP_TREATMENT 1.6 order; polygon op
   const p44 = drawOps.find(o => o.kind === 'polygon' && o.id === 'p4_4');
   assert.deepStrictEqual(p44.boundarySegs, [false, false, false, false, false, false, false, false]);
 });
+
+// River and rail tests (Cycle 23 Step 10, MAP_TREATMENT 2)
+
+function step10Hex(hex) {
+  return [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+}
+
+test('river R-TRUTH: every edge sample lies on its geom path, every mouth sample on its divider ray, edges aligned with geom.riverSegments', () => {
+  const { geom, chart } = step9Chart(42);
+  const rivers = chart.rivers;
+  assert.strictEqual(rivers.edges.length, geom.riverSegments.length, 'one chart edge per geom river segment');
+  assert.strictEqual(rivers.edges.length, 7, 'seed 42 has 7 river segments');
+  rivers.edges.forEach((e, i) => {
+    const rs = geom.riverSegments[i];
+    assert.strictEqual(e.a, rs.a, 'edge ' + i + ' a');
+    assert.strictEqual(e.b, rs.b, 'edge ' + i + ' b');
+    assert.ok(e.samples.length >= 2, 'edge ' + i + ' has samples');
+    e.samples.forEach((q, k) => {
+      const d = Math.min(step9DistToSeg(q, rs.path[0], rs.path[1]), step9DistToSeg(q, rs.path[1], rs.path[2]));
+      assert.ok(d <= 0.001, 'edge ' + i + ' sample ' + k + ' off its path by ' + d);
+      if (k > 0) {
+        const gap = Math.hypot(q.x - e.samples[k - 1].x, q.y - e.samples[k - 1].y);
+        assert.ok(gap <= 0.04 + 1e-9, 'edge ' + i + ' sample gap ' + gap);
+      }
+    });
+  });
+  rivers.mouths.forEach((m, i) => {
+    const node = { x: m.x, y: m.y };
+    const coast = { x: m.coastX, y: m.coastY };
+    m.samples.forEach((q, k) => {
+      const d = step9DistToSeg(q, node, coast);
+      assert.ok(d <= 0.001, 'mouth ' + i + ' sample ' + k + ' off its ray by ' + d);
+    });
+  });
+});
+
+test('river flow and width: mouths at D 0 north and south, widths within W_SRC and W_MOUTH and non decreasing downstream', () => {
+  const { geom, chart } = step9Chart(42);
+  const C = AshesChart.CHART_CONSTANTS;
+  const rivers = chart.rivers;
+  assert.strictEqual(rivers.mouths.length, 2, 'two mouths');
+  // + 0 folds Math.round(-0.13), which is -0, to 0.
+  const gys = rivers.mouths.map(m => Math.round(m.y) + 0).sort((a, b) => a - b);
+  assert.deepStrictEqual(gys, [0, geom.mapH], 'one mouth on the north edge, one on the south edge');
+  rivers.mouths.forEach(m => {
+    assert.strictEqual(rivers.nodes[m.node].D, 0, 'mouth node D is 0');
+    assert.strictEqual(rivers.nodes[m.node].mouth, true);
+  });
+  assert.strictEqual(rivers.nodes.filter(n => n.mouth).length, 2, 'exactly the two mouth nodes are flagged');
+  rivers.edges.forEach((e, i) => {
+    assert.ok(rivers.nodes[e.from].D >= rivers.nodes[e.to].D, 'edge ' + i + ' flows downhill in D');
+    e.samples.forEach(q => {
+      assert.ok(q.w >= C.W_SRC - 1e-9 && q.w <= C.W_MOUTH + 1e-9, 'edge ' + i + ' width ' + q.w);
+    });
+    const fromNode = rivers.nodes[e.from];
+    const first = e.samples[0];
+    const forward = Math.abs(first.x - fromNode.x) <= 1e-6 && Math.abs(first.y - fromNode.y) <= 1e-6;
+    const flow = forward ? e.samples : e.samples.slice().reverse();
+    for (let k = 1; k < flow.length; k++) {
+      assert.ok(flow[k].w >= flow[k - 1].w - 1e-9, 'edge ' + i + ' width falls downstream at sample ' + k);
+    }
+  });
+  // 2.2 * 0.025 is 0.05500000000000001 in floating point, so compare with a 1e-12 tolerance.
+  assert.ok(C.W_SRC >= 2.2 * 0.025 - 1e-12, 'W_SRC at least 2.2 times the front line width');
+});
+
+test('river mouths: only at sea vertices, coast points on the coastline, one fan per mouth on the sea side', () => {
+  const { chart } = step9Chart(42);
+  const rivers = chart.rivers;
+  const coastKeys = new Set(chart.coastline.map(q => q.x.toFixed(4) + ',' + q.y.toFixed(4)));
+  rivers.mouths.forEach((m, i) => {
+    assert.ok(coastKeys.has(m.coastX.toFixed(4) + ',' + m.coastY.toFixed(4)), 'mouth ' + i + ' coast point is on the coastline');
+  });
+  assert.strictEqual(rivers.fans.length, rivers.mouths.length, 'one fan per mouth');
+  rivers.fans.forEach((f, i) => {
+    assert.strictEqual(AshesChart.pointInPolygon({ x: f.cx, y: f.cy }, chart.coastline), false, 'fan ' + i + ' centre lies in the sea');
+    assert.strictEqual(f.rx, 0.22);
+    assert.strictEqual(f.ry, 0.12);
+  });
+});
+
+test('river determinism: a second buildChart gives deep equal rivers', () => {
+  const a = step9Chart(42);
+  const again = AshesChart.buildChart(a.geom);
+  assert.deepStrictEqual(again.rivers, a.chart.rivers);
+  const fresh = step9Chart(42);
+  assert.deepStrictEqual(fresh.chart.rivers, a.chart.rivers, 'rebuilt geometry gives the same rivers');
+});
+
+test('river palette: RIVER_WATER, RIVER_BANK and RIVER_GLINT match their MAP_TREATMENT 0.2 luma', () => {
+  const C = AshesChart.CHART_CONSTANTS;
+  function luma(hex) {
+    const rgb = step10Hex(hex);
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+  }
+  [['RIVER_WATER', 134.0], ['RIVER_BANK', 67.4], ['RIVER_GLINT', 160.9]].forEach(([name, want]) => {
+    const got = luma(C[name]);
+    assert.ok(Math.abs(got - want) <= 0.6, name + ' luma ' + got.toFixed(2) + ' vs ' + want);
+  });
+});
+
+test('river chart ops: one estuary fan op per fan, all before chart-land', () => {
+  const { chart } = step9Chart(42);
+  const ops = AshesMapCanvas.buildChartOps(chart);
+  const kinds = ops.under.map(o => o.kind);
+  const landAt = kinds.indexOf('chart-land');
+  const fanAt = [];
+  kinds.forEach((k, i) => { if (k === 'chart-estuary-fan') fanAt.push(i); });
+  assert.strictEqual(fanAt.length, chart.rivers.fans.length, 'fan op count');
+  assert.ok(fanAt.length > 0, 'fans exist');
+  fanAt.forEach(i => assert.ok(i < landAt, 'fan op ' + i + ' before chart-land at ' + landAt));
+});
+
+test('river draw ops: river ops carry samples, one river-mouths op sits between rivers and rails', () => {
+  const { view, geom, chart } = step9Chart(42);
+  const ops = AshesMapCanvas.buildDrawOps(geom, view);
+  const riverOps = ops.filter(o => o.kind === 'river');
+  riverOps.forEach((op, i) => {
+    assert.strictEqual(op.samples.length, chart.rivers.edges[i].samples.length * 3, 'river op ' + i + ' samples are flat x, y, w');
+  });
+  const mouthOps = ops.filter(o => o.kind === 'river-mouths');
+  assert.strictEqual(mouthOps.length, 1, 'one river-mouths op');
+  assert.strictEqual(mouthOps[0].strokes.length, chart.rivers.mouths.length);
+  const mouthAt = ops.indexOf(mouthOps[0]);
+  assert.ok(mouthAt > ops.findLastIndex(o => o.kind === 'river'), 'mouths after rivers');
+  assert.ok(mouthAt < ops.findIndex(o => o.kind === 'rail'), 'mouths before rails');
+});
+
+test('rail ops: built rails carry ties, unbuilt rails carry dots (seed 42 is all built; unbuilt pinned on a flipped copy)', () => {
+  const { view, geom } = step9Chart(42);
+  const rails = AshesMapCanvas.buildDrawOps(geom, view).filter(o => o.kind === 'rail');
+  assert.strictEqual(rails.length, 16, '16 rail ops');
+  assert.ok(rails.every(o => o.railState === 'built'), 'seed 42 has only built rail');
+  rails.forEach((op, i) => {
+    assert.ok(op.ties.length > 0 && op.ties.length % 4 === 0, 'built rail ' + i + ' ties ' + op.ties.length);
+    assert.strictEqual(op.dots.length, 0, 'built rail ' + i + ' has no dots');
+    assert.strictEqual(op.dashed, false);
+  });
+  // Unbuilt rail: flip one railed edge to building on a view copy.
+  const viewCopy = JSON.parse(JSON.stringify(view));
+  const railed = viewCopy.edges.find(e => e.railState === 'built');
+  railed.railState = 'building';
+  const geomCopy = AshesMapGeometry.buildGeometry(viewCopy);
+  const flipped = AshesMapCanvas.buildDrawOps(geomCopy, viewCopy).filter(o => o.kind === 'rail');
+  const unbuilt = flipped.filter(o => o.railState !== 'built');
+  assert.strictEqual(unbuilt.length, 1, 'one unbuilt rail on the copy');
+  unbuilt.forEach(op => {
+    assert.ok(op.dots.length > 0 && op.dots.length % 2 === 0, 'unbuilt rail dots ' + op.dots.length);
+    assert.strictEqual(op.ties.length, 0, 'unbuilt rail has no ties');
+    assert.strictEqual(op.dashed, true);
+  });
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  const railCase = src.slice(src.indexOf("case 'rail':"), src.indexOf("case 'rail':") + 2000).split('break;')[0];
+  assert.ok(railCase.indexOf('setLineDash') === -1, 'rail case uses no setLineDash');
+});

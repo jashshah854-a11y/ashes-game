@@ -19,6 +19,69 @@
   var CHART_BEACH = CHART_C.BEACH;
   var CHART_FRAME_PAPER = CHART_C.FRAME_PAPER;
   var CHART_INK = CHART_C.INK;
+  var CHART_RIVER_WATER = CHART_C.RIVER_WATER;
+  var CHART_RIVER_BANK = CHART_C.RIVER_BANK;
+  var CHART_RIVER_GLINT = CHART_C.RIVER_GLINT;
+
+  // Rail restyle (Cycle 23 Step 10, MAP_TREATMENT 2.6), in cell units.
+  var RAIL_LINE_W = 0.008;
+  var RAIL_TIE_STEP = 0.06;
+  var RAIL_TIE_LEN = 0.03;
+  var RAIL_DOT_STEP = 0.04;
+  var RAIL_DOT_R = 0.004;
+
+  // Stations every step of arc length along a flat path, starting half a
+  // step in so shared corners do not double up. Each station carries the
+  // unit direction of the piece it lies on.
+  function pathStations(path, step) {
+    var out = [];
+    var total = 0;
+    var i;
+    for (i = 2; i < path.length; i += 2) {
+      total += Math.hypot(path[i] - path[i - 2], path[i + 1] - path[i - 1]);
+    }
+    var next = step / 2;
+    var base = 0;
+    for (i = 2; i < path.length && next <= total; i += 2) {
+      var ax = path[i - 2];
+      var ay = path[i - 1];
+      var dx = path[i] - ax;
+      var dy = path[i + 1] - ay;
+      var len = Math.hypot(dx, dy);
+      if (len <= 0) continue;
+      while (next <= base + len) {
+        var t = (next - base) / len;
+        out.push({ x: ax + dx * t, y: ay + dy * t, ux: dx / len, uy: dy / len });
+        next += step;
+      }
+      base += len;
+    }
+    return out;
+  }
+
+  // Flat [x1, y1, x2, y2, ...] cross ties for a built rail path.
+  function railTies(path) {
+    var ties = [];
+    var h = RAIL_TIE_LEN / 2;
+    pathStations(path, RAIL_TIE_STEP).forEach(function (st) {
+      ties.push(st.x + st.uy * h, st.y - st.ux * h, st.x - st.uy * h, st.y + st.ux * h);
+    });
+    return ties;
+  }
+
+  // Flat [x, y, ...] dot centres for an unbuilt rail path.
+  function railDots(path) {
+    var dots = [];
+    pathStations(path, RAIL_DOT_STEP).forEach(function (st) { dots.push(st.x, st.y); });
+    return dots;
+  }
+
+  // Flat [x, y, w, ...] from chart river samples.
+  function flatSamples(samples) {
+    var flat = [];
+    samples.forEach(function (q) { flat.push(q.x, q.y, q.w); });
+    return flat;
+  }
 
   // Constants
   var DPR_CAP_DESKTOP = 2;
@@ -109,24 +172,37 @@
       ops.push({ kind: 'coast', provinceId: cs.provinceId, path: path });
     });
 
-    // River segments
-    geom.riverSegments.forEach(function (rs) {
+    // River segments, each carrying its chart edge samples (Step 10).
+    var rivers = AshesChart ? AshesChart.buildChart(geom).rivers : { edges: [], mouths: [] };
+    geom.riverSegments.forEach(function (rs, ri) {
       var path = [];
       for (var i = 0; i < rs.path.length; i++) {
         var pt = rs.path[i];
         path.push(pt.x, pt.y);
       }
-      ops.push({ kind: 'river', a: rs.a, b: rs.b, path: path });
+      var edge = rivers.edges[ri];
+      if (!edge || edge.a !== rs.a || edge.b !== rs.b) {
+        edge = rivers.edges.find(function (e) { return e.a === rs.a && e.b === rs.b; });
+      }
+      ops.push({ kind: 'river', a: rs.a, b: rs.b, path: path, samples: edge ? flatSamples(edge.samples) : [] });
     });
 
-    // Rail segments
+    // Mouth extensions, one stroke per mouth (MAP_TREATMENT 2.5).
+    ops.push({ kind: 'river-mouths', strokes: rivers.mouths.map(function (m) { return flatSamples(m.samples); }) });
+
+    // Rail segments: ties for built rail, dots otherwise (MAP_TREATMENT 2.6).
     geom.railSegments.forEach(function (rs) {
       var path = [];
       for (var i = 0; i < rs.path.length; i++) {
         var pt = rs.path[i];
         path.push(pt.x, pt.y);
       }
-      ops.push({ kind: 'rail', a: rs.a, b: rs.b, railState: rs.railState, path: path, dashed: rs.railState !== 'built' });
+      var built = rs.railState === 'built';
+      ops.push({
+        kind: 'rail', a: rs.a, b: rs.b, railState: rs.railState, path: path, dashed: !built,
+        ties: built ? railTies(path) : [],
+        dots: built ? [] : railDots(path)
+      });
     });
 
     return ops;
@@ -153,10 +229,72 @@
           parts.push(op.path[j].toFixed(4));
         }
       }
+      // River samples, mouth strokes, rail ties, and rail dots (Step 10).
+      ['samples', 'ties', 'dots'].forEach(function (field) {
+        if (!op[field]) return;
+        parts.push(field);
+        for (var k = 0; k < op[field].length; k++) parts.push(op[field][k].toFixed(4));
+      });
+      if (op.strokes) {
+        op.strokes.forEach(function (st) {
+          parts.push('stroke');
+          for (var m = 0; m < st.length; m++) parts.push(st[m].toFixed(4));
+        });
+      }
     });
     var canonical = parts.join('|');
     var hash = fnv1a(canonical);
     return hash.toString(16).padStart(8, '0');
+  }
+
+  // Draw the whole river network in three passes: banks, water, glints
+  // (MAP_TREATMENT 2.4). strokes: flat [x, y, w, ...] arrays in cell space.
+  function drawRiverNetwork(ctx, strokes, scaleX, scaleY) {
+    function eachPiece(fn) {
+      strokes.forEach(function (st) {
+        for (var i = 3; i < st.length; i += 3) {
+          fn(st[i - 3], st[i - 2], st[i], st[i + 1], (st[i - 1] + st[i + 2]) / 2);
+        }
+      });
+    }
+    function piece(x1, y1, x2, y2, width) {
+      ctx.beginPath();
+      ctx.moveTo(x1 * scaleX, y1 * scaleY);
+      ctx.lineTo(x2 * scaleX, y2 * scaleY);
+      ctx.lineWidth = width;
+      ctx.stroke();
+    }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Pass 1: banks.
+    ctx.strokeStyle = CHART_RIVER_BANK;
+    ctx.globalAlpha = 0.55;
+    eachPiece(function (x1, y1, x2, y2, w) { piece(x1, y1, x2, y2, w * scaleX + 2); });
+
+    // Pass 2: water.
+    ctx.strokeStyle = CHART_RIVER_WATER;
+    ctx.globalAlpha = 1;
+    eachPiece(function (x1, y1, x2, y2, w) { piece(x1, y1, x2, y2, w * scaleX); });
+
+    // Pass 3: glints, offset toward the lamp (upper left) along the normal.
+    ctx.strokeStyle = CHART_RIVER_GLINT;
+    ctx.globalAlpha = 0.35;
+    eachPiece(function (x1, y1, x2, y2, w) {
+      if (w < 0.06) return;
+      var dx = x2 - x1;
+      var dy = y2 - y1;
+      var len = Math.hypot(dx, dy);
+      if (len <= 0) return;
+      var nx = -dy / len;
+      var ny = dx / len;
+      if (nx + ny > 0 || (nx + ny === 0 && nx > 0)) { nx = -nx; ny = -ny; }
+      var ox = 0.15 * w * nx;
+      var oy = 0.15 * w * ny;
+      piece(x1 + ox, y1 + oy, x2 + ox, y2 + oy, 0.3 * w * scaleX);
+    });
+    ctx.restore();
   }
 
   // Execute draw operations on a canvas context.
@@ -170,6 +308,14 @@
       if (op.kind !== 'polygon') return;
       if (op.x + 1 > mapW) mapW = op.x + 1;
       if (op.y + 1 > mapH) mapH = op.y + 1;
+    });
+
+    // Every river stroke (edges, then mouth extensions) for the three pass draw.
+    var riverStrokes = [];
+    var riversDrawn = false;
+    ops.forEach(function (op) {
+      if (op.kind === 'river' && op.samples) riverStrokes.push(op.samples);
+      if (op.kind === 'river-mouths') riverStrokes = riverStrokes.concat(op.strokes);
     });
 
     ops.forEach(function (op) {
@@ -221,38 +367,50 @@
           break;
 
         case 'river':
-          ctx.beginPath();
-          var rpath = op.path;
-          if (rpath.length >= 2) {
-            ctx.moveTo(rpath[0] * scaleX, rpath[1] * scaleY);
-            for (var i = 2; i < rpath.length; i += 2) {
-              ctx.lineTo(rpath[i] * scaleX, rpath[i + 1] * scaleY);
-            }
-            ctx.strokeStyle = '#7fb3d9';
-            ctx.lineWidth = Math.max(2, 0.035 * scaleX);
-            ctx.stroke();
-          }
+        case 'river-mouths':
+          // The first river op draws the whole network (Step 10).
+          if (riversDrawn) break;
+          riversDrawn = true;
+          drawRiverNetwork(ctx, riverStrokes, scaleX, scaleY);
           break;
 
         case 'rail':
-          ctx.beginPath();
           var rapath = op.path;
-          if (rapath.length >= 2) {
-            ctx.moveTo(rapath[0] * scaleX, rapath[1] * scaleY);
-            for (var i = 2; i < rapath.length; i += 2) {
-              ctx.lineTo(rapath[i] * scaleX, rapath[i + 1] * scaleY);
-            }
-            ctx.strokeStyle = '#3a352a';
-            ctx.lineWidth = Math.max(2, 0.045 * scaleX);
-            if (op.dashed) {
-              ctx.save();
-              ctx.setLineDash([8, 6]);
+          ctx.save();
+          ctx.strokeStyle = CHART_INK;
+          ctx.fillStyle = CHART_INK;
+          ctx.lineWidth = RAIL_LINE_W * scaleX;
+          if (op.railState === 'built') {
+            if (rapath.length >= 4) {
+              ctx.beginPath();
+              ctx.moveTo(rapath[0] * scaleX, rapath[1] * scaleY);
+              for (var i = 2; i < rapath.length; i += 2) {
+                ctx.lineTo(rapath[i] * scaleX, rapath[i + 1] * scaleY);
+              }
+              ctx.globalAlpha = 0.8;
               ctx.stroke();
-              ctx.restore();
-            } else {
+            }
+            var ties = op.ties || [];
+            if (ties.length) {
+              ctx.beginPath();
+              for (var ti = 0; ti < ties.length; ti += 4) {
+                ctx.moveTo(ties[ti] * scaleX, ties[ti + 1] * scaleY);
+                ctx.lineTo(ties[ti + 2] * scaleX, ties[ti + 3] * scaleY);
+              }
+              ctx.globalAlpha = 0.6;
               ctx.stroke();
             }
+          } else {
+            var dots = op.dots || [];
+            ctx.globalAlpha = 0.45;
+            ctx.beginPath();
+            for (var di = 0; di < dots.length; di += 2) {
+              ctx.moveTo((dots[di] + RAIL_DOT_R) * scaleX, dots[di + 1] * scaleY);
+              ctx.arc(dots[di] * scaleX, dots[di + 1] * scaleY, RAIL_DOT_R * scaleX, 0, 2 * Math.PI);
+            }
+            ctx.fill();
           }
+          ctx.restore();
           break;
       }
     });
@@ -289,6 +447,10 @@
     waterLine(0.14, CHART_SEA_SHORE);
     chart.waves.forEach(function (wv) {
       under.push({ kind: 'chart-wave', x: wv.x, y: wv.y });
+    });
+    // Estuary fans in the sea, before the land (MAP_TREATMENT 2.5).
+    chart.rivers.fans.forEach(function (f) {
+      under.push({ kind: 'chart-estuary-fan', cx: f.cx, cy: f.cy, rx: f.rx, ry: f.ry, angle: f.angle });
     });
     under.push({ kind: 'chart-land', path: coast });
 
@@ -351,6 +513,21 @@
           ctx.globalAlpha = 0.10;
           ctx.lineWidth = 1;
           ctx.stroke();
+          ctx.restore();
+          break;
+
+        case 'chart-estuary-fan':
+          // Scale into cell space first, then rotate, so rx lies along the
+          // ray and ry across it in cell units.
+          ctx.save();
+          ctx.translate(op.cx * scaleX, op.cy * scaleY);
+          ctx.scale(scaleX, scaleY);
+          ctx.rotate(op.angle);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, op.rx, op.ry, 0, 0, 2 * Math.PI);
+          ctx.fillStyle = CHART_SEA_SHORE;
+          ctx.globalAlpha = 0.6;
+          ctx.fill();
           ctx.restore();
           break;
 
