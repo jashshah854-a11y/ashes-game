@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ashes of Empires, Run 2 canvas benchmark (throwaway)</title>
+<!--
+  Ashes of Empires, Cycle 23 Step 4, visual Run 2, throwaway canvas benchmark.
+  Six stacked 1600x1120 CSS px canvases (backing store = CSS size * options.dpr)
+  draw the worst case fixture board read through js/adapter.js playerView:
+  rough province polygons, three stroke front bands on the edges where live
+  owners differ, a 256 px dummy atlas with 200 sprites, and every front firing
+  a tracer plus impact beat. The only global is window.BENCH with setup,
+  drawBase, drawState, drawFrame, counts, memoryBytes and setOptions.
+  All geometry is deterministic: an FNV style hash of the province id plus a
+  mulberry32 PRNG; no unseeded Math.random anywhere.
+-->
+<style>
+  html, body { margin: 0; padding: 0; background: #20241F; }
+  #bench-container { position: relative; width: 1600px; height: 1120px; }
+  #bench-container canvas {
+    position: absolute; left: 0; top: 0;
+    width: 1600px; height: 1120px;
+  }
+</style>
+</head>
+<body>
+<div id="bench-container">
+  <canvas id="bench-base"></canvas>
+  <canvas id="bench-fog"></canvas>
+  <canvas id="bench-ambient"></canvas>
+  <canvas id="bench-state"></canvas>
+  <canvas id="bench-unit"></canvas>
+  <canvas id="bench-action"></canvas>
+</div>
+<script src="../js/sim.js"></script>
+<script src="../js/save.js"></script>
+<script src="../js/adapter.js"></script>
+<script>
+(function (global) {
+  'use strict';
+
+  var CSS_W = 1600;
+  var CSS_H = 1120;
+  var PLAYER_COLOUR = '#2E6FD8';
+  var ENEMY_COLOUR = '#C8372D';
+  var INK = 'rgba(38, 34, 26, 0.55)';
+  var PARCHMENT = 'rgba(226, 218, 198, 0.5)';
+  var TICK_MS = 900;
+  var ATLAS_SIZE = 256;
+  var CELLS = 256;      // 16 x 16 grid of 16 px cells
+  var SPRITE_CELLS = 200; // first 200 cells are the sprites
+  var EMBERS = 60;
+
+  var TERRAIN_TONES = ['#5F6E54', '#6B7055', '#586857', '#66705A'];
+
+  var options = { dpr: 2, spriteCount: 200, effectDensity: 1, baseScale: 1 };
+  var view = null;
+  var atlas = null;
+  var provinceGeo = [];   // id, cx, cy, tone, corners per province
+  var frontEdges = [];    // a, b, colour, ax, ay, bx, by, h01 per firing front
+  var liveUnits = [];     // cx, cy, ox, oy per unit in a live province
+  var fogRects = [];      // x, y of remembered and dark provinces
+  var emberDots = [];     // deterministic ambient embers
+
+  function canvasById(id) { return document.getElementById(id); }
+
+  var baseCtx = canvasById('bench-base').getContext('2d');
+  var fogCtx = canvasById('bench-fog').getContext('2d');
+  var ambCtx = canvasById('bench-ambient').getContext('2d');
+  var stateCtx = canvasById('bench-state').getContext('2d');
+  var unitCtx = canvasById('bench-unit').getContext('2d');
+  var beatCtx = canvasById('bench-action').getContext('2d');
+  var contexts = [baseCtx, fogCtx, ambCtx, stateCtx, unitCtx, beatCtx];
+
+  // FNV-1a style string hash, deterministic across runs and platforms.
+  function hashStr(s) {
+    var h = 2166136261 >>> 0;
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  // mulberry32 PRNG: small, fast, seeded; returns floats in [0, 1).
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function ownerColour(owner) {
+    return owner === 'player' ? PLAYER_COLOUR : ENEMY_COLOUR;
+  }
+
+  function provinceCentre(p) {
+    return { x: p.x * 160 + 80, y: p.y * 160 + 80 };
+  }
+
+  function buildAtlas() {
+    atlas = document.createElement('canvas');
+    atlas.width = ATLAS_SIZE;
+    atlas.height = ATLAS_SIZE;
+    var actx = atlas.getContext('2d');
+    for (var i = 0; i < CELLS; i++) {
+      var rng = mulberry32((0x9E3779B9 ^ i) >>> 0);
+      var hue = Math.floor(rng() * 360);
+      var sat = 35 + Math.floor(rng() * 30);
+      var lig = 40 + Math.floor(rng() * 25);
+      actx.fillStyle = 'hsl(' + hue + ', ' + sat + '%, ' + lig + '%)';
+      actx.fillRect((i % 16) * 16, Math.floor(i / 16) * 16, 16, 16);
+    }
+  }
+
+  function buildGeometry() {
+    provinceGeo = [];
+    frontEdges = [];
+    liveUnits = [];
+    fogRects = [];
+    emberDots = [];
+
+    var liveById = {};
+    view.provinces.forEach(function (p) {
+      if (p.intel === 'live') liveById[p.id] = p;
+    });
+
+    view.provinces.forEach(function (p) {
+      var c = provinceCentre(p);
+      var rng = mulberry32(hashStr(p.id));
+      var corners = [];
+      var n = 8;
+      for (var i = 0; i < n; i++) {
+        var ang = (i / n) * Math.PI * 2 + rng() * 0.4;
+        var r = 56 + rng() * 20;
+        corners.push([c.x + Math.cos(ang) * r, c.y + Math.sin(ang) * r]);
+      }
+      provinceGeo.push({
+        id: p.id,
+        x: c.x,
+        y: c.y,
+        tone: hashStr(p.id + '#tone') % TERRAIN_TONES.length,
+        corners: corners
+      });
+      if (p.intel !== 'live') {
+        fogRects.push({ x: p.x * 160, y: p.y * 160 });
+      }
+    });
+
+    view.edges.forEach(function (e) {
+      var pa = liveById[e.a];
+      var pb = liveById[e.b];
+      if (!pa || !pb || pa.owner === pb.owner) return;
+      var ca = provinceCentre(pa);
+      var cb = provinceCentre(pb);
+      frontEdges.push({
+        a: e.a,
+        b: e.b,
+        colour: ownerColour(pa.owner),
+        ax: ca.x, ay: ca.y,
+        bx: cb.x, by: cb.y,
+        h01: (hashStr(e.a + '|' + e.b) % 100000) / 100000
+      });
+    });
+
+    view.provinces.forEach(function (p) {
+      if (p.intel !== 'live' || !p.units) return;
+      var c = provinceCentre(p);
+      p.units.forEach(function (u) {
+        var h = hashStr(String(u.id) + '@' + p.id);
+        liveUnits.push({
+          cx: c.x, cy: c.y,
+          ox: ((h & 255) / 255 - 0.5) * 56,
+          oy: (((h >> 8) & 255) / 255 - 0.5) * 56
+        });
+      });
+    });
+
+    var rng = mulberry32(424242);
+    for (var i = 0; i < EMBERS; i++) {
+      emberDots.push({
+        x: rng() * CSS_W,
+        y: rng() * CSS_H,
+        r: 1 + rng() * 2.2,
+        a: 0.2 + rng() * 0.45
+      });
+    }
+  }
+
+  function tracePolygon(ctx, corners) {
+    ctx.beginPath();
+    ctx.moveTo(corners[0][0], corners[0][1]);
+    for (var i = 1; i < corners.length; i++) ctx.lineTo(corners[i][0], corners[i][1]);
+    ctx.closePath();
+  }
+
+  function resizeCanvases() {
+    var w = Math.round(CSS_W * options.dpr);
+    var h = Math.round(CSS_H * options.dpr);
+    contexts.forEach(function (ctx) {
+      ctx.canvas.width = w;
+      ctx.canvas.height = h;
+      ctx.setTransform(options.dpr, 0, 0, options.dpr, 0, 0);
+    });
+  }
+
+  function drawBase() {
+    baseCtx.clearRect(0, 0, CSS_W, CSS_H);
+    baseCtx.save();
+    baseCtx.translate(CSS_W / 2, CSS_H / 2);
+    baseCtx.scale(options.baseScale, options.baseScale);
+    baseCtx.translate(-CSS_W / 2, -CSS_H / 2);
+    provinceGeo.forEach(function (p) {
+      tracePolygon(baseCtx, p.corners);
+      baseCtx.fillStyle = TERRAIN_TONES[p.tone];
+      baseCtx.fill();
+      baseCtx.strokeStyle = INK;
+      baseCtx.lineWidth = 1;
+      baseCtx.stroke();
+    });
+    baseCtx.restore();
+
+    fogCtx.clearRect(0, 0, CSS_W, CSS_H);
+    fogCtx.fillStyle = PARCHMENT;
+    fogRects.forEach(function (r) {
+      fogCtx.fillRect(r.x, r.y, 160, 160);
+    });
+
+    ambCtx.clearRect(0, 0, CSS_W, CSS_H);
+    emberDots.forEach(function (e) {
+      ambCtx.globalAlpha = e.a;
+      ambCtx.fillStyle = '#E88434';
+      ambCtx.beginPath();
+      ambCtx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+      ambCtx.fill();
+    });
+    ambCtx.globalAlpha = 1;
+  }
+
+  function drawState() {
+    stateCtx.clearRect(0, 0, CSS_W, CSS_H);
+    stateCtx.strokeStyle = INK;
+    stateCtx.lineWidth = 1;
+    provinceGeo.forEach(function (p) {
+      tracePolygon(stateCtx, p.corners);
+      stateCtx.stroke();
+    });
+    frontEdges.forEach(function (fe) {
+      stateCtx.strokeStyle = fe.colour;
+      stateCtx.globalAlpha = 0.12;
+      stateCtx.lineWidth = 16;
+      stateCtx.beginPath();
+      stateCtx.moveTo(fe.ax, fe.ay);
+      stateCtx.lineTo(fe.bx, fe.by);
+      stateCtx.stroke();
+      stateCtx.globalAlpha = 0.18;
+      stateCtx.lineWidth = 9;
+      stateCtx.beginPath();
+      stateCtx.moveTo(fe.ax, fe.ay);
+      stateCtx.lineTo(fe.bx, fe.by);
+      stateCtx.stroke();
+      stateCtx.globalAlpha = 1;
+      stateCtx.lineWidth = 3;
+      stateCtx.beginPath();
+      stateCtx.moveTo(fe.ax, fe.ay);
+      stateCtx.lineTo(fe.bx, fe.by);
+      stateCtx.stroke();
+    });
+    stateCtx.globalAlpha = 1;
+  }
+
+  function drawFrame(tMs) {
+    unitCtx.clearRect(0, 0, CSS_W, CSS_H);
+    beatCtx.clearRect(0, 0, CSS_W, CSS_H);
+
+    var n = options.spriteCount;
+    var drawn = 0;
+    var ui = 0;
+    var pi = 0;
+    while (drawn < n) {
+      var x;
+      var y;
+      if (ui < liveUnits.length) {
+        var lu = liveUnits[ui];
+        ui++;
+        x = lu.cx + lu.ox;
+        y = lu.cy + lu.oy;
+      } else {
+        var p = view.provinces[pi % view.provinces.length];
+        var h = hashStr(p.id + '#pad' + pi);
+        var c = provinceCentre(p);
+        pi++;
+        x = c.x + ((h & 255) / 255 - 0.5) * 64;
+        y = c.y + (((h >> 8) & 255) / 255 - 0.5) * 64;
+      }
+      var cell = drawn % SPRITE_CELLS;
+      unitCtx.drawImage(
+        atlas,
+        (cell % 16) * 16, Math.floor(cell / 16) * 16, 16, 16,
+        x - 8, y - 8, 16, 16
+      );
+      drawn++;
+    }
+
+    frontEdges.forEach(function (fe) {
+      if (fe.h01 >= options.effectDensity) return;
+      var phase = ((tMs + fe.h01 * TICK_MS) % TICK_MS) / TICK_MS;
+      var mx = (fe.ax + fe.bx) / 2;
+      var my = (fe.ay + fe.by) / 2;
+      var tx = mx + (fe.bx - mx) * 0.45;
+      var ty = my + (fe.by - my) * 0.45;
+      beatCtx.strokeStyle = fe.colour;
+      beatCtx.globalAlpha = 0.75;
+      beatCtx.lineWidth = 2;
+      beatCtx.beginPath();
+      beatCtx.moveTo(mx, my);
+      beatCtx.lineTo(tx, ty);
+      beatCtx.stroke();
+      var ix = mx + (tx - mx) * phase;
+      var iy = my + (ty - my) * phase;
+      beatCtx.globalAlpha = 0.1 + 0.5 * (1 - phase);
+      beatCtx.fillStyle = fe.colour;
+      beatCtx.beginPath();
+      beatCtx.arc(ix, iy, 2 + 7 * phase, 0, Math.PI * 2);
+      beatCtx.fill();
+    });
+    beatCtx.globalAlpha = 1;
+  }
+
+  global.BENCH = {
+    setup: function (v, opts) {
+      view = v;
+      this.setOptions(opts);
+      buildGeometry();
+      resizeCanvases();
+      drawBase();
+      drawState();
+    },
+    drawBase: drawBase,
+    drawState: drawState,
+    drawFrame: drawFrame,
+    counts: function () {
+      return {
+        provinces: view ? view.provinces.length : 0,
+        spritesPerFrame: options.spriteCount,
+        frontEdges: frontEdges.length,
+        atlasSize: ATLAS_SIZE,
+        canvasCount: 6
+      };
+    },
+    memoryBytes: function () {
+      var total = ATLAS_SIZE * ATLAS_SIZE * 4;
+      contexts.forEach(function (ctx) {
+        total += ctx.canvas.width * ctx.canvas.height * 4;
+      });
+      return total;
+    },
+    setOptions: function (opts) {
+      if (!opts) return;
+      if (typeof opts.dpr === 'number') options.dpr = opts.dpr;
+      if (typeof opts.spriteCount === 'number') options.spriteCount = opts.spriteCount;
+      if (typeof opts.effectDensity === 'number') options.effectDensity = opts.effectDensity;
+      if (typeof opts.baseScale === 'number') options.baseScale = opts.baseScale;
+    }
+  };
+
+  buildAtlas();
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+</body>
+</html>
