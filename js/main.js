@@ -33,6 +33,8 @@
   var baseOffscreen = null;
   var baseRenderCount = 0;
   var baseSettleCount = 0;
+  var stateFingerprint = null;
+  var stateDrawCount = 0;
   var settleTimer = null;
 
   var el = {};
@@ -60,7 +62,7 @@
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
    'progression-blocks', 'progression-explain',
-   'map-base', 'map-board', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
+   'map-base', 'map-state', 'map-board', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -148,6 +150,58 @@
         coasts: geom.coastSegments.length
       }
     };
+    // Also render the state layer after base settles
+    renderStateCanvasNow();
+  }
+
+  function renderStateCanvasNow() {
+    var view = View(state);
+    var geom = MapGeom.buildGeometry(view);
+    var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
+    var cssW = el.map.clientWidth || geom.boardWidthPx;
+    var cssH = el.map.clientHeight || geom.boardHeightPx;
+    var widthPx = Math.round(cssW * dpr * mapZoom);
+    var heightPx = Math.round(cssH * dpr * mapZoom);
+
+    var ops = MapCanvas.buildStateOps(geom, view);
+    var hash = MapCanvas.stateOpsHash(ops);
+
+    var bandOps = ops.filter(function (op) { return op.kind === 'band'; }).length;
+    var frontOps = ops.filter(function (op) { return op.kind === 'front'; }).length;
+
+    // If hash matches and canvas size matches, do nothing
+    if (stateFingerprint === hash && el.mapState &&
+        el.mapState.width === widthPx && el.mapState.height === heightPx) {
+      window.AshesStateDebug = {
+        hash: hash,
+        drawCount: stateDrawCount,
+        bandOps: bandOps,
+        frontOps: frontOps
+      };
+      return;
+    }
+
+    var off = MapCanvas.renderStateCanvas(geom, view, widthPx, heightPx);
+    if (off) {
+      // Size the element canvas to the offscreen size
+      if (el.mapState.width !== off.width || el.mapState.height !== off.height) {
+        el.mapState.width = off.width;
+        el.mapState.height = off.height;
+      }
+      var ctx = el.mapState.getContext('2d');
+      ctx.clearRect(0, 0, el.mapState.width, el.mapState.height);
+      ctx.drawImage(off.canvas, 0, 0);
+
+      stateFingerprint = hash;
+      stateDrawCount++;
+    }
+
+    window.AshesStateDebug = {
+      hash: hash,
+      drawCount: stateDrawCount,
+      bandOps: bandOps,
+      frontOps: frontOps
+    };
   }
 
   function newGame() {
@@ -177,6 +231,7 @@
     el.mapViewport.style.height = '';
     baseOffscreen = null;
     baseFingerprint = null;
+    stateFingerprint = null;
     render();
     startTimer();
   }
@@ -537,6 +592,8 @@
     } else {
       blitBase();
     }
+    // State layer (ownership bands and front lines)
+    renderStateCanvasNow();
   }
 
   function renderPanel() {
@@ -1827,6 +1884,7 @@
     settleTimer = setTimeout(function () {
       baseSettleCount++;
       renderBaseCanvasNow();
+      // renderBaseCanvasNow calls renderStateCanvasNow internally
     }, 250);
   }
 

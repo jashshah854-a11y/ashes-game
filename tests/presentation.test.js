@@ -15,6 +15,8 @@ const crypto = require('node:crypto');
 const os = require('node:os');
 const Sim = require('../js/sim.js');
 const playerView = require('../js/adapter.js');
+const AshesMapGeometry = require('../js/map-geometry.js');
+const AshesMapCanvas = require('../js/map-canvas.js');
 const assetCheck = require('../tools/check-asset-log.js');
 
 const REPO_ROOT = path.join(__dirname, '..');
@@ -390,7 +392,6 @@ test('plaque build: fresh seed 42 game view returns 8 live unit groups and zero 
 });
 
 // Map geometry tests (Cycle 23 Step 6a)
-const AshesMapGeometry = require('../js/map-geometry.js');
 
 test('map geometry: buildGeometry is deterministic and does not mutate the view (seed 42)', () => {
   const s = Sim.createGame(42);
@@ -676,7 +677,6 @@ test('map geometry source lint: js/map-geometry.js contains no banned strings, n
 });
 
 // Map canvas tests (Cycle 23 Step 6b)
-const AshesMapCanvas = require('../js/map-canvas.js');
 
 test('map canvas: effectiveDpr caps at desktop and mobile limits', () => {
   assert.strictEqual(AshesMapCanvas.effectiveDpr(3, 1600), 2, 'dpr 3 at width 1600 capped to 2');
@@ -769,4 +769,157 @@ test('map canvas source lint: js/map-canvas.js contains no banned strings, no si
   assert.ok(!/new Date\(\)/.test(src), 'map-canvas.js must not use new Date()');
   assert.ok(!/Date\.now\(\)/.test(src), 'map-canvas.js must not use Date.now()');
   assert.ok(!/[\u2013\u2014]/.test(src), 'map-canvas.js must not contain em or en dashes');
+});
+
+// State layer tests (Cycle 23 Step 7a)
+
+test('state ops: on fresh seed 42, band ops exist for both owners; every band op province has intel live; no band/front references remembered or dark; front count matches geometry edges with different known owners; band count matches independent computation', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildStateOps(geom, view);
+
+  // Band ops exist for both owners
+  var playerBands = ops.filter(function (op) { return op.kind === 'band' && op.owner === 'player'; });
+  var enemyBands = ops.filter(function (op) { return op.kind === 'band' && op.owner === 'enemy'; });
+  assert.ok(playerBands.length > 0, 'player band ops exist: ' + playerBands.length);
+  assert.ok(enemyBands.length > 0, 'enemy band ops exist: ' + enemyBands.length);
+
+  // Every band op's province has intel 'live' in the view
+  var liveProvinceIds = view.provinces.filter(function (p) { return p.intel === 'live'; }).map(function (p) { return p.id; });
+  ops.forEach(function (op) {
+    if (op.kind === 'band') {
+      assert.ok(liveProvinceIds.indexOf(op.provinceId) !== -1, 'band op province ' + op.provinceId + ' must have intel live');
+    }
+  });
+
+  // No band or front op references a remembered or dark province
+  var rememberedDarkIds = view.provinces.filter(function (p) { return p.intel === 'remembered' || p.intel === 'dark'; }).map(function (p) { return p.id; });
+  ops.forEach(function (op) {
+    if (op.kind === 'band') {
+      assert.ok(rememberedDarkIds.indexOf(op.provinceId) === -1, 'band op must not reference remembered/dark province ' + op.provinceId);
+    }
+    if (op.kind === 'front') {
+      assert.ok(rememberedDarkIds.indexOf(op.a) === -1, 'front op must not reference remembered/dark province ' + op.a);
+      assert.ok(rememberedDarkIds.indexOf(op.b) === -1, 'front op must not reference remembered/dark province ' + op.b);
+    }
+  });
+
+  // Front ops count equals number of geometry edges whose endpoints have different known owners
+  var ownerLookup = {};
+  view.provinces.forEach(function (p) {
+    if (p.intel === 'live' && (p.owner === 'player' || p.owner === 'enemy')) {
+      ownerLookup[p.id] = p.owner;
+    }
+  });
+  var expectedFronts = 0;
+  geom.edges.forEach(function (e) {
+    var oa = ownerLookup[e.a];
+    var ob = ownerLookup[e.b];
+    if (oa && ob && oa !== ob) expectedFronts++;
+  });
+  var frontOps = ops.filter(function (op) { return op.kind === 'front'; });
+  assert.strictEqual(frontOps.length, expectedFronts, 'front ops ' + frontOps.length + ' vs expected ' + expectedFronts);
+
+  // Band ops on differing edges = 2 * front count + one-sided edges + boundary bands
+  // Compute full expected band count independently
+  var expectedBands = 0;
+  // Interior edges
+  geom.edges.forEach(function (e) {
+    var oa = ownerLookup[e.a];
+    var ob = ownerLookup[e.b];
+    if (oa && ob && oa !== ob) {
+      expectedBands += 2; // both sides
+    } else if (oa && !ob) {
+      expectedBands += 1; // only a
+    } else if (!oa && ob) {
+      expectedBands += 1; // only b
+    }
+  });
+  // Boundary segments
+  var seenBoundary = {};
+  geom.provinces.forEach(function (p) {
+    var owner = ownerLookup[p.id];
+    if (!owner) return;
+    var poly = p.polygon;
+    var segments = [
+      { p1: poly[0], p2: poly[1] }, // top
+      { p1: poly[2], p2: poly[3] }, // right
+      { p1: poly[4], p2: poly[5] }, // bottom
+      { p1: poly[6], p2: poly[7] }  // left
+    ];
+    segments.forEach(function (seg) {
+      var eps = 1e-9;
+      var onLeft = Math.abs(seg.p1.x) < eps && Math.abs(seg.p2.x) < eps;
+      var onRight = Math.abs(seg.p1.x - geom.mapW) < eps && Math.abs(seg.p2.x - geom.mapW) < eps;
+      var onTop = Math.abs(seg.p1.y) < eps && Math.abs(seg.p2.y) < eps;
+      var onBottom = Math.abs(seg.p1.y - geom.mapH) < eps && Math.abs(seg.p2.y - geom.mapH) < eps;
+      if (onLeft || onRight || onTop || onBottom) {
+        var key = p.id + ':' + seg.p1.x.toFixed(4) + ',' + seg.p1.y.toFixed(4) + '-' + seg.p2.x.toFixed(4) + ',' + seg.p2.y.toFixed(4);
+        if (!seenBoundary[key]) {
+          seenBoundary[key] = true;
+          expectedBands++;
+        }
+      }
+    });
+  });
+
+  var bandOps = ops.filter(function (op) { return op.kind === 'band'; });
+  assert.strictEqual(bandOps.length, expectedBands, 'band ops ' + bandOps.length + ' vs expected ' + expectedBands);
+});
+
+test('state ops: determinism - two buildStateOps calls produce identical hash; flipped owner produces different hash', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+
+  const ops1 = AshesMapCanvas.buildStateOps(geom, view);
+  const hash1 = AshesMapCanvas.stateOpsHash(ops1);
+
+  const ops2 = AshesMapCanvas.buildStateOps(geom, view);
+  const hash2 = AshesMapCanvas.stateOpsHash(ops2);
+  assert.strictEqual(hash2, hash1, 'hash deterministic across builds');
+
+  // Flip one province owner in a copied view
+  var viewCopy = JSON.parse(JSON.stringify(view));
+  // Find a live player province and make it enemy
+  var livePlayer = viewCopy.provinces.find(function (p) { return p.intel === 'live' && p.owner === 'player'; });
+  if (livePlayer) {
+    livePlayer.owner = 'enemy';
+  }
+  var geomCopy = AshesMapGeometry.buildGeometry(viewCopy);
+  var ops3 = AshesMapCanvas.buildStateOps(geomCopy, viewCopy);
+  var hash3 = AshesMapCanvas.stateOpsHash(ops3);
+  assert.notStrictEqual(hash3, hash1, 'hash changes when owner flips');
+});
+
+test('state ops: constants have correct values', () => {
+  assert.strictEqual(AshesMapCanvas.BAND_WIDE_W, 16, 'BAND_WIDE_W');
+  assert.strictEqual(AshesMapCanvas.BAND_MID_W, 9, 'BAND_MID_W');
+  assert.strictEqual(AshesMapCanvas.BAND_CORE_W, 3, 'BAND_CORE_W');
+  assert.strictEqual(AshesMapCanvas.BAND_WIDE_ALPHA, 0.12, 'BAND_WIDE_ALPHA');
+  assert.strictEqual(AshesMapCanvas.BAND_MID_ALPHA, 0.18, 'BAND_MID_ALPHA');
+  assert.strictEqual(AshesMapCanvas.FILL_ALPHA, 0.06, 'FILL_ALPHA');
+  assert.strictEqual(AshesMapCanvas.FRONT_W, 4, 'FRONT_W');
+
+  // Enemy bands have doubled true, player bands doubled false
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildStateOps(geom, view);
+  var enemyBands = ops.filter(function (op) { return op.kind === 'band' && op.owner === 'enemy'; });
+  var playerBands = ops.filter(function (op) { return op.kind === 'band' && op.owner === 'player'; });
+  enemyBands.forEach(function (op) {
+    assert.strictEqual(op.doubled, true, 'enemy band doubled true for ' + op.provinceId);
+  });
+  playerBands.forEach(function (op) {
+    assert.strictEqual(op.doubled, false, 'player band doubled false for ' + op.provinceId);
+  });
+});
+
+test('state ops source lint: js/map-canvas.js state functions contain no banned strings', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'map-canvas.js must not contain ' + str);
+  });
 });

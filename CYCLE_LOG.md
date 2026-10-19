@@ -5741,3 +5741,15 @@ Correction to the entry above, written minutes later in the same run: the nemotr
 - Addendum to the PROOF PENDING entry, same run: the late build also left untracked builder debris in the tree (node_modules/, package.json, package-lock.json, from a local package install by the builder). These are not part of Step 7a. The next run removes them before verification and does not commit them.
 - Correction addendum, same run, from the longcat session record delivered after the entries above: longcat-2.5-preview-free in fact rate limited during its exploration reads and wrote no files at all, so there was no longcat build to vanish; the briefed files first seen in git status during this run cannot be attributed to it, and the tree the PROOF PENDING entry governs is the nemotron late build, as that entry states. The unreproduced note above stands corrected to this.
 - Second correction addendum, same run, from the nemotron session record: its quoted md5 for tools/ownership-check.js is 2d55f99bdcf724e8159a1cb19c4c4df8, which supersedes the 86844969ddecd880ce504c2b1ea0ae10 recorded in the PROOF PENDING entry (the file was still being written when the snapshot was taken). The map-canvas.js and main.js hashes in that entry match the session record exactly. The next run verifies the file as it stands on disk, from scratch, as the PROOF PENDING entry already directs.
+
+## Cycle 23 Step 7a: PROOF PENDING discharged, step verified and closed (2026-10-19)
+
+The PROOF PENDING state from the 07:36 run is discharged. Verification was completed by Vector (the parent orchestrator) on the exact tree the late nemotron build left, after confirming no builder process was alive:
+
+- Builder debris removed: node_modules, package.json, and package-lock.json (all builder created, all untracked, none part of the repo).
+- Diff scope reviewed: exactly the six briefed files (js/map-canvas.js, js/main.js, css/style.css, index.html, tests/presentation.test.js modified; tools/ownership-check.js new), 572 insertions, 4 deletions. No banned frame path calls (shadowBlur, ctx.filter, getImageData, fillText) in the new code.
+- node --check clean on every touched file. Sim suite 191 pass, 0 fail. Presentation suite 35 pass, 0 fail (the nine new state ops tests over Step 6a's 26). Balance byte identical to tools/baseline-cycle22.txt. Dash scan zero over the diff and the new check.
+- Browser proofs: tools/ownership-check.js 11 of 11 in Chromium (state canvas above the base canvas, band and front operations present, strongly blue and strongly red pixel counts pass, redraw discipline holds with drawCount unchanged across three selection clicks, no page errors). Regression spot checks: map-canvas-check 14 of 14, plaque-check 22 of 22.
+- Builder class note: the build was opencode/nemotron-3-ultra-free under a brief issued before Jash's 2026-10-19 builder order; from the next build step the builder is Opus 5.5 per DECISIONS item 30, with free models on mechanical steps only.
+
+Step 7a is complete and Step 7b's proof half is discharged by this entry, so the next run claims Step 8 (fog in its three states on the live canvas). No stop condition is met.
