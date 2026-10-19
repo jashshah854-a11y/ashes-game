@@ -5813,3 +5813,6 @@ Claimed this run: Step 9 only (DECISIONS item 28 order; VISUAL_STRATEGY Step 9 s
 
 ### Mission status
 Cycle 23 Step 9 is complete: the proven plaque system is the unit display on the live board, the old DOM unit chips and ghost chips are gone, numeral suppression in Last seen is proven by DOM assertion on the live page, and the selected unit reads through its plaque's gold outline. Next run claims Step 10 (attack beats inside the tick on the live board; checkpoint 1 demonstration). No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 step 9 sync note
+- Sync out after commits 7398e23 and e640df8: the first sync attempt was interrupted by a service restart with its outcome unknown; the tree was verified clean with both commits intact, and the rerun completed with exit 0 and sent both commits to GitHub (jashshah854-a11y/ashes-game, master now at remote a01a261; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
