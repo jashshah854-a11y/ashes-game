@@ -5724,3 +5724,9 @@ Cycle 23 Step 6b is complete and visual Run 4 is complete: the geometry renders 
 
 ### Cycle 23 Step 6b sync note
 - Sync out after commits d2e3dae and 78738d0: the import script completed with exit 0 and sent 3 commits to GitHub (14dddb3, the Cycle 23 Step 6a sync note carried over, plus this step's d2e3dae and 78738d0; jashshah854-a11y/ashes-game, master now at remote 73f0ce2; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+## Cycle 23 reorder: visuals first (Jash's order, 2026-10-19)
+
+Jash asked why the game has shown no leap in how it looks. The honest answer, given to him in the IRIS chat: the strategy's production order spends its first half on invisible work (the deflake night, the fence, the benchmark, the plaque system, the geometry module), and the decoration was scheduled last, so a full day of verified progress changed no pixel on the live board. Offered the choice, Jash ordered in his own words: "Reorder the plan: visuals first, starting now."
+
+DECISIONS item 28 records the new sequence (Steps 7 to 28) and its two standing rules: no gate or criterion weakens, only the order changes; and every step from Step 7 must be visible in a screenshot of the live board or name the visible step it serves. The reorder was written while Step 6b (canvas integration) was in flight and takes effect from Step 7, so the first visible change is the canvas itself, followed immediately by ownership bands, fog, plaques on the board, and attack beats.

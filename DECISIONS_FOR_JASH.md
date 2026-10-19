@@ -1569,3 +1569,32 @@ item above.
     25(b) Option A, leave as is, until Step 2's reachability
     evidence either proves it or reopens it. No tuning of any
     kind is ruled or made in Cycle 23.
+
+## Item 28: Cycle 23 reordered, visuals first (Jash's order, 2026-10-19)
+
+On 2026-10-19 Jash asked why the game has shown no leap in how it looks, was told plainly that the strategy's order spends its first half on invisible work (plaques, geometry, benchmarks, gates) with the decoration last, and chose the offered option in his own words: "Reorder the plan: visuals first, starting now."
+
+The reorder, effective the moment Step 6b (canvas integration, in flight when the order landed) commits:
+
+- Step 7: ownership bands and the front line on the live canvas (former Run 5).
+- Step 8: fog in its three states on the live canvas (former Run 6).
+- Step 9: the proven plaque system wired onto the live board as the unit display.
+- Step 10: attack beats inside the tick on the live board; checkpoint 1 demonstration (former Run 8).
+- Step 11: atmosphere on the live board: lamp glow, vignette, embers, and the palette harness (former Run 7).
+- Step 12: master sheet and the TX01 texture bake-off (former Run 9).
+- Step 13: terrain and sea textures into the base layer (former Run 10).
+- Step 14: fog and panel textures, decals (former Run 11).
+- Step 15: UI frames and the interim title (former Run 12).
+- Steps 16 to 20: Blender rig lock, silhouette blockouts, infantry, drone, and flotilla batches (former Runs 13 to 17).
+- Step 21: smoke and sprite beats (former Run 18).
+- Step 22: team color tuning pass; checkpoint 2 demonstration (former Run 19).
+- Step 23: conditional richness (former Run 20).
+- Step 24: final title and end frames (former Run 21).
+- Step 25: release candidate; checkpoint 3 demonstration (former Run 22).
+- Steps 26 to 28: lore, legibility, and close (former Steps 25 to 27).
+
+Two standing rules ride with the reorder. First, sequence changed, standards did not: every gate, value band, and pass criterion in STRATEGY.md still binds, and the worst-case admission protocol still gates the release candidate and sprite admission; a step may arrive earlier, it may not arrive weaker. Second, from Step 7 on, every step must produce a change Jash can see in a screenshot of the live board, or its CYCLE_LOG entry must name the visible step it serves and why it cannot be visible itself; an invisible step with no named visible dependent is not a step under this order.
+
+Addendum to item 28, same morning, Jash's own words: "give visual work to claude design"; "As a strategy, plan, and process, we will tell ChatGPT image models to create the best renderings according to its image generation model. We will then copy the rendition and remake it into a Blender component to give it a more hyperrealistic approach"; "creating a way for us to have a strategy, especially to do a visual storyboard, mood board, vision board, whatever."
+
+Adopted process for visual components: Claude (Opus, the design authority behind VISION_BOARD.md and STRATEGY.md) owns visual design and is commissioned to produce the visual storyboard strategy for the reordered cycle. Asset production for components runs: (1) ChatGPT image models generate the best rendition of each storyboarded component or scene, conditioned on the adopted master; (2) the rendition is copied and remade as a Blender component (Colab lane, pinned rig) for the hyperreal finish; (3) the loop wires finished components in at their reordered steps. Binding limits carried from RESEARCH.md and STRATEGY.md, which this process does not repeal: the live map stays canvas drawn from sim data (a rendition never becomes the map), plaques and state layers stay code drawn, sprites still pass the grayscale silhouette gate at final size before admission, and every rendition derives from the one master, never from a sibling rendition.
