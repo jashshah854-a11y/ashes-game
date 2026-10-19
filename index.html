@@ -24,6 +24,18 @@
 
 <main>
   <section class="map-wrap">
+    <div class="map-zoom">
+      <button id="btn-zoom-out" type="button">Zoom out</button>
+      <button id="btn-zoom-reset" type="button">Reset zoom</button>
+      <button id="btn-zoom-in" type="button">Zoom in</button>
+      <span id="zoom-label">Zoom 100%</span>
+    </div>
+    <div id="map-viewport">
+      <div id="map-board">
+        <canvas id="map-base" aria-hidden="true"></canvas>
+        <div id="map" class="map" aria-label="Province map"></div>
+      </div>
+    </div>
     <div id="start-statement" class="intel-legend">
       You command the Vessari Compact, the blue nation. Win by taking Khessograd, the Dominion
       capital, before the campaign ends on day 150. You lose if Vesskar City, your capital, falls.
@@ -35,7 +47,6 @@
       then reads Resume. The highlighted speed button is the speed in use. Orders can be given
       while paused or while the war runs.
     </p>
-    <div id="map" class="map" aria-label="Province map"></div>
     <div id="intel-legend" class="intel-legend">
       Intel and fog, three states. Live: seen today, shown in full, its figures are current.
       Remembered: seen before but not today, dimmed and hatched on the map; its ghost figures
@@ -71,6 +82,7 @@
         <li>A dashed gold badge reading Order: Inf ordered here at dawn, or Order: Drone ordered here at dawn, is an order marker: it marks a province one of your units is ordered to march or attack at dawn, one badge for each ordered unit.</li>
         <li>A dashed chip marked Day N ghost is a remembered snapshot figure from day N.</li>
         <li>A minus N percent tag on a chip is that unit supply penalty.</li>
+        <li>The parchment board under the tiles is drawn on a canvas from the same map data, zoom buttons scale the board, and the canvas redraws once the zoom settles.</li>
       </ul>
     </div>
     <p class="hint">
@@ -280,6 +292,8 @@
 
 <script src="js/sim.js"></script>
 <script src="js/adapter.js"></script>
+<script src="js/map-geometry.js"></script>
+<script src="js/map-canvas.js"></script>
 <script src="js/lore.js"></script>
 <script src="js/save.js"></script>
 <script src="js/main.js"></script>

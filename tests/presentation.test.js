@@ -674,3 +674,99 @@ test('map geometry source lint: js/map-geometry.js contains no banned strings, n
   // Verify no em/en dashes
   assert.ok(!/[\u2013\u2014]/.test(src), 'map-geometry.js must not contain em or en dashes');
 });
+
+// Map canvas tests (Cycle 23 Step 6b)
+const AshesMapCanvas = require('../js/map-canvas.js');
+
+test('map canvas: effectiveDpr caps at desktop and mobile limits', () => {
+  assert.strictEqual(AshesMapCanvas.effectiveDpr(3, 1600), 2, 'dpr 3 at width 1600 capped to 2');
+  assert.strictEqual(AshesMapCanvas.effectiveDpr(3, 390), 1.5, 'dpr 3 at width 390 capped to 1.5');
+  assert.strictEqual(AshesMapCanvas.effectiveDpr(1, 1600), 1, 'dpr 1 at width 1600 stays 1');
+  assert.strictEqual(AshesMapCanvas.effectiveDpr(2, 1600), 2, 'dpr 2 at width 1600 stays 2');
+  assert.strictEqual(AshesMapCanvas.effectiveDpr(null, 1600), 1, 'null dpr defaults to 1');
+  assert.strictEqual(AshesMapCanvas.effectiveDpr(0, 1600), 1, 'dpr 0 treated as 1');
+  assert.strictEqual(AshesMapCanvas.effectiveDpr(undefined, 1600), 1, 'undefined dpr defaults to 1');
+});
+
+test('map canvas: fitPixels under cap unchanged and over cap scales down', () => {
+  // Under cap
+  var under = AshesMapCanvas.fitPixels(1000, 1000);
+  assert.strictEqual(under.width, 1000);
+  assert.strictEqual(under.height, 1000);
+  assert.strictEqual(under.scale, 1);
+
+  // Over cap
+  var over = AshesMapCanvas.fitPixels(5000, 5000);
+  assert.ok(over.width * over.height <= AshesMapCanvas.PIXEL_CAP, 'scaled area under cap: ' + over.width * over.height);
+  assert.ok(over.width < 5000 && over.height < 5000, 'dimensions reduced');
+  assert.ok(over.scale < 1, 'scale reduced');
+
+  // Min 1x1
+  var tiny = AshesMapCanvas.fitPixels(10000, 10000);
+  assert.ok(tiny.width >= 1 && tiny.height >= 1, 'min dimensions 1x1');
+});
+
+test('map canvas: buildDrawOps on seed 42 view and geometry', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildDrawOps(geom, view);
+
+  // First op is sea
+  assert.strictEqual(ops[0].kind, 'sea', 'first op is sea');
+
+  // Polygon ops count equals geom.provinces.length (70)
+  var polygonOps = ops.filter(function (op) { return op.kind === 'polygon'; });
+  assert.strictEqual(polygonOps.length, geom.provinces.length, 'polygon ops count ' + polygonOps.length + ' vs provinces ' + geom.provinces.length);
+  assert.strictEqual(geom.provinces.length, 70, 'provinces count is 70');
+
+  // Coast/river/rail op counts equal geom segment lengths
+  var coastOps = ops.filter(function (op) { return op.kind === 'coast'; });
+  var riverOps = ops.filter(function (op) { return op.kind === 'river'; });
+  var railOps = ops.filter(function (op) { return op.kind === 'rail'; });
+  assert.strictEqual(coastOps.length, geom.coastSegments.length, 'coast ops ' + coastOps.length + ' vs coastSegments ' + geom.coastSegments.length);
+  assert.strictEqual(riverOps.length, geom.riverSegments.length, 'river ops ' + riverOps.length + ' vs riverSegments ' + geom.riverSegments.length);
+  assert.strictEqual(railOps.length, geom.railSegments.length, 'rail ops ' + railOps.length + ' vs railSegments ' + geom.railSegments.length);
+
+  // Op order: polygons before segments
+  var firstSegmentIdx = ops.findIndex(function (op) { return op.kind !== 'sea' && op.kind !== 'polygon'; });
+  var lastPolygonIdx = ops.findLastIndex(function (op) { return op.kind === 'polygon'; });
+  assert.ok(firstSegmentIdx > lastPolygonIdx, 'all polygons before any segment');
+});
+
+test('map canvas: drawOpsHash deterministic and changes when view changes', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops1 = AshesMapCanvas.buildDrawOps(geom, view);
+  const hash1 = AshesMapCanvas.drawOpsHash(ops1);
+
+  // Same view, same hash
+  const ops2 = AshesMapCanvas.buildDrawOps(geom, view);
+  const hash2 = AshesMapCanvas.drawOpsHash(ops2);
+  assert.strictEqual(hash2, hash1, 'hash deterministic across builds');
+
+  // Flip a railState in a copied view and rebuild geometry -> hash changes
+  var viewCopy = JSON.parse(JSON.stringify(view));
+  if (viewCopy.edges.length > 0) {
+    viewCopy.edges[0].railState = viewCopy.edges[0].railState === 'built' ? 'building' : 'built';
+  }
+  var geomCopy = AshesMapGeometry.buildGeometry(viewCopy);
+  var ops3 = AshesMapCanvas.buildDrawOps(geomCopy, viewCopy);
+  var hash3 = AshesMapCanvas.drawOpsHash(ops3);
+  assert.notStrictEqual(hash3, hash1, 'hash changes when railState flips');
+  // Hash is 8 char hex
+  assert.ok(/^[0-9a-f]{8}$/.test(hash1), 'hash is 8 char hex: ' + hash1);
+});
+
+test('map canvas source lint: js/map-canvas.js contains no banned strings, no sim require, no Math.random, no em/en dashes', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'map-canvas.js must not contain ' + str);
+  });
+  assert.ok(!/require\(['\"]\.\/sim\.js['\"]\)/.test(src), 'map-canvas.js must not require sim.js');
+  assert.ok(!/Math\.random\(\)/.test(src), 'map-canvas.js must not use Math.random');
+  assert.ok(!/new Date\(\)/.test(src), 'map-canvas.js must not use new Date()');
+  assert.ok(!/Date\.now\(\)/.test(src), 'map-canvas.js must not use Date.now()');
+  assert.ok(!/[\u2013\u2014]/.test(src), 'map-canvas.js must not contain em or en dashes');
+});

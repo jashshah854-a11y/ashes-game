@@ -5,6 +5,9 @@
   var Sim = window.AshesSim;
   var Lore = window.AshesLore;
   var Save = window.AshesSave;
+  var View = window.AshesView;
+  var MapGeom = window.AshesMapGeometry;
+  var MapCanvas = window.AshesMapCanvas;
 
   var state = null;
   var selectedProvinceId = null;
@@ -22,6 +25,15 @@
   var prodNotice = ''; // the last refused queue or retool reason, shown in the production panel until the next attempt
   var provNotice = ''; // the last refused province card action reason (agent planting or flotilla stationing), shown until the next attempt
   var unitNotice = ''; // the last refused reinforce reason, shown in the unit card until the next attempt
+
+  // Map canvas state
+  var mapZoomIndex = 2; // index of 1 in ZOOM_STEPS
+  var mapZoom = 1;
+  var baseFingerprint = null;
+  var baseOffscreen = null;
+  var baseRenderCount = 0;
+  var baseSettleCount = 0;
+  var settleTimer = null;
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
@@ -47,7 +59,8 @@
    'save-file-input', 'btn-codex', 'event-overlay', 'event-kicker', 'event-title', 'event-body', 'event-why',
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
-   'progression-blocks', 'progression-explain'
+   'progression-blocks', 'progression-explain',
+   'map-base', 'map-board', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -86,6 +99,57 @@
     return m ? parseInt(m[1], 10) : null;
   })();
 
+  // Map canvas helpers
+  function baseFingerprintOf(view) {
+    var parts = [];
+    view.edges.forEach(function (e) {
+      parts.push(e.a + '|' + e.b + '|' + e.terrain + '|' + e.railState);
+    });
+    view.provinces.forEach(function (p) {
+      parts.push(p.id + '|' + (p.coastal ? '1' : '0'));
+    });
+    return JSON.stringify(parts);
+  }
+
+  function blitBase() {
+    if (!baseOffscreen) return;
+    var ctx = el.mapBase.getContext('2d');
+    if (el.mapBase.width !== baseOffscreen.width || el.mapBase.height !== baseOffscreen.height) {
+      el.mapBase.width = baseOffscreen.width;
+      el.mapBase.height = baseOffscreen.height;
+    }
+    ctx.clearRect(0, 0, el.mapBase.width, el.mapBase.height);
+    ctx.drawImage(baseOffscreen.canvas, 0, 0);
+  }
+
+  function renderBaseCanvasNow() {
+    var view = View(state);
+    var geom = MapGeom.buildGeometry(view);
+    var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
+    var cssW = el.map.clientWidth || geom.boardWidthPx;
+    var cssH = el.map.clientHeight || geom.boardHeightPx;
+    var off = MapCanvas.renderBaseCanvas(geom, view, Math.round(cssW * dpr * mapZoom), Math.round(cssH * dpr * mapZoom));
+    if (off) {
+      baseOffscreen = off;
+      baseRenderCount++;
+      baseFingerprint = baseFingerprintOf(view);
+      blitBase();
+    }
+    window.AshesMapCanvasDebug = {
+      zoom: mapZoom,
+      dpr: dpr,
+      baseHash: off ? off.hash : null,
+      renderCount: baseRenderCount,
+      settleCount: baseSettleCount,
+      counts: {
+        provinces: geom.provinces.length,
+        rivers: geom.riverSegments.length,
+        rails: geom.railSegments.length,
+        coasts: geom.coastSegments.length
+      }
+    };
+  }
+
   function newGame() {
     var seed = urlSeed != null ? urlSeed : Math.floor(Math.random() * 100000);
     urlSeed = null;
@@ -105,6 +169,14 @@
     pauseBeforeOverlay = null;
     el.eventOverlay.classList.add('hidden');
     el.codexOverlay.classList.add('hidden');
+    // Reset zoom to 1 without scheduling a settle
+    mapZoomIndex = 2;
+    mapZoom = 1;
+    el.mapBoard.style.transform = '';
+    el.zoomLabel.textContent = 'Zoom 100%';
+    el.mapViewport.style.height = '';
+    baseOffscreen = null;
+    baseFingerprint = null;
     render();
     startTimer();
   }
@@ -457,6 +529,14 @@
     Array.prototype.forEach.call(el.map.querySelectorAll('.province'), function (node) {
       node.addEventListener('click', function () { onProvinceClick(node.getAttribute('data-prov')); });
     });
+    // Map canvas: render or blit the base layer
+    var view = View(state);
+    var fp = baseFingerprintOf(view);
+    if (baseOffscreen === null || baseFingerprint !== fp) {
+      renderBaseCanvasNow();
+    } else {
+      blitBase();
+    }
   }
 
   function renderPanel() {
@@ -1728,6 +1808,31 @@
     };
     reader.readAsText(file);
   });
+
+  // Zoom controls
+  function applyZoom(newIndex) {
+    var steps = MapCanvas.ZOOM_STEPS;
+    if (newIndex < 0) newIndex = 0;
+    if (newIndex >= steps.length) newIndex = steps.length - 1;
+    mapZoomIndex = newIndex;
+    mapZoom = steps[mapZoomIndex];
+    el.mapBoard.style.transform = 'scale(' + mapZoom + ')';
+    el.zoomLabel.textContent = 'Zoom ' + Math.round(mapZoom * 100) + '%';
+    el.mapViewport.style.height = mapZoom === 1 ? '' : (el.mapBoard.offsetHeight * mapZoom) + 'px';
+    scheduleSettle();
+  }
+
+  function scheduleSettle() {
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = setTimeout(function () {
+      baseSettleCount++;
+      renderBaseCanvasNow();
+    }, 250);
+  }
+
+  el.btnZoomIn.addEventListener('click', function () { applyZoom(mapZoomIndex + 1); });
+  el.btnZoomOut.addEventListener('click', function () { applyZoom(mapZoomIndex - 1); });
+  el.btnZoomReset.addEventListener('click', function () { applyZoom(2); });
 
   newGame();
   updateSlotMeta();
