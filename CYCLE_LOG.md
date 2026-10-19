@@ -5956,3 +5956,27 @@ Cycle 23 Step 9e is complete as a proof step with one honest exception: the swee
 
 ### Cycle 23 Step 9e sync note
 - Sync out after commit 731da92: the import script completed with exit 0 and sent 1 commit to GitHub (jashshah854-a11y/ashes-game, master now at remote 2b2cc85; the script notes the remote sha differs from the local sha while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commit. This note rides the next run's sync, as prior sync notes have.
+## Cycle 23 Step 9f: the lore check deflake (2026-10-19)
+
+Claimed this run: Step 9f only, the deflake homed by Step 9e ahead of MAP_TREATMENT Step 10 (rivers). One file changed: tools/lore-check.js (25 insertions, 10 deletions). No game code, no helper, no test, and no other check changed, so stackPower is untouched by construction and the balance output is byte identical by measurement below.
+
+### Builder
+- Builder: Claude Opus 5.5 through the local Claude Code CLI (brief on stdin, --model opus, --allowedTools=Write,Edit,Bash,Read), per DECISIONS item 30; a player facing check's assertion shape is judgment work, so no free model was used. One call, about 2 minutes, no fix round needed. The builder stayed inside the one briefed file exactly and ran its own acceptance (node --check, one standalone lore run at 121 of 121, dash scan zero) before finishing.
+
+### What was built
+- The running(page) helper is rewritten to the shape prescribed at Step 9e, from the Cycle 10 Step 2 and Cycle 22 Step 2 lessons. Fewest reads: success is one fact only, the day counter moving off its sampled value; the trailing pause button text read (the second round trip that failed honestly in Run B when the war advanced into its next burst and re-paused) is deleted.
+- Legitimate re-pause: a card visible when the helper starts, or appearing before the day moves, is the war running into its next burst, not a failed resumption. The helper drains it with H.dismissBurst and restarts the wait from a fresh day sample. The poll reads the day before the overlay, so a card that fires on a day that already moved still counts as success and is left open for the caller to read (Run A's burst loop loses no card to the helper).
+- Bounded: the whole helper is capped at 15000 ms through H.tryWait polls; a genuinely lost pause restoration still fails, because the war stays paused with no card open, the day never moves, and the helper returns false.
+- Run A's bespoke day advance only block after the codex (the variant that timed out at day 25 in the Step 9e sweep) is replaced by the same shared helper; its check name is byte identical, and every check name and the total stay unchanged.
+
+### Verification (orchestrator, personally, on the final tree)
+- Full diff read line by line before commit: exactly the one briefed file, no game code touched, no check added or removed, all names byte identical.
+- node --check on every JS file in js, tests, and tools: all pass. Sim suite 191 pass, 0 fail. Presentation suite 56 pass, 0 fail.
+- node tools/balance.js all: byte identical to tools/baseline-cycle22.txt.
+- Python byte scan for em and en dashes across the whole repo: zero.
+- Baseline before the build (same run): lore passed 121 of 121 standalone, consistent with the Step 9e characterization (intermittent, 2 of 3 failing there).
+- Exit proof, per the Step 9e prescription: 10 consecutive standalone runs of tools/lore-check.js on the final tree, each with its own log in /tmp/ashes-9f: 10 of 10 exit 0, each FAILURES: 0 / TOTAL: 121.
+- Non vacuity: in a scratch copy with js/main.js closeOverlayPause mutated to never restore the pre-overlay pause (setPaused(true) on close), the check fails exactly where it should: "FAIL | A: the war runs again after card then codex" appears in the mutant log (the run was then stopped; the remaining mutant output is cascading burst waits). The deflaked helper passes the honest game and fails the broken one. Scratch copy deleted.
+
+### Mission status
+Cycle 23 Step 9f is complete: the lore check's resume family is rewritten to the fewest reads shape with legitimate re-pauses drained, proven by 10 consecutive standalone passes and a mutant that still fails. The full sweep's last known exception is closed; the next full sweep belongs to the cycle close. The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. Next run claims MAP_TREATMENT Step 10 (rivers: river graph, flow, width taper, banks, water, glint, mouth extensions, estuary fans, the rail restyle, test R-TRUTH). No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
