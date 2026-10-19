@@ -720,11 +720,14 @@ test('map canvas: buildDrawOps on seed 42 view and geometry', () => {
   assert.strictEqual(polygonOps.length, geom.provinces.length, 'polygon ops count ' + polygonOps.length + ' vs provinces ' + geom.provinces.length);
   assert.strictEqual(geom.provinces.length, 70, 'provinces count is 70');
 
-  // Coast/river/rail op counts equal geom segment lengths
+  // River/rail op counts equal geom segment lengths.
+  // Changed in Cycle 23 Step 12a: the old light blue coast ops are retired
+  // (the chart coastline is the only coast line), so the pin is now zero
+  // coast ops instead of one per geom.coastSegments entry.
   var coastOps = ops.filter(function (op) { return op.kind === 'coast'; });
   var riverOps = ops.filter(function (op) { return op.kind === 'river'; });
   var railOps = ops.filter(function (op) { return op.kind === 'rail'; });
-  assert.strictEqual(coastOps.length, geom.coastSegments.length, 'coast ops ' + coastOps.length + ' vs coastSegments ' + geom.coastSegments.length);
+  assert.strictEqual(coastOps.length, 0, 'no coast ops after Step 12a: ' + coastOps.length);
   assert.strictEqual(riverOps.length, geom.riverSegments.length, 'river ops ' + riverOps.length + ' vs riverSegments ' + geom.riverSegments.length);
   assert.strictEqual(railOps.length, geom.railSegments.length, 'rail ops ' + railOps.length + ' vs railSegments ' + geom.railSegments.length);
 
@@ -837,16 +840,12 @@ test('state ops: on fresh seed 42, band ops exist for both owners; every band op
     }
   });
   var interiorBands = expectedBands;
-  // Boundary sides, from the pre-jitter lattice cell only (Cycle 23 Step 7c):
-  // one per side of a known-owner province that sits on the grid edge.
-  var expectedBoundary = 0;
-  geom.provinces.forEach(function (p) {
-    if (!ownerLookup[p.id]) return;
-    if (p.y === 0) expectedBoundary++;
-    if (p.x === geom.mapW - 1) expectedBoundary++;
-    if (p.y === geom.mapH - 1) expectedBoundary++;
-    if (p.x === 0) expectedBoundary++;
-  });
+  // Changed in Cycle 23 Step 12a: boundary bands come from the chart boundary
+  // segments (one per segment of a known-owner province, sea and inland), not
+  // from one lattice side per boundary cell, so the expectation is recomputed
+  // from chart.boundarySegments with the view derived owner lookup above.
+  const chart = require('../js/map-chart.js').buildChart(geom);
+  var expectedBoundary = chart.boundarySegments.filter(function (seg) { return !!ownerLookup[seg.provinceId]; }).length;
   expectedBands += expectedBoundary;
 
   var bandOps = ops.filter(function (op) { return op.kind === 'band'; });
@@ -855,7 +854,7 @@ test('state ops: on fresh seed 42, band ops exist for both owners; every band op
   // Positive boundary assertion: the boundary bands implied by the built ops are present
   var builtBoundary = bandOps.length - interiorBands;
   assert.ok(builtBoundary > 0, 'boundary bands on seed 42 must be greater than 0: ' + builtBoundary);
-  assert.strictEqual(builtBoundary, expectedBoundary, 'boundary bands ' + builtBoundary + ' vs lattice expected ' + expectedBoundary);
+  assert.strictEqual(builtBoundary, expectedBoundary, 'boundary bands ' + builtBoundary + ' vs chart expected ' + expectedBoundary);
 });
 
 test('state ops: fill ops on fresh seed 42, one per live known-owner province, polygon matches geometry, none for remembered or dark (Cycle 23 Step 7c)', () => {
@@ -863,6 +862,7 @@ test('state ops: fill ops on fresh seed 42, one per live known-owner province, p
   const view = playerView(s);
   const geom = AshesMapGeometry.buildGeometry(view);
   const ops = AshesMapCanvas.buildStateOps(geom, view);
+  const fillChart = require('../js/map-chart.js').buildChart(geom);
 
   var viewById = {};
   view.provinces.forEach(function (p) { viewById[p.id] = p; });
@@ -885,9 +885,13 @@ test('state ops: fill ops on fresh seed 42, one per live known-owner province, p
     assert.ok(op.owner === 'player' || op.owner === 'enemy', 'fill op owner known for ' + op.provinceId);
     assert.ok(!seen[op.provinceId], 'one fill op per province: ' + op.provinceId);
     seen[op.provinceId] = true;
+    // Changed in Cycle 23 Step 12a: the political wash fills the hit polygon
+    // (MAP_TREATMENT 5.3 item 2), so the fill polygon is the flattened chart
+    // hit polygon, not the lattice polygon.
+    assert.ok(geomById[op.provinceId], 'fill op province exists in geometry: ' + op.provinceId);
     var flat = [];
-    geomById[op.provinceId].polygon.forEach(function (pt) { flat.push(pt.x, pt.y); });
-    assert.deepStrictEqual(op.polygon, flat, 'fill polygon equals flattened geometry polygon for ' + op.provinceId);
+    fillChart.hitPolygons[op.provinceId].forEach(function (pt) { flat.push(pt.x, pt.y); });
+    assert.deepStrictEqual(op.polygon, flat, 'fill polygon equals flattened hit polygon for ' + op.provinceId);
   });
 
   view.provinces.forEach(function (p) {
@@ -1774,4 +1778,205 @@ test('relief raster bands: every land sample is opaque with luma 60 to 150, ever
     }
   }
   assert.ok(land > r.heights.length / 2, 'most of the neatline is land: ' + land);
+});
+
+// Borders and ownership on chart paths (Cycle 23 Step 12a, MAP_TREATMENT 5.2 and 5.3)
+
+function riverPairSet(geom) {
+  const set = {};
+  geom.riverSegments.forEach(function (rs) { set[rs.a + '|' + rs.b] = true; set[rs.b + '|' + rs.a] = true; });
+  return set;
+}
+
+function viewOwnerLookup(view) {
+  const lookup = {};
+  view.provinces.forEach(function (p) {
+    if (p.intel === 'live' && (p.owner === 'player' || p.owner === 'enemy')) lookup[p.id] = p.owner;
+  });
+  return lookup;
+}
+
+function flatOf(points) {
+  const flat = [];
+  points.forEach(function (q) { flat.push(q.x, q.y); });
+  return flat;
+}
+
+test('border ops: one per non river chart edge (116 on seed 42), paths equal chart edge paths, none on a river edge, deterministic', () => {
+  const view = playerView(Sim.createGame(42));
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const chart = AshesChart.buildChart(geom);
+  const ops = AshesMapCanvas.buildDrawOps(geom, view);
+  const borders = ops.filter(function (op) { return op.kind === 'border'; });
+  const rivers = riverPairSet(geom);
+
+  const riverEdges = chart.chartEdges.filter(function (e) { return rivers[e.a + '|' + e.b]; }).length;
+  assert.strictEqual(chart.chartEdges.length, 123, 'seed 42 chart edges');
+  assert.strictEqual(geom.riverSegments.length, 7, 'seed 42 river segments');
+  assert.strictEqual(borders.length, chart.chartEdges.length - riverEdges, 'border ops equal chart edges minus river edges');
+  assert.strictEqual(borders.length, 116, 'measured seed 42 border op count');
+
+  const byPair = {};
+  chart.chartEdges.forEach(function (e) { byPair[e.a + '|' + e.b] = e; });
+  borders.forEach(function (op) {
+    assert.ok(!rivers[op.a + '|' + op.b], 'no border on river edge ' + op.a + ' ' + op.b);
+    const e = byPair[op.a + '|' + op.b];
+    assert.ok(e, 'border op matches a chart edge: ' + op.a + ' ' + op.b);
+    assert.deepStrictEqual(op.path, flatOf(e.path), 'border path equals chart edge path for ' + op.a + ' ' + op.b);
+  });
+
+  // Borders come after every rail op, and no coast op remains.
+  const lastRail = ops.findLastIndex(function (op) { return op.kind === 'rail'; });
+  const firstBorder = ops.findIndex(function (op) { return op.kind === 'border'; });
+  assert.ok(firstBorder > lastRail, 'border ops follow the rail ops');
+
+  const again = AshesMapCanvas.buildDrawOps(geom, view);
+  assert.deepStrictEqual(again, ops, 'two buildDrawOps calls are deep equal');
+  assert.strictEqual(AshesMapCanvas.drawOpsHash(again), AshesMapCanvas.drawOpsHash(ops), 'hash stable');
+});
+
+test('state ops on chart paths: fills are hit polygons, boundary bands follow chart segments (sea ribbons on the coastline), extended edges carry extended paths', () => {
+  const view = playerView(Sim.createGame(42));
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const chart = AshesChart.buildChart(geom);
+  const ops = AshesMapCanvas.buildStateOps(geom, view);
+  const owners = viewOwnerLookup(view);
+
+  // Fills: every fill polygon is the flattened hit polygon.
+  const fills = ops.filter(function (op) { return op.kind === 'fill'; });
+  assert.strictEqual(fills.length, 43, 'measured seed 42 fill count');
+  fills.forEach(function (op) {
+    assert.deepStrictEqual(op.polygon, flatOf(chart.hitPolygons[op.provinceId]), 'fill is hit polygon for ' + op.provinceId);
+  });
+
+  // Boundary bands, computed here from chart.boundarySegments and the view owners.
+  const expectedSea = [];
+  const expectedInland = [];
+  chart.boundarySegments.forEach(function (seg) {
+    if (!owners[seg.provinceId]) return;
+    let pts = [seg.p1];
+    if (seg.sea) pts = pts.concat(chart.coastline.slice(seg.coastStart, seg.coastEnd + 1));
+    pts.push(seg.p2);
+    (seg.sea ? expectedSea : expectedInland).push({ provinceId: seg.provinceId, path: flatOf(pts) });
+  });
+  const expectedBoundary = expectedSea.length + expectedInland.length;
+  assert.ok(expectedBoundary > 0, 'boundary bands expected on seed 42');
+  assert.strictEqual(expectedSea.length, 28, 'measured seed 42 sea boundary bands');
+  assert.strictEqual(expectedInland.length, 10, 'measured seed 42 inland boundary bands');
+
+  const bands = ops.filter(function (op) { return op.kind === 'band'; });
+  const fronts = ops.filter(function (op) { return op.kind === 'front'; });
+  assert.strictEqual(fronts.length, 7, 'measured seed 42 front count');
+  let interiorExpected = 0;
+  chart.chartEdges.forEach(function (e) {
+    const oa = owners[e.a];
+    const ob = owners[e.b];
+    if (oa && ob && oa !== ob) interiorExpected += 2;
+    else if ((oa && !ob) || (!oa && ob)) interiorExpected += 1;
+  });
+  assert.strictEqual(bands.length, interiorExpected + expectedBoundary, 'band count equals interior plus chart boundary segments');
+  assert.strictEqual(bands.length, 61, 'measured seed 42 band count');
+
+  function hasBand(provinceId, path) {
+    return bands.some(function (op) {
+      return op.provinceId === provinceId && op.path.length === path.length &&
+        op.path.every(function (v, i) { return v === path[i]; });
+    });
+  }
+  expectedSea.concat(expectedInland).forEach(function (eb) {
+    assert.ok(hasBand(eb.provinceId, eb.path), 'boundary band present for ' + eb.provinceId);
+  });
+
+  // Every interior point of a sea ribbon is a coastline point at 4 decimals.
+  const coastKeys = {};
+  chart.coastline.forEach(function (q) { coastKeys[q.x.toFixed(4) + ',' + q.y.toFixed(4)] = true; });
+  expectedSea.forEach(function (eb) {
+    for (let i = 2; i < eb.path.length - 2; i += 2) {
+      assert.ok(coastKeys[eb.path[i].toFixed(4) + ',' + eb.path[i + 1].toFixed(4)], 'sea ribbon point on the coastline for ' + eb.provinceId);
+    }
+  });
+
+  // Every band clips to its province hit polygon.
+  bands.forEach(function (op) {
+    assert.deepStrictEqual(op.polygon, flatOf(chart.hitPolygons[op.provinceId]), 'band clip is hit polygon for ' + op.provinceId);
+  });
+
+  // Extended chart edges: fronts and interior bands carry the extended path.
+  // Seed 42 measures 2 fronts on extended edges, so no staged state is needed.
+  let extendedFronts = 0;
+  chart.chartEdges.forEach(function (e) {
+    if (!e.extended) return;
+    const path = flatOf(e.path);
+    const oa = owners[e.a];
+    const ob = owners[e.b];
+    if (oa && ob && oa !== ob) {
+      const f = fronts.find(function (op) { return op.a === e.a && op.b === e.b; });
+      assert.ok(f, 'front on extended edge ' + e.a + ' ' + e.b);
+      assert.deepStrictEqual(f.path, path, 'front path is the extended chart edge path');
+      extendedFronts++;
+    }
+    if (oa && oa !== ob) assert.ok(hasBand(e.a, path), 'band for ' + e.a + ' on extended edge ' + e.a + ' ' + e.b);
+    if (ob && oa !== ob) assert.ok(hasBand(e.b, path), 'band for ' + e.b + ' on extended edge ' + e.a + ' ' + e.b);
+  });
+  assert.strictEqual(extendedFronts, 2, 'measured seed 42 fronts on extended chart edges');
+});
+
+test('front casing: each Ink front stroke follows a #E6D8B5 casing stroke at alpha 0.6 and frontW + 2', () => {
+  const view = playerView(Sim.createGame(42));
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildStateOps(geom, view);
+  const scaleX = 160;
+  const frontW = 0.025 * scaleX;
+  const strokes = [];
+  const ctx = {
+    strokeStyle: '', fillStyle: '', lineWidth: 1, globalAlpha: 1, lineJoin: 'miter',
+    beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, fill() {}, clip() {}, save() {}, restore() {},
+    stroke() { strokes.push({ style: this.strokeStyle, width: this.lineWidth, alpha: this.globalAlpha }); }
+  };
+  AshesMapCanvas.drawStateOps(ctx, ops, scaleX, scaleX);
+  const fronts = ops.filter(function (op) { return op.kind === 'front'; }).length;
+  assert.ok(fronts > 0, 'seed 42 has fronts');
+  const inkFronts = [];
+  strokes.forEach(function (st, i) {
+    if (st.style === '#1e1a12' && st.width === frontW) inkFronts.push(i);
+  });
+  assert.strictEqual(inkFronts.length, fronts, 'one Ink front stroke per front op');
+  inkFronts.forEach(function (i) {
+    assert.strictEqual(strokes[i].alpha, 1, 'Ink front at alpha 1');
+    const prev = strokes[i - 1];
+    assert.ok(prev, 'casing stroke precedes the Ink front');
+    assert.strictEqual(prev.style, '#E6D8B5', 'casing colour');
+    assert.strictEqual(prev.alpha, 0.6, 'casing alpha');
+    assert.strictEqual(prev.width, frontW + 2, 'casing width frontW + 2');
+  });
+  assert.strictEqual(ctx.globalAlpha, 1, 'alpha restored after the state pass');
+});
+
+test('border draw: dashed Ink at alpha 0.50, width 0.009 * scaleX, round cap, dash reset; polygons no longer stroke', () => {
+  const view = playerView(Sim.createGame(42));
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildDrawOps(geom, view).filter(function (op) { return op.kind === 'polygon' || op.kind === 'border'; });
+  const scaleX = 160;
+  const strokes = [];
+  let dash = [];
+  const ctx = {
+    strokeStyle: '', fillStyle: '', lineWidth: 1, globalAlpha: 1, lineCap: 'butt',
+    beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, fill() {}, save() {}, restore() {},
+    setLineDash(d) { dash = d.slice(); },
+    stroke() { strokes.push({ style: this.strokeStyle, width: this.lineWidth, alpha: this.globalAlpha, cap: this.lineCap, dash: dash.slice() }); }
+  };
+  AshesMapCanvas.drawOps(ctx, ops, scaleX, scaleX);
+  const borders = ops.filter(function (op) { return op.kind === 'border'; }).length;
+  assert.strictEqual(strokes.length, borders, 'only border ops stroke; polygon ops fill only');
+  strokes.forEach(function (st) {
+    // Chart Ink (MAP_TREATMENT 0.2 palette), the same constant as the coastline and rail.
+    assert.strictEqual(st.style, AshesChart.CHART_CONSTANTS.INK, 'border Ink');
+    assert.strictEqual(st.style, '#2B2620', 'border Ink is #2B2620');
+    assert.strictEqual(st.alpha, 0.5, 'border alpha');
+    assert.strictEqual(st.width, 0.009 * scaleX, 'border width');
+    assert.strictEqual(st.cap, 'round', 'border cap');
+    assert.deepStrictEqual(st.dash, [0.040 * scaleX, 0.025 * scaleX], 'border dash');
+  });
+  assert.deepStrictEqual(dash, [], 'dash reset after the border pass');
+  assert.strictEqual(ctx.globalAlpha, 1, 'alpha reset after the border pass');
 });

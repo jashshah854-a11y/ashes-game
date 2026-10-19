@@ -31,6 +31,24 @@
   var RAIL_DOT_STEP = 0.04;
   var RAIL_DOT_R = 0.004;
 
+  // Province borders (Cycle 23 Step 12a, MAP_TREATMENT 5.2), in cell units.
+  var BORDER_LINE_W = 0.009;
+  var BORDER_ALPHA = 0.50;
+  var BORDER_DASH = 0.040;
+  var BORDER_GAP = 0.025;
+
+  // Front casing (MAP_TREATMENT 5.3 item 3): Paper under the Ink front.
+  var FRONT_CASING = '#E6D8B5';
+  var FRONT_CASING_ALPHA = 0.6;
+  var FRONT_CASING_PLUS_PX = 2;
+
+  // Flat [x, y, ...] from a point array.
+  function flatPoints(points) {
+    var flat = [];
+    for (var i = 0; i < points.length; i++) flat.push(points[i].x, points[i].y);
+    return flat;
+  }
+
   // Stations every step of arc length along a flat path, starting half a
   // step in so shared corners do not double up. Each station carries the
   // unit direction of the piece it lies on.
@@ -163,18 +181,12 @@
       ops.push({ kind: 'polygon', id: p.id, points: points, x: p.x, y: p.y, boundarySegs: boundarySegs });
     });
 
-    // Coast segments
-    geom.coastSegments.forEach(function (cs) {
-      var path = [];
-      for (var i = 0; i < cs.path.length; i++) {
-        var pt = cs.path[i];
-        path.push(pt.x, pt.y);
-      }
-      ops.push({ kind: 'coast', provinceId: cs.provinceId, path: path });
-    });
+    // The old light blue coast ops are retired (Cycle 23 Step 12a): the
+    // chart coastline (Step 9) is the only coast line.
 
     // River segments, each carrying its chart edge samples (Step 10).
-    var rivers = AshesChart ? AshesChart.buildChart(geom).rivers : { edges: [], mouths: [] };
+    var chart = AshesChart ? AshesChart.buildChart(geom) : null;
+    var rivers = chart ? chart.rivers : { edges: [], mouths: [] };
     geom.riverSegments.forEach(function (rs, ri) {
       var path = [];
       for (var i = 0; i < rs.path.length; i++) {
@@ -204,6 +216,17 @@
         ties: built ? railTies(path) : [],
         dots: built ? [] : railDots(path)
       });
+    });
+
+    // Province borders (Cycle 23 Step 12a, MAP_TREATMENT 5.2): one dashed
+    // line per chart edge that is not a river edge, since the river is the
+    // border there. Without the chart module the geometry edge paths stand in.
+    var riverPair = {};
+    geom.riverSegments.forEach(function (rs) { riverPair[rs.a + '|' + rs.b] = true; });
+    var borderEdges = chart ? chart.chartEdges : geom.edges;
+    borderEdges.forEach(function (e) {
+      if (riverPair[e.a + '|' + e.b] || riverPair[e.b + '|' + e.a]) return;
+      ops.push({ kind: 'border', a: e.a, b: e.b, path: flatPoints(e.path) });
     });
 
     return ops;
@@ -338,33 +361,29 @@
             ctx.closePath();
             ctx.fillStyle = CHART_LAND_LOW;
             ctx.fill();
-            // Stroke only the segments off the lattice boundary (Step 9).
-            ctx.beginPath();
-            var nPts = pts.length / 2;
-            for (var si = 0; si < nPts; si++) {
-              if (op.boundarySegs && op.boundarySegs[si]) continue;
-              var sj = (si + 1) % nPts;
-              ctx.moveTo(pts[si * 2] * scaleX, pts[si * 2 + 1] * scaleY);
-              ctx.lineTo(pts[sj * 2] * scaleX, pts[sj * 2 + 1] * scaleY);
-            }
-            ctx.strokeStyle = 'rgba(30,26,18,0.55)';
-            ctx.lineWidth = 2; // device px
-            ctx.stroke();
+            // No segment stroke: the dashed border ops draw the province
+            // lines (Cycle 23 Step 12a).
           }
           break;
 
-        case 'coast':
+        case 'border':
+          var bpath = op.path;
+          if (bpath.length < 4) break;
+          ctx.save();
           ctx.beginPath();
-          var cpath = op.path;
-          if (cpath.length >= 2) {
-            ctx.moveTo(cpath[0] * scaleX, cpath[1] * scaleY);
-            for (var i = 2; i < cpath.length; i += 2) {
-              ctx.lineTo(cpath[i] * scaleX, cpath[i + 1] * scaleY);
-            }
-            ctx.strokeStyle = '#7fb3d9';
-            ctx.lineWidth = Math.max(3, 0.05 * scaleX);
-            ctx.stroke();
+          ctx.moveTo(bpath[0] * scaleX, bpath[1] * scaleY);
+          for (var i = 2; i < bpath.length; i += 2) {
+            ctx.lineTo(bpath[i] * scaleX, bpath[i + 1] * scaleY);
           }
+          ctx.strokeStyle = CHART_INK;
+          ctx.globalAlpha = BORDER_ALPHA;
+          ctx.lineWidth = BORDER_LINE_W * scaleX;
+          ctx.lineCap = 'round';
+          ctx.setLineDash([BORDER_DASH * scaleX, BORDER_GAP * scaleX]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+          ctx.restore();
           break;
 
         case 'river':
@@ -671,20 +690,22 @@
 
     ctx.save();
     ctx.translate(tf.tx, tf.ty);
-    // Draw order (MAP_TREATMENT 3, with 1.6 and 2.4): sea, land, relief,
-    // rivers, borders, rail, coast. The chart under ops lay the sea and the
-    // flat land, drawOps lays the province fills and the first river and
-    // rail pass, then the relief raster and contours cover the land, and a
-    // second drawOps call with only the river, river-mouths, and rail ops
-    // puts water and rail back above the relief (drawOps collects every
-    // river stroke, so the network redraws once). The chart over ops add
-    // the beach, coastline, and edge of the war last.
+    // Draw order (MAP_TREATMENT 3, with 1.6, 2.4, and C7): sea, land,
+    // relief, rivers, borders, rail, coast. The chart under ops lay the sea
+    // and the flat land, drawOps lays the province fills and the first river
+    // and rail pass, then the relief raster and contours cover the land, and
+    // a second drawOps call puts the rivers, then the dashed borders (Step
+    // 12a), then the rail back above the relief (drawOps collects every
+    // river stroke, so the network redraws once). Borders draw only in the
+    // second pass, since the relief would cover them in the first. The chart
+    // over ops add the beach, coastline, and edge of the war last.
+    function opsOfKind(kinds) {
+      return ops.filter(function (op) { return kinds.indexOf(op.kind) !== -1; });
+    }
     drawChartOps(ctx, chartOps.under, scaleX, scaleY);
-    drawOps(ctx, ops, scaleX, scaleY);
+    drawOps(ctx, ops.filter(function (op) { return op.kind !== 'border'; }), scaleX, scaleY);
     drawRelief(ctx, chart, scaleX, scaleY);
-    drawOps(ctx, ops.filter(function (op) {
-      return op.kind === 'river' || op.kind === 'river-mouths' || op.kind === 'rail';
-    }), scaleX, scaleY);
+    drawOps(ctx, opsOfKind(['river', 'river-mouths']).concat(opsOfKind(['border']), opsOfKind(['rail'])), scaleX, scaleY);
     drawChartOps(ctx, chartOps.over, scaleX, scaleY);
     ctx.restore();
 
@@ -716,100 +737,71 @@
   // - For each province with known owner: emit one fill op (drawn first, at FILL_ALPHA).
   // - For each edge where BOTH owners known and different: emit front op, then band ops for both sides.
   // - For each edge where EXACTLY ONE owner known: emit band op for known side only.
-  // - For each province with known owner, for each side on the lattice boundary: emit band op.
-  //   Boundary membership comes from the pre-jitter lattice cell (p.x, p.y), never from
-  //   the jittered polygon coordinates (Cycle 23 Step 7c).
+  // - For each province with known owner, for each chart boundary segment it owns: emit one band op.
   // - Same-owner edges and unknown-unknown edges emit nothing.
   // - Sorted fills, then bands, then fronts; by province id, then edge a then b.
+  // Chart paths (Cycle 23 Step 12a, MAP_TREATMENT 5.3 items 1 and 2): fills and
+  // band clips use the hit polygons, interior bands and fronts use the chart
+  // edge paths (extended to the coast), and a sea boundary band follows the
+  // coastline chain of its segment. Without the chart module the lattice
+  // polygons and geometry edge paths stand in, and no boundary bands are drawn.
   function buildStateOps(geom, view) {
     var ops = [];
     var ownerLookup = buildOwnerLookup(view);
-    var provinceById = {};
-    geom.provinces.forEach(function (p) { provinceById[p.id] = p; });
+    var chart = AshesChart ? AshesChart.buildChart(geom) : null;
 
-    // Helper to convert polygon array to flat array of coordinates
-    function polygonToFlat(polygon) {
-      var flat = [];
-      for (var i = 0; i < polygon.length; i++) {
-        flat.push(polygon[i].x, polygon[i].y);
-      }
-      return flat;
-    }
+    var polyById = {};
+    geom.provinces.forEach(function (p) {
+      var poly = chart && chart.hitPolygons[p.id] ? chart.hitPolygons[p.id] : p.polygon;
+      polyById[p.id] = flatPoints(poly);
+    });
+    var edges = chart ? chart.chartEdges : geom.edges;
 
-    // Helper to convert path array to flat array
-    function pathToFlat(path) {
-      var flat = [];
-      for (var i = 0; i < path.length; i++) {
-        flat.push(path[i].x, path[i].y);
-      }
-      return flat;
+    function band(provinceId, owner, path) {
+      ops.push({ kind: 'band', provinceId: provinceId, owner: owner, doubled: (owner === 'enemy'), path: path, polygon: polyById[provinceId].slice() });
     }
 
     // 0. One ownership fill per province with a known owner (Cycle 23 Step 7c)
     geom.provinces.forEach(function (p) {
       var owner = ownerLookup[p.id];
       if (!owner) return;
-      ops.push({ kind: 'fill', provinceId: p.id, owner: owner, polygon: polygonToFlat(p.polygon) });
+      ops.push({ kind: 'fill', provinceId: p.id, owner: owner, polygon: polyById[p.id].slice() });
     });
 
-    // 1. Process interior edges (from geom.edges)
-    geom.edges.forEach(function (e) {
+    // 1. Interior edges
+    edges.forEach(function (e) {
       var oa = ownerLookup[e.a];
       var ob = ownerLookup[e.b];
 
       if (oa && ob) {
         if (oa !== ob) {
           // Different known owners: front line + two band ops
-          ops.push({ kind: 'front', a: e.a, b: e.b, path: pathToFlat(e.path) });
-          var polyA = polygonToFlat(provinceById[e.a].polygon);
-          ops.push({ kind: 'band', provinceId: e.a, owner: oa, doubled: (oa === 'enemy'), path: pathToFlat(e.path), polygon: polyA });
-          var polyB = polygonToFlat(provinceById[e.b].polygon);
-          ops.push({ kind: 'band', provinceId: e.b, owner: ob, doubled: (ob === 'enemy'), path: pathToFlat(e.path), polygon: polyB });
+          ops.push({ kind: 'front', a: e.a, b: e.b, path: flatPoints(e.path) });
+          band(e.a, oa, flatPoints(e.path));
+          band(e.b, ob, flatPoints(e.path));
         }
         // Same owner: nothing
       } else if (oa && !ob) {
-        // Only a has known owner: band for a
-        var polyA = polygonToFlat(provinceById[e.a].polygon);
-        ops.push({ kind: 'band', provinceId: e.a, owner: oa, doubled: (oa === 'enemy'), path: pathToFlat(e.path), polygon: polyA });
+        band(e.a, oa, flatPoints(e.path));
       } else if (!oa && ob) {
-        // Only b has known owner: band for b
-        var polyB = polygonToFlat(provinceById[e.b].polygon);
-        ops.push({ kind: 'band', provinceId: e.b, owner: ob, doubled: (ob === 'enemy'), path: pathToFlat(e.path), polygon: polyB });
+        band(e.b, ob, flatPoints(e.path));
       }
       // Neither known: nothing
     });
 
-    // 2. Process map boundary segments for provinces with known owners
-    // Dedupe identical segments within a province
-    var seenBoundary = {};
-    geom.provinces.forEach(function (p) {
-      var owner = ownerLookup[p.id];
-      if (!owner) return;
-
-      var poly = p.polygon;
-      var flatPoly = polygonToFlat(poly);
-
-      // Polygon has 8 points: TL(0), topMid(1), TR(2), rightMid(3), BR(4), bottomMid(5), BL(6), leftMid(7)
-      // Segments: 0-1 (top), 2-3 (right), 4-5 (bottom), 6-7 (left)
-      // A side is on the map boundary when its lattice cell sits on that edge of the grid.
-      var segments = [
-        { p1: poly[0], p2: poly[1], onBoundary: p.y === 0 },             // top
-        { p1: poly[2], p2: poly[3], onBoundary: p.x === geom.mapW - 1 }, // right
-        { p1: poly[4], p2: poly[5], onBoundary: p.y === geom.mapH - 1 }, // bottom
-        { p1: poly[6], p2: poly[7], onBoundary: p.x === 0 }              // left
-      ];
-
-      segments.forEach(function (seg) {
-        if (seg.onBoundary) {
-          var key = p.id + ':' + seg.p1.x.toFixed(4) + ',' + seg.p1.y.toFixed(4) + '-' + seg.p2.x.toFixed(4) + ',' + seg.p2.y.toFixed(4);
-          if (!seenBoundary[key]) {
-            seenBoundary[key] = true;
-            var path = [seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y];
-            ops.push({ kind: 'band', provinceId: p.id, owner: owner, doubled: (owner === 'enemy'), path: path, polygon: flatPoly });
-          }
-        }
+    // 2. Chart boundary segments: one band per segment of a known owner
+    // province. A sea segment's ribbon runs p1, its coastline chain, p2; an
+    // inland segment keeps the lattice edge p1 to p2.
+    if (chart) {
+      chart.boundarySegments.forEach(function (seg) {
+        var owner = ownerLookup[seg.provinceId];
+        if (!owner) return;
+        var pts = [seg.p1];
+        if (seg.sea) pts = pts.concat(chart.coastline.slice(seg.coastStart, seg.coastEnd + 1));
+        pts.push(seg.p2);
+        band(seg.provinceId, owner, flatPoints(pts));
       });
-    });
+    }
 
     // Sort: by kind (band before front for determinism? spec says sorted by province id then edge a then b)
     // Actually: front ops have a,b; band ops have provinceId. Sort by provinceId for bands, by a then b for fronts.
@@ -870,6 +862,12 @@
         for (var i = 2; i < path.length; i += 2) {
           ctx.lineTo(path[i] * scaleX, path[i + 1] * scaleY);
         }
+        // Paper casing under the Ink front (MAP_TREATMENT 5.3 item 3).
+        ctx.strokeStyle = FRONT_CASING;
+        ctx.globalAlpha = FRONT_CASING_ALPHA;
+        ctx.lineWidth = frontW + FRONT_CASING_PLUS_PX;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
         ctx.strokeStyle = INK;
         ctx.lineWidth = frontW;
         ctx.stroke();

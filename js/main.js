@@ -163,6 +163,8 @@
       baseHash: off ? off.hash : null,
       renderCount: baseRenderCount,
       settleCount: baseSettleCount,
+      // Cycle 23 Step 12a: dashed province border ops in the last base draw.
+      borderOps: off ? off.ops.filter(function (op) { return op.kind === 'border'; }).length : null,
       counts: {
         provinces: geom.provinces.length,
         rivers: geom.riverSegments.length,
