@@ -21,22 +21,30 @@
 //
 // Browser Scenario A (early save imported through #btn-import): the p0_3 tile
 // has a factory badge with class lvl2 and text Factory 2; no tile has a lvl3
-// factory badge; no unit chip has the damaged class; the full strength infantry
-// chips at p0_3 read the node derived label; the right rail bar of p0_3 has
+// factory badge; every live unit plaque on the map reads its node derived
+// numeral at full strength (no damaged stack); the p0_3 player infantry plaque
+// reads the node derived numeral COUNTxSTRENGTH; the right rail bar of p0_3 has
 // class built and not building; no rail bar on the map has class building.
 //
 // Browser Scenario B (developed save imported, fresh page): p3_0, p1_2, and
 // p0_3 carry factory badges lvl1, lvl2, lvl3 with texts Factory 1, Factory 2,
 // Factory 3; the computed font sizes strictly increase; the computed background
 // colors of lvl2 and lvl3 differ; the lvl3 badge border top width exceeds the
-// lvl1 one; the damaged chip at p0_3 reads the node derived damaged label, has
-// class damaged, and its computed color is rgb(255, 157, 157); the full strength
-// chip at p0_3 reads the node derived full label with no damaged class; the
-// right rail bar of p0_3 has class built; the right rail bar of p0_0 has class
+// lvl1 one; p0_3 has exactly one player infantry plaque, its numeral equals the
+// node descriptor numeral, its total strength is lower than the same stack at
+// full strength (node), its count matches the Scenario A plaque and its total is
+// lower than that full strength plaque's, and the drop equals the node strength
+// loss of unit 5; the right rail bar of p0_3 has class built; the right rail bar of p0_0 has class
 // building and not built; the bottom rail bar of p0_0 does not exist; the
 // legend text contains the factory tier, finished railroad, no bar, and damaged
-// chip sentences; the map and legend text together contain none of undefined,
+// plaque number sentences; the map and legend text together contain none of undefined,
 // NaN, or [object; and there are no page errors in either scenario.
+//
+// Cycle 23 step 9 shape change, named: unit chips are gone from the board, and
+// the plaque numeral IS the damage display now. A plaque groups a stack by
+// nation and type, so the per unit chip label and the red damaged chip color
+// have no plaque counterpart; each chip assertion became a plaque numeral
+// assertion one for one, and the total (37) is unchanged.
 //
 // PLAYWRIGHT=/tmp/pwcore/node_modules/playwright-core
 // CHROME=/opt/meta-chromium/chrome
@@ -52,6 +60,8 @@ const os = require('os');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
+const playerView = require('../js/adapter.js');
+const AshesPlaques = require('../js/plaques.js');
 const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
@@ -82,12 +92,30 @@ function findUnit(state, id) {
   return null;
 }
 
-// Mirror of the renderer's live chip label, derived from the read back unit so
-// the page text is compared against node truth, never against itself.
-function chipLabel(state, unit) {
-  const st = Sim.unitStats(state, unit);
-  const word = unit.type === 'drone' ? 'Drone' : 'Inf';
-  return word + ' ' + unit.strength + '/' + unit.maxStrength + 'hp A' + st.attack;
+// Node side plaque descriptors from the read back state, keyed by
+// province|nation|type, so the page numerals are compared against node truth,
+// never against themselves. fullNumeral is the same stack at full strength
+// (count x the sum of maxStrength), the reference a damaged numeral must undercut.
+function plaqueTruth(state) {
+  const out = {};
+  AshesPlaques.buildPlaques(playerView(state)).unitPlaques.forEach((d) => {
+    if (d.hollow || d.numeral === null) return;
+    const units = Sim.unitsIn(state, d.provinceId).filter((u) => u.nation === d.nation && u.type === d.type);
+    const full = units.reduce((sum, u) => sum + u.maxStrength, 0);
+    out[d.provinceId + '|' + d.nation + '|' + d.type] = {
+      numeral: d.numeral,
+      count: d.count,
+      total: d.totalStrength,
+      fullNumeral: d.count + 'x' + full,
+      fullTotal: full
+    };
+  });
+  return out;
+}
+
+function parseNumeral(text) {
+  const m = /^([0-9]+)x([0-9]+)$/.exec(text || '');
+  return m ? { count: Number(m[1]), total: Number(m[2]) } : null;
 }
 
 // ---------- Stage both saves in node and read them back ----------
@@ -136,19 +164,24 @@ if (devRestored) {
   check('Developed save p0_0 to p1_0 rail daysLeft 3', !!devRailBack && !!devRailBack.rail && devRailBack.rail.daysLeft === 3, devRailBack && devRailBack.rail ? String(devRailBack.rail.daysLeft) : 'no rail');
 }
 
-// Node derived expected chip labels from the read back developed state.
+// Node derived expected plaque numerals from the read back states.
 const devUnit5Node = devRestored ? findUnit(devRestored, 5) : null;
-const devUnit6Node = devRestored ? findUnit(devRestored, 6) : null;
-const earlyUnit5Node = earlyRestored ? findUnit(earlyRestored, 5) : null;
-const expectedEarlyFullChip = earlyRestored && earlyUnit5Node ? chipLabel(earlyRestored, earlyUnit5Node) : '';
-const expectedDevDamagedChip = devRestored && devUnit5Node ? chipLabel(devRestored, devUnit5Node) : '';
-const expectedDevFullChip = devRestored && devUnit6Node ? chipLabel(devRestored, devUnit6Node) : '';
+const earlyTruth = earlyRestored ? plaqueTruth(earlyRestored) : {};
+const devTruth = devRestored ? plaqueTruth(devRestored) : {};
+const INF_KEY = 'p0_3|player|infantry';
+const expectedEarlyInf = earlyTruth[INF_KEY] || null;
+const expectedDevInf = devTruth[INF_KEY] || null;
+const devUnit5Loss = devUnit5Node ? devUnit5Node.maxStrength - devUnit5Node.strength : null;
 
 // ---------- Browser page helpers ----------
 
-async function tileChips(page, provId) {
-  return page.$$eval('.province[data-prov="' + provId + '"] .unit-chip', els =>
-    els.map(e => ({ text: e.textContent.trim(), className: e.className, damaged: e.classList.contains('damaged') }))
+// Live plaques on the board, optionally for one province (by dataset.province).
+async function boardPlaques(page, provId) {
+  return page.$$eval('#map-board .plaque-layer .plaque.plaque-live', (els, provId) =>
+    els.filter(e => !provId || e.dataset.province === provId).map(e => {
+      const n = e.querySelector('.numeral');
+      return { province: e.dataset.province, nation: e.dataset.nation, type: e.dataset.type, numeral: n ? n.textContent : null };
+    }), provId || null
   );
 }
 
@@ -215,12 +248,19 @@ async function importSave(page, savePath) {
     const lvl3CountA = await page.$$eval('#map .factory-badge.lvl3', els => els.length);
     check('Scenario A: no lvl3 factory badge on the map', lvl3CountA === 0, 'found ' + lvl3CountA);
 
-    const damagedCountA = await page.$$eval('#map .unit-chip.damaged', els => els.length);
-    check('Scenario A: no damaged unit chip on the map', damagedCountA === 0, 'found ' + damagedCountA);
+    const plaquesA = (await boardPlaques(page)).filter(p => p.numeral !== null);
+    const damagedA = plaquesA.filter(p => {
+      const t = earlyTruth[p.province + '|' + p.nation + '|' + p.type];
+      return !t || p.numeral !== t.numeral || t.numeral !== t.fullNumeral;
+    });
+    check('Scenario A: no damaged stack on the map: every live plaque numeral equals its node full strength numeral',
+      plaquesA.length > 0 && damagedA.length === 0, 'plaques ' + plaquesA.length + ' off: ' + JSON.stringify(damagedA.slice(0, 3)));
 
-    const chipsA = await tileChips(page, 'p0_3');
-    const fullChipsA = chipsA.filter(c => c.text === expectedEarlyFullChip);
-    check('Scenario A: p0_3 full strength infantry chip reads node derived label', fullChipsA.length >= 1 && fullChipsA.every(c => !c.damaged), 'chips: ' + JSON.stringify(chipsA.map(c => c.text)) + ' expected: ' + expectedEarlyFullChip);
+    const infA = (await boardPlaques(page, 'p0_3')).filter(p => p.nation === 'player' && p.type === 'infantry');
+    const infNumeralA = infA.length === 1 ? infA[0].numeral : null;
+    check('Scenario A: p0_3 full strength infantry plaque reads node derived numeral',
+      !!expectedEarlyInf && infA.length === 1 && infNumeralA === expectedEarlyInf.numeral && infNumeralA === expectedEarlyInf.fullNumeral,
+      'plaques: ' + JSON.stringify(infA.map(p => p.numeral)) + ' expected: ' + (expectedEarlyInf && expectedEarlyInf.numeral));
 
     const railA = await tileRailBar(page, 'p0_3', 'r');
     check('Scenario A: p0_3 right rail bar has class built and not building', railA.length === 1 && railA[0].built === true && railA[0].building === false, JSON.stringify(railA));
@@ -259,19 +299,26 @@ async function importSave(page, savePath) {
     check('Scenario B: lvl2 and lvl3 badge background colors differ', style2.backgroundColor !== style3.backgroundColor, style2.backgroundColor + ' vs ' + style3.backgroundColor);
     check('Scenario B: lvl3 border top width exceeds lvl1', parseFloat(style3.borderTopWidth) > parseFloat(style1.borderTopWidth), style3.borderTopWidth + ' vs ' + style1.borderTopWidth);
 
-    const chipsB = await tileChips(page, 'p0_3');
-    const damagedChipsB = chipsB.filter(c => c.damaged);
-    const fullChipsB = chipsB.filter(c => c.text === expectedDevFullChip);
-    check('Scenario B: p0_3 has exactly one damaged chip', damagedChipsB.length === 1, 'found ' + damagedChipsB.length);
-    if (damagedChipsB.length === 1) {
-      check('Scenario B: damaged chip reads node derived damaged label', damagedChipsB[0].text === expectedDevDamagedChip, 'got: ' + damagedChipsB[0].text + ' expected: ' + expectedDevDamagedChip);
+    // Five chip checks become five plaque numeral checks: the damaged stack
+    // is unit 5 (strength 5 of 12) grouped with unit 6 in one infantry plaque.
+    const infB = (await boardPlaques(page, 'p0_3')).filter(p => p.nation === 'player' && p.type === 'infantry');
+    check('Scenario B: p0_3 has exactly one player infantry plaque (the damaged stack)', infB.length === 1, 'found ' + infB.length);
+    const parsedB = infB.length === 1 ? parseNumeral(infB[0].numeral) : null;
+    if (infB.length === 1) {
+      check('Scenario B: damaged stack plaque reads node derived numeral', !!expectedDevInf && infB[0].numeral === expectedDevInf.numeral,
+        'got: ' + infB[0].numeral + ' expected: ' + (expectedDevInf && expectedDevInf.numeral));
     }
-    const damagedStyle = await page.$eval('.province[data-prov="p0_3"] .unit-chip.damaged', e => getComputedStyle(e).color);
-    check('Scenario B: damaged chip computed color is rgb(255, 157, 157)', damagedStyle === 'rgb(255, 157, 157)', damagedStyle);
+    check('Scenario B: damaged stack numeral total strength is lower than the same stack at full strength (node)',
+      !!parsedB && !!expectedDevInf && parsedB.count === expectedDevInf.count && parsedB.total < expectedDevInf.fullTotal,
+      'got: ' + (infB[0] && infB[0].numeral) + ' full: ' + (expectedDevInf && expectedDevInf.fullNumeral));
 
-    check('Scenario B: p0_3 has exactly one full strength infantry chip', fullChipsB.length === 1, 'found ' + fullChipsB.length + ' chips: ' + JSON.stringify(chipsB.map(c => c.text)));
-    if (fullChipsB.length === 1) {
-      check('Scenario B: full strength infantry chip reads node derived full label with no damaged class', fullChipsB[0].text === expectedDevFullChip && fullChipsB[0].damaged === false, 'got: ' + fullChipsB[0].text + ' expected: ' + expectedDevFullChip + ' damaged: ' + fullChipsB[0].damaged);
+    const parsedA = parseNumeral(infNumeralA);
+    check('Scenario B: damaged plaque keeps the Scenario A count and shows a lower total than that full strength plaque',
+      !!parsedA && !!parsedB && parsedA.count === parsedB.count && parsedB.total < parsedA.total,
+      'A: ' + infNumeralA + ' B: ' + (infB[0] && infB[0].numeral));
+    if (parsedA && parsedB) {
+      check('Scenario B: the plaque total drops by exactly the node strength loss of unit 5', parsedA.total - parsedB.total === devUnit5Loss,
+        'drop ' + (parsedA.total - parsedB.total) + ' expected ' + devUnit5Loss);
     }
 
     const railBuiltB = await tileRailBar(page, 'p0_3', 'r');
@@ -287,7 +334,7 @@ async function importSave(page, savePath) {
     check('Scenario B: legend has factory tier sentence parts', legendText.indexOf('level 1 is the smallest') !== -1 && legendText.indexOf('level 3 is the largest and brightest') !== -1, 'factory tier words missing');
     check('Scenario B: legend has finished railroad sentence', legendText.indexOf('thick solid pale bar') !== -1, 'finished railroad words missing');
     check('Scenario B: legend has no bar sentence', legendText.indexOf('No bar on a shared border means there is no railroad there') !== -1, 'no bar words missing');
-    check('Scenario B: legend has damaged chip words', legendText.indexOf('A unit below full strength has a damaged chip, shown in red') !== -1, 'damaged chip words missing');
+    check('Scenario B: legend has damaged plaque number words', legendText.indexOf('A unit below full strength lowers the total strength in its plaque number') !== -1, 'damaged plaque words missing');
 
     const mapAndLegend = ((await page.textContent('#map')) + ' ' + legendText).replace(/\s+/g, ' ');
     const vocabHits = ['undefined', 'NaN', '[object'].filter(w => mapAndLegend.indexOf(w) !== -1);

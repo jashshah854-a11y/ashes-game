@@ -112,8 +112,9 @@ function getJson(url) {
     check('log explain attack against defense', logExplain.indexOf('attack against defense') !== -1, '');
     check('log explain supply fortifications river drone counted', logExplain.indexOf('with supply, fortifications, river crossings, and drone effectiveness counted') !== -1, '');
     check('log explain same numbers as attack preview', logExplain.indexOf('the same numbers the attack preview shows before you order') !== -1, '');
-    check('log explain hit points destroyed chip disappears', logExplain.indexOf('loses all its strength in hit points is destroyed and its chip disappears from the map') !== -1, '');
-    check('log explain survivors lower strength', logExplain.indexOf('survivors stay with lower strength, shown in hit points on their chip and on the unit card') !== -1, '');
+    // Cycle 23 step 9: the losses sentence now names plaques, not chips.
+    check('log explain hit points destroyed leaves the plaques', logExplain.indexOf('loses all its strength in hit points is destroyed and no longer counts in any plaque on the map') !== -1, '');
+    check('log explain survivors lower strength', logExplain.indexOf('survivors stay with lower strength, shown in the total strength on their plaque and in hit points on the unit card') !== -1, '');
 
     // ---- 4. Exchange explain assertions ----
     const exExplain = await evaluate("document.getElementById('ex-explain').textContent.replace(/\\s+/g, ' ').trim()");
@@ -134,10 +135,10 @@ function getJson(url) {
     check('jamming explain has ewFloorPct', jamExplain.indexOf('never below ' + CFG.ewFloorPct) !== -1, 'want ewFloorPct ' + CFG.ewFloorPct);
     check('jamming explain has ewCapPct', jamExplain.indexOf('never above ' + CFG.ewCapPct) !== -1, 'want ewCapPct ' + CFG.ewCapPct);
 
-    // ---- 6. Unit card from a real tile holding a player unit chip ----
-    const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.province .unit-chip.mine'); if (!t) return null; var p = t.closest('.province'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
+    // ---- 6. Unit card from a real tile holding a player unit plaque ----
+    const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.plaque-layer .plaque.plaque-live.faction-player'); if (!t) return null; var p = document.querySelector('.province[data-prov=\"' + t.dataset.province + '\"]'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
     await H.tryWait(async () => (await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()")).indexOf('No unit selected') === -1, 3000);
-    check('clicked a tile holding a player unit chip', !!clickedUnitProv, String(clickedUnitProv));
+    check('clicked a tile holding a player unit plaque', !!clickedUnitProv, String(clickedUnitProv));
     const unitText = await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()");
     check('unit details rendered', unitText.replace(/\\s+/g, '').length > 0, unitText.slice(0, 120));
     check('unit details has no broken labels', unitText.indexOf('undefined') === -1 && unitText.indexOf('NaN') === -1 && unitText.indexOf('[object') === -1, '');

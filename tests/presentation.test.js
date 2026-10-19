@@ -1041,3 +1041,98 @@ test('fog ops: buildFogOps does not mutate the view or geometry', () => {
   assert.strictEqual(JSON.stringify(view), viewBefore);
   assert.strictEqual(JSON.stringify(geom), geomBefore);
 });
+
+// Live board plaques (Cycle 23 Step 9)
+
+// A minimal stub DOM, just enough for AshesPlaques.renderPlaques: elements
+// record className, dataset, style, children, innerHTML and textContent.
+// renderPlaques reads the free global document, so the stub is installed on
+// globalThis for the call and removed afterward.
+function plaqueStubElement(tag) {
+  return {
+    tagName: tag,
+    className: '',
+    dataset: {},
+    style: {},
+    children: [],
+    innerHTML: '',
+    textContent: '',
+    appendChild: function (child) { this.children.push(child); return child; }
+  };
+}
+
+function renderPlaquesWithStub(view, opts) {
+  const hadDocument = Object.prototype.hasOwnProperty.call(globalThis, 'document');
+  const previous = globalThis.document;
+  globalThis.document = { createElement: plaqueStubElement };
+  try {
+    const container = plaqueStubElement('div');
+    if (opts === undefined) AshesPlaques.renderPlaques(container, view);
+    else AshesPlaques.renderPlaques(container, view, opts);
+    return container;
+  } finally {
+    if (hadDocument) globalThis.document = previous;
+    else delete globalThis.document;
+  }
+}
+
+test('plaque render: { buildings: false } on the fixture view renders unit plaques only, zero building-mark elements, and plaqueCount equals the rendered count', () => {
+  const view = fogFixtureView();
+  const descriptors = AshesPlaques.buildPlaques(view);
+  const container = renderPlaquesWithStub(view, { buildings: false });
+  assert.strictEqual(container.children.length, 1, 'one plaque-layer appended');
+  const layer = container.children[0];
+  assert.strictEqual(layer.className, 'plaque-layer');
+  const marks = layer.children.filter(c => c.className.indexOf('building-mark') !== -1).length;
+  const plaques = layer.children.filter(c => /(^| )plaque( |$)/.test(c.className)).length;
+  assert.strictEqual(marks, 0, 'building-mark elements ' + marks);
+  assert.strictEqual(plaques, descriptors.unitPlaques.length, 'plaque elements ' + plaques);
+  assert.strictEqual(layer.children.length, descriptors.unitPlaques.length);
+  assert.strictEqual(container.dataset.plaqueCount, String(layer.children.length));
+});
+
+test('plaque render: with no opts the fixture view still renders unit plaques plus every building mark, and plaqueCount counts both', () => {
+  const view = fogFixtureView();
+  const descriptors = AshesPlaques.buildPlaques(view);
+  const container = renderPlaquesWithStub(view);
+  const layer = container.children[0];
+  const marks = layer.children.filter(c => c.className.indexOf('building-mark') !== -1).length;
+  assert.strictEqual(marks, descriptors.buildingMarks.length, 'building-mark elements ' + marks);
+  assert.strictEqual(layer.children.length, descriptors.unitPlaques.length + descriptors.buildingMarks.length);
+  assert.strictEqual(container.dataset.plaqueCount, String(descriptors.unitPlaques.length + descriptors.buildingMarks.length));
+});
+
+test('plaque render: every hollow plaque rendered from the fixture carries no numeral and no digit', () => {
+  const view = fogFixtureView();
+  const layer = renderPlaquesWithStub(view, { buildings: false }).children[0];
+  const hollow = layer.children.filter(c => c.className.indexOf('plaque-hollow') !== -1);
+  assert.ok(hollow.length > 0, 'fixture has hollow plaques');
+  hollow.forEach(function (el) {
+    assert.ok(!el.children.some(c => c.className === 'numeral'), 'hollow plaque at ' + el.dataset.province + ' has a numeral');
+    el.children.forEach(function (c) { assert.ok(!/[0-9]/.test(c.textContent), 'digit in hollow plaque at ' + el.dataset.province); });
+  });
+});
+
+test('live board source pin: js/main.js generates no unit-chip markup and no ghostChips, and renders plaques without building marks', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'main.js'), 'utf8');
+  assert.ok(src.indexOf('unit-chip') === -1, 'main.js must not generate unit-chip markup');
+  assert.ok(src.indexOf('ghostChips') === -1, 'main.js must not reference ghostChips');
+  assert.ok(/AshesPlaques\.renderPlaques\(el\.mapBoard, view, \{ buildings: false \}\)/.test(src), 'main.js renders plaques with buildings false');
+  assert.ok(src.indexOf('AshesPlaqueDebug') !== -1, 'main.js maintains AshesPlaqueDebug');
+  assert.ok(src.indexOf('plaque-selected') !== -1, 'main.js marks the selected plaque');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'main.js must not contain ' + str);
+  });
+});
+
+test('live board source pin: index.html loads css/plaques.css and js/plaques.js after adapter.js and before main.js, and no longer describes chips', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('<link rel="stylesheet" href="css/plaques.css">') !== -1, 'index.html links css/plaques.css');
+  const adapterAt = html.indexOf('<script src="js/adapter.js"></script>');
+  const plaquesAt = html.indexOf('<script src="js/plaques.js"></script>');
+  const mainAt = html.indexOf('<script src="js/main.js"></script>');
+  assert.ok(adapterAt !== -1 && plaquesAt !== -1 && mainAt !== -1, 'scripts present');
+  assert.ok(adapterAt < plaquesAt && plaquesAt < mainAt, 'plaques.js loads after adapter.js and before main.js');
+  assert.ok(!/\bchips?\b/i.test(html), 'index.html must not describe unit chips');
+  assert.ok(html.indexOf('2x24') !== -1 && html.indexOf('hollow dashed plaque') !== -1 && html.indexOf('yellow alarm mark') !== -1, 'legend explains plaques');
+});

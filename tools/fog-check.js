@@ -3,7 +3,7 @@
 // Proves: #map-fog canvas exists between #map-base and #map-state, debug
 // counts match the real modules, the Unknown and remembered fills land in
 // their luma bands on the live canvas, live provinces stay transparent, and
-// remembered tiles show no live unit chips.
+// remembered tiles show no live unit plaques, only hollow ones.
 // Pattern from tools/ownership-check.js; fixture import from tools/fixture-check.js.
 // Uses playwright-core from PLAYWRIGHT env var and Chromium from CHROME env var.
 // Uses tools/browser-helper.js for waiting (no waitForTimeout, no local sleep).
@@ -17,6 +17,7 @@ const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const Save = require('../js/save.js');
 const playerView = require('../js/adapter.js');
+const AshesPlaques = require('../js/plaques.js');
 const H = require('./browser-helper.js');
 
 const PW = process.env.PLAYWRIGHT ||
@@ -75,7 +76,9 @@ async function main() {
     console.log('FAILURES: ' + failed + ' / TOTAL: ' + results.length);
     process.exit(1);
   }
-  const fixtureCounts = intelCounts(playerView(readBack.state));
+  const fixtureView = playerView(readBack.state);
+  const fixtureCounts = intelCounts(fixtureView);
+  const fixtureHollow = AshesPlaques.buildPlaques(fixtureView).unitPlaques.filter((d) => d.hollow).length;
   check('node: fixture view counts are 46 live, 9 remembered, 15 dark',
     fixtureCounts.live === 46 && fixtureCounts.remembered === 9 && fixtureCounts.dark === 15,
     'live=' + fixtureCounts.live + ' remembered=' + fixtureCounts.remembered + ' dark=' + fixtureCounts.dark);
@@ -161,14 +164,26 @@ async function main() {
     check('B: remembered p5_2 centre pixel luma in band C (120 to 175)', remLuma >= 120 && remLuma <= 175,
       'luma=' + remLuma.toFixed(1) + ' rgb=' + remPx.r + ',' + remPx.g + ',' + remPx.b);
 
+    // Cycle 23 step 9: unit figures are plaques now. One check, same count:
+    // no live plaque sits on a remembered province, and hollow plaques exist
+    // for the remembered snapshot groups (count equals the node descriptors).
     const domCheck = await page.evaluate(() => {
       const tiles = document.querySelectorAll('#map .province[data-intel="remembered"]');
-      let liveChips = 0;
-      tiles.forEach((t) => { liveChips += t.querySelectorAll('.unit-chip:not(.ghost)').length; });
-      return { tiles: tiles.length, liveChips: liveChips };
+      const remembered = {};
+      tiles.forEach((t) => { remembered[t.getAttribute('data-prov')] = true; });
+      let livePlaques = 0;
+      let hollowPlaques = 0;
+      document.querySelectorAll('#map-board .plaque-layer .plaque').forEach((p) => {
+        if (!remembered[p.dataset.province]) return;
+        if (p.classList.contains('plaque-hollow')) hollowPlaques++;
+        else livePlaques++;
+      });
+      return { tiles: tiles.length, livePlaques: livePlaques, hollowPlaques: hollowPlaques };
     });
-    check('B: remembered tiles carry zero live unit chips', domCheck.tiles === fixtureCounts.remembered && domCheck.liveChips === 0,
-      'tiles=' + domCheck.tiles + ' liveChips=' + domCheck.liveChips);
+    check('B: remembered tiles carry zero live unit plaques and their snapshot groups show as hollow plaques',
+      domCheck.tiles === fixtureCounts.remembered && domCheck.livePlaques === 0 &&
+        domCheck.hollowPlaques > 0 && domCheck.hollowPlaques === fixtureHollow,
+      'tiles=' + domCheck.tiles + ' livePlaques=' + domCheck.livePlaques + ' hollowPlaques=' + domCheck.hollowPlaques + ' expectedHollow=' + fixtureHollow);
 
     await page.screenshot({ path: '/tmp/fog-check.png', fullPage: true });
     check('B: screenshot saved to /tmp/fog-check.png', true, '');

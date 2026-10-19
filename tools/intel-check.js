@@ -21,8 +21,8 @@
 // Run 1, the unmodified game, paused before the first tick: every
 // tile's fog state matches the shared readout for all 70 provinces;
 // a dark tile (the Dominion capital) shows no owner color, badges,
-// rail, or unit chips, while a live enemy tile shows its current
-// chips; the legend states the three states and the sight rules; the
+// rail, or unit plaques, while a live enemy tile shows its current
+// plaques with their numerals; the legend states the three states and the sight rules; the
 // nation card headline shows the live observation count from the
 // readout and the agent stock with its priced build path; a
 // production row offers a Retool to Agent button and the summary
@@ -35,8 +35,8 @@
 // createGame, records one intel phase (so every then live province
 // holds a day 1 snapshot), and then sets the three sight ranges in
 // CFG to 0 for the served game only, so the front enemy province is
-// remembered, not live. Its tile must be hatched with only ghost
-// chips from its snapshot, its inspector must lead with the last
+// remembered, not live. Its tile must be hatched with only hollow
+// plaques from its snapshot (no digits), its inspector must lead with the last
 // seen day and show only snapshot figures, and its preview must
 // show the snapshot defenders with their day and no exact numbers.
 // Run 3, the same sight range edit with no intel phase recorded, so
@@ -58,6 +58,8 @@ const path = require('path');
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
 const CFG = Sim.CFG;
+const playerView = require('../js/adapter.js');
+const AshesPlaques = require('../js/plaques.js');
 const PW = process.env.PLAYWRIGHT ||
   ['playwright', '/opt/node22/lib/node_modules/playwright'].find((p) => { try { require.resolve(p); return true; } catch (e) { return false; } });
 const CHROME = process.env.CHROME ||
@@ -96,13 +98,35 @@ async function tiles(page) {
         cls: t.className,
         intel: t.getAttribute('data-intel'),
         text: t.textContent.replace(/\s+/g, ' ').trim(),
-        chips: Array.prototype.map.call(t.querySelectorAll('.unit-chip'), (c) => ({ cls: c.className, text: c.textContent.replace(/\s+/g, ' ').trim() })),
+        plaques: [],
         badges: t.querySelectorAll('.factory-badge, .fort-badge').length,
         rail: t.querySelectorAll('.rail-bar').length
       };
     });
+    // Cycle 23 step 9: unit figures are plaques in the board's plaque
+    // layer, matched to their tile by dataset.province.
+    Array.prototype.forEach.call(document.querySelectorAll('#map-board .plaque-layer .plaque'), (p) => {
+      const t = out[p.dataset.province];
+      if (!t) return;
+      const num = p.querySelector('.numeral');
+      t.plaques.push({
+        hollow: p.classList.contains('plaque-hollow'),
+        nation: p.dataset.nation,
+        type: p.dataset.type,
+        numeral: num ? num.textContent : null,
+        text: p.textContent
+      });
+    });
     return out;
   });
+}
+
+// Node side plaque descriptors for one province, as the key and numeral
+// the DOM plaque must carry.
+function plaqueKeys(state, provId) {
+  return AshesPlaques.buildPlaques(playerView(state)).unitPlaques
+    .filter((d) => d.provinceId === provId)
+    .map((d) => d.nation + '|' + d.type + '|' + d.numeral).sort();
 }
 
 (async () => {
@@ -159,15 +183,18 @@ async function tiles(page) {
       map[capId].cls.indexOf('intel-dark') !== -1 && map[capId].cls.indexOf('owner-fog') !== -1 &&
         map[capId].cls.indexOf('owner-enemy') === -1,
       map[capId].cls);
-    check('dark capital tile shows the map only: no badges, rail, or unit chips, name and steel kept',
-      map[capId].badges === 0 && map[capId].rail === 0 && map[capId].chips.length === 0 &&
+    check('dark capital tile shows the map only: no badges, rail, or unit plaques, name and steel kept',
+      map[capId].badges === 0 && map[capId].rail === 0 && map[capId].plaques.length === 0 &&
         map[capId].text.indexOf(capName) !== -1 && map[capId].text.indexOf('Steel ' + fresh.provinces[capId].steel) !== -1,
       map[capId].text);
-    check('live enemy tile shows its current unit chips and no ghost chips',
+    const frontKeys = plaqueKeys(fresh, front);
+    const frontDomKeys = map[front].plaques.map((p) => p.nation + '|' + p.type + '|' + p.numeral).sort();
+    check('live enemy tile shows its current unit plaques with numerals and no hollow plaques',
       map[front].cls.indexOf('intel-live') !== -1 && map[front].cls.indexOf('owner-enemy') !== -1 &&
-        map[front].chips.length === frontUnits.length &&
-        map[front].chips.every((c) => c.cls.indexOf('ghost') === -1),
-      map[front].text);
+        frontUnits.length > 0 && map[front].plaques.length > 0 &&
+        map[front].plaques.every((p) => !p.hollow && (p.type === 'flotilla' || /^[0-9]+x[0-9]+$/.test(p.numeral || ''))) &&
+        JSON.stringify(frontDomKeys) === JSON.stringify(frontKeys),
+      'dom=' + frontDomKeys.join(',') + ' node=' + frontKeys.join(','));
     const legend = (await page.textContent('#intel-legend')).replace(/\s+/g, ' ').trim();
     check('legend states the three states, the sight rules, and that fog gates information, never orders',
       legend.indexOf('Live: seen today') !== -1 && legend.indexOf('Remembered: seen before but not today') !== -1 &&
@@ -249,10 +276,12 @@ async function tiles(page) {
       map[front].intel === 'remembered' && map[front].cls.indexOf('intel-remembered') !== -1 &&
         map[front].cls.indexOf('owner-' + snapR.owner) !== -1,
       map[front].cls);
-    check('remembered tile shows only ghost chips from its snapshot, each marked with its day',
-      map[front].chips.length === snapR.units.length &&
-        map[front].chips.every((c) => c.cls.indexOf('ghost') !== -1 && c.text.indexOf('Day ' + snapR.day + ' ghost:') !== -1),
-      map[front].text);
+    // Cycle 23 step 9: ghost chips carried the day as text; hollow plaques
+    // carry no digits at all, and the day stays in the inspector (next check).
+    check('remembered tile shows only hollow plaques, one per snapshot unit group, with no digit anywhere',
+      map[front].plaques.length === snapR.units.length &&
+        map[front].plaques.every((p) => p.hollow && p.numeral === null && !/[0-9]/.test(p.text)),
+      'plaques=' + map[front].plaques.length + ' groups=' + snapR.units.length + ' ' + map[front].text);
     await page.click('[data-prov="' + front + '"]');
     details = (await page.textContent('#prov-details')).replace(/\s+/g, ' ').trim();
     check('inspector for a remembered province leads with its last seen day and shows only snapshot figures',

@@ -542,19 +542,6 @@
     return '<span class="river-bar ' + side + (supported ? ' supported' : '') + '"></span>';
   }
 
-  // Snapshot unit groups as ghost figures, marked with their day:
-  // the only unit figures a remembered province may show.
-  function ghostChips(snap) {
-    if (!snap || !snap.units.length) return '';
-    var html = '<span class="units">';
-    snap.units.forEach(function (g) {
-      var label = (g.type === 'drone' ? 'Drone' : g.type === 'infantry' ? 'Inf' : g.type) +
-        (g.count > 1 ? ' x' + g.count : '') + ' ' + g.totalStrength + 'hp';
-      html += '<span class="unit-chip ghost">Day ' + snap.day + ' ghost: ' + label + '</span>';
-    });
-    return html + '</span>';
-  }
-
   function renderMap() {
     var reach = reachableIds();
     var playerSupply = Sim.computeSupply(state, 'player');
@@ -577,7 +564,8 @@
         // sim's one intel readout. Owned provinces are live by that
         // readout and render exactly as before. A remembered province
         // keeps its snapshot's owner color, dimmed and hatched, and
-        // shows only its snapshot's badges and ghost figures. A dark
+        // shows only its snapshot's badges; its unit figures are hollow
+        // plaques drawn by the plaque layer (Cycle 23 step 9). A dark
         // province shows no owner color, badges, rail, or units at
         // all: the theater map itself (name, ground, steel) is known,
         // the military facts are not.
@@ -608,27 +596,12 @@
           if (y + 1 < state.mapH) html += railBar(p, Sim.provinceId(x, y + 1), 'b');
           if (x + 1 < state.mapW) html += riverBar(p, Sim.provinceId(x + 1, y), 'r');
           if (y + 1 < state.mapH) html += riverBar(p, Sim.provinceId(x, y + 1), 'b');
-          var units = Sim.unitsIn(state, p.id);
-          if (units.length) {
-            html += '<span class="units">';
-            units.forEach(function (u) {
-              var st = Sim.unitStats(state, u);
-              var label = (u.type === 'drone' ? 'Drone' : 'Inf') + ' ' + u.strength + '/' + u.maxStrength + 'hp A' + st.attack;
-              if (st.supplyPenalty > 0) label += ' <span class="sup-tag">-' + st.supplyPenalty + '%</span>';
-              var c = 'unit-chip ' + (u.nation === 'player' ? 'mine' : 'theirs');
-              if (u.strength < u.maxStrength) c += ' damaged';
-              if (u.id === selectedUnitId) c += ' picked';
-              html += '<span class="' + c + '">' + label + '</span>';
-            });
-            html += '</span>';
-          }
         } else if (intel === 'remembered' && snap) {
           if (snap.factoryLevel > 0) {
             html += ' <span class="factory-badge lvl' + snap.factoryLevel + '">Factory ' + snap.factoryLevel + '</span>';
           }
           if (snap.fortLevel > 0) html += ' <span class="fort-badge lvl' + snap.fortLevel + '">Fort ' + snap.fortLevel + '</span>';
           if (snap.fortBuild) html += ' <span class="fort-badge building">Fort ' + snap.fortBuild.toLevel + ' in ' + snap.fortBuild.daysLeft + 'd</span>';
-          html += ghostChips(snap);
         }
         var tileOrders = orderGroups[String(p.id)];
         if (tileOrders) html += tileOrders.join('');
@@ -651,6 +624,41 @@
     renderFogCanvasNow();
     // State layer (ownership bands and front lines)
     renderStateCanvasNow();
+    // Plaque layer (Cycle 23 step 9): unit plaques above the state canvas.
+    renderPlaqueLayerNow(view);
+  }
+
+  // Unit plaques from js/plaques.js. Every number shown comes from the
+  // buildPlaques descriptors; main.js computes no unit numbers here.
+  // Building marks stay off the live board: the tile badges show buildings.
+  function renderPlaqueLayerNow(view) {
+    if (typeof AshesPlaques === 'undefined' || !el.mapBoard) return;
+    Array.prototype.forEach.call(el.mapBoard.querySelectorAll(':scope > .plaque-layer'), function (node) {
+      node.parentNode.removeChild(node);
+    });
+    AshesPlaques.renderPlaques(el.mapBoard, view, { buildings: false });
+    var layers = el.mapBoard.querySelectorAll(':scope > .plaque-layer');
+    var layer = layers.length ? layers[layers.length - 1] : null;
+    if (layer) {
+      layer.style.zIndex = '4';
+      var sel = selectedUnit();
+      if (sel) {
+        Array.prototype.forEach.call(layer.querySelectorAll('.plaque'), function (node) {
+          if (node.dataset.province === String(sel.provinceId) &&
+              node.dataset.nation === 'player' &&
+              node.dataset.type === sel.type) {
+            node.classList.add('plaque-selected');
+          }
+        });
+      }
+    }
+    var plaques = AshesPlaques.buildPlaques(view).unitPlaques;
+    var hollow = plaques.filter(function (d) { return d.hollow; }).length;
+    window.AshesPlaqueDebug = {
+      total: plaques.length,
+      live: plaques.length - hollow,
+      hollow: hollow
+    };
   }
 
   function renderPanel() {

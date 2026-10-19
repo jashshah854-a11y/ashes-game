@@ -91,7 +91,7 @@ function getJson(url) {
     const legendTokens = ['capital star', 'selected province', 'reach outline', 'Steel per day', 'Factory level',
       'Fort level', 'building fort', 'days left', 'Coast', 'Flotilla', 'railroad', 'rail under construction',
       'Converting', 'river', 'supported crossing', 'supply hatching', 'Inf', 'Drone', 'hp', 'attack',
-      'blue border', 'yours', 'red border', 'Dominion', 'selected unit chip is gold', 'Day N ghost'];
+      'blue border', 'yours', 'red border', 'Dominion', 'selected unit plaque has a gold outline', 'hollow dashed plaque'];
     legendTokens.forEach(function (tok) {
       check('map legend token: ' + tok, legendText.indexOf(tok) !== -1, '');
     });
@@ -126,11 +126,11 @@ function getJson(url) {
     check('province card shows a name', !!provName && provName.indexOf('No province selected') === -1, provName);
     check('province card shows Steel output and per day', provDetails.indexOf('Steel output:') !== -1 && provDetails.indexOf('per day') !== -1, provDetails.slice(0, 120));
 
-    // ---- 7. Unit card from a real tile holding a player unit chip ----
-    const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.province .unit-chip.mine'); if (!t) return null; var p = t.closest('.province'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
+    // ---- 7. Unit card from a real tile holding a player unit plaque ----
+    const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.plaque-layer .plaque.plaque-live.faction-player'); if (!t) return null; var p = document.querySelector('.province[data-prov=\"' + t.dataset.province + '\"]'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
     await H.tryWait(async () => (await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()")).length > 0, 3000);
     const unitText = await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()");
-    check('clicked a tile holding a player unit chip', !!clickedUnitProv, String(clickedUnitProv));
+    check('clicked a tile holding a player unit plaque', !!clickedUnitProv, String(clickedUnitProv));
     check('unit card shows hit points', unitText.indexOf('hit points') !== -1, unitText.slice(0, 120));
     check('unit card shows Attack', unitText.indexOf('Attack') !== -1, '');
     check('unit card shows Defense', unitText.indexOf('Defense') !== -1, '');

@@ -20,10 +20,10 @@
 //
 // Browser path also verifies live interaction:
 // (a) pause via real Pause button; assert zero .order-marker before any order
-// (b) real clicks only: click a tile holding a player unit chip, then click a
+// (b) real clicks only: click a tile holding a player unit plaque, then click a
 //     neighboring reachable tile; assert exactly one .order-marker, inside the
 //     clicked target tile, text exactly matching the selected unit type shown
-//     on its chip (Inf or Drone form above)
+//     on its gold outlined plaque (Inf or Drone form above)
 //
 // (e) #map-legend text contains "order marker" and "ordered here at dawn"
 // (f) vocabulary audit: no marker text contains "player", "enemy",
@@ -208,16 +208,21 @@ fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
     check('Zero markers before any order (paused fresh game)', markersBefore.length === 0, 'found: ' + markersBefore.length);
 
     // ---- (b) Live click path: click player unit tile, then neighbor ----
-    // Find a player unit chip on the map
-    const playerChip = await page.$('.unit-chip.mine');
-    check('Player unit chip exists for click test', !!playerChip, 'no .unit-chip.mine found');
-    if (playerChip) {
-      // Click the province button containing the chip (the tile)
-      const playerTile = await playerChip.evaluateHandle(el => el.closest('.province'));
-      const playerProvId = await playerTile.evaluate(el => el.getAttribute('data-prov'));
+    // Find a live player unit plaque on the map
+    const playerPlaque = await page.$('.plaque-layer .plaque.plaque-live.faction-player');
+    check('Player unit plaque exists for click test', !!playerPlaque, 'no live .plaque.faction-player found');
+    if (playerPlaque) {
+      // Click the tile of the plaque's province (plaques never take clicks)
+      const playerProvId = await playerPlaque.evaluate(el => el.dataset.province);
       await H.clickWhenClear(page, '.province[data-prov="' + playerProvId + '"]');
       await H.tryWait(async () => (await page.$$('.province.reachable')).length > 0, 2000);
       await H.dismissBurst(page);
+      // The selected unit's type, read from its gold outlined plaque
+      // (the plaque layer redraws on every click, so read it now).
+      const selectedType = await page.evaluate(() => {
+        const p = document.querySelector('.plaque-layer .plaque.plaque-selected');
+        return p ? p.dataset.type : '';
+      });
 
       // Find a reachable neighbor tile (dashed green outline)
       const reachableTiles = await page.$$('.province.reachable');
@@ -239,9 +244,8 @@ fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
           const marker = markersAfterClick[0];
           check('Marker is on the clicked target tile', marker.parentProvince === targetProvId,
             'marker on ' + marker.parentProvince + ' expected ' + targetProvId);
-          // Get the selected unit type from the chip text
-          const chipText = await playerChip.textContent();
-          const expectedType = chipText.includes('Drone') ? 'Drone' : 'Inf';
+          // Get the selected unit type from the selected plaque
+          const expectedType = selectedType === 'drone' ? 'Drone' : 'Inf';
           const expectedText = 'Order: ' + expectedType + ' ordered here at dawn';
           check('Marker text matches selected unit type exactly', marker.text === expectedText,
             'got: ' + marker.text + ' expected: ' + expectedText);

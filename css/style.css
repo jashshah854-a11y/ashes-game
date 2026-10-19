@@ -77,6 +77,8 @@ main {
 .unit-chip.theirs { border-color: #ee9f9f; }
 .unit-chip.picked { background: #e8c87a; color: #191b1e; font-weight: bold; }
 .unit-chip.damaged { color: #ff9d9d; border-color: #ee9f9f; }
+/* Cycle 23 step 9: the selected unit's plaque. css/plaques.css owns the plaque look. */
+.plaque-selected { outline: 2px solid #e8c87a; outline-offset: 1px; }
 .hint { color: #b9b09a; font-size: 13px; max-width: 640px; }
 .banner {
   margin-top: 12px; padding: 14px; border-radius: 4px; font-size: 18px;

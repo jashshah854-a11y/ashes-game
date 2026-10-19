@@ -103,10 +103,10 @@ function getJson(url) {
     }
     check('chain sentence names steel income', provExplain.indexOf('steel income') !== -1, '');
 
-    // ---- 5. Unit card from a real tile holding a player unit chip ----
-    const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.province .unit-chip.mine'); if (!t) return null; var p = t.closest('.province'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
+    // ---- 5. Unit card from a real tile holding a player unit plaque ----
+    const clickedUnitProv = await evaluate("(function () { var t = document.querySelector('.plaque-layer .plaque.plaque-live.faction-player'); if (!t) return null; var p = document.querySelector('.province[data-prov=\"' + t.dataset.province + '\"]'); if (!p) return null; p.click(); return p.getAttribute('data-prov'); })()");
     await H.tryWait(async () => (await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()")).indexOf('No unit selected') === -1, 3000);
-    check('clicked a tile holding a player unit chip', !!clickedUnitProv, String(clickedUnitProv));
+    check('clicked a tile holding a player unit plaque', !!clickedUnitProv, String(clickedUnitProv));
     const unitText = await evaluate("document.getElementById('unit-details').textContent.replace(/\\s+/g, ' ').trim()");
     check('unit details rendered', unitText.replace(/\\s+/g, '').length > 0, unitText.slice(0, 80));
     check('stacking sentence present', unitText.indexOf('fight together as one stack') !== -1, '');

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ashes of Empires, Iteration 2</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/plaques.css">
 </head>
 <body>
 <header>
@@ -51,8 +52,8 @@
     </p>
     <div id="intel-legend" class="intel-legend">
       Intel and fog, three states. Live: seen today, shown in full, its figures are current.
-      Remembered: seen before but not today, dimmed and hatched on the map; its ghost figures
-      and its province card are from the day marked, and may have changed since.
+      Remembered: seen before but not today, dimmed and hatched on the map; its hollow plaques
+      and its province card are from the last day you saw it, which the card names, and may have changed since.
       Dark: never seen; only the map itself is known, no owner, units, factories, forts, or rail are shown.
       Sight comes from your provinces and the provinces next to them, your units and the provinces
       next to them, drone wings, which see one province further (two provinces away), and an agent,
@@ -79,12 +80,13 @@
         <li>A blue bar on a shared border is a river.</li>
         <li>A thicker green river bar means a flotilla supports that crossing, a supported crossing.</li>
         <li>Red diagonal supply hatching over your tile means that province is off your rail supply and its units weaken.</li>
-        <li>A unit chip reads its type, Inf for infantry or Drone for a drone wing, then its strength against its maximum in hp, then A followed by its attack number, for example Inf 5/12hp A4. A unit below full strength has a damaged chip, shown in red.</li>
-        <li>A unit chip with a blue border is yours. A unit chip with a red border is the Dominion.</li>
-        <li>The selected unit chip is gold.</li>
+        <li>A plaque on a tile marks units. The glyph shows the unit type: a soldier for infantry, a drone for a drone wing, a ship for a flotilla. The number is units times total strength, for example 2x24 is two units with 24 strength between them. A hollow dashed plaque is a last seen position and shows no numbers. A yellow alarm mark means out of supply.</li>
+        <li>Strength is counted in hit points, hp. A unit below full strength lowers the total strength in its plaque number, so a damaged stack reads a smaller number. The unit card shows each unit strength in hp and its attack number.</li>
+        <li>A plaque with a blue fill and a dark blue border is yours. A plaque with a black fill and a red border is the Dominion.</li>
+        <li>The selected unit plaque has a gold outline.</li>
         <li>A dashed gold badge reading Order: Inf ordered here at dawn, or Order: Drone ordered here at dawn, is an order marker: it marks a province one of your units is ordered to march or attack at dawn, one badge for each ordered unit.</li>
-        <li>A dashed chip marked Day N ghost is a remembered snapshot figure from day N.</li>
-        <li>A minus N percent tag on a chip is that unit supply penalty.</li>
+        <li>A hollow dashed plaque on a remembered tile is a unit group from the last day you saw it; the province card names that day.</li>
+        <li>A yellow alarm mark on a plaque means that stack is out of supply; the unit card shows its supply penalty.</li>
         <li>The parchment board under the tiles is drawn on a canvas from the same map data, zoom buttons scale the board, and the canvas redraws once the zoom settles.</li>
         <li>Colored border bands and the black front line are drawn on a second canvas above the tiles, from the same map data, and redraw only when ownership changes.</li>
         <li>Fog is drawn on its own canvas under the tiles, from what you can see. A province you see now has no fog. A remembered province is filled flat gray with diagonal pencil hatching and a gray border where its last known owner band was. An Unknown province, never seen, is blank light parchment with soft mist, the lightest ground on the map.</li>
@@ -255,7 +257,7 @@
         A capture line means the named nation took the named province and its tile changed color.
         A repelled or destroyed line means the defenders held and the province did not change hands.
         Why a battle is won: the side with the higher stack power in the fight wins, attack against defense, with supply, fortifications, river crossings, and drone effectiveness counted, the same numbers the attack preview shows before you order.
-        Losses: a unit that loses all its strength in hit points is destroyed and its chip disappears from the map; survivors stay with lower strength, shown in hit points on their chip and on the unit card.
+        Losses: a unit that loses all its strength in hit points is destroyed and no longer counts in any plaque on the map; survivors stay with lower strength, shown in the total strength on their plaque and in hit points on the unit card.
       </p>
       <ul id="log" class="log"></ul>
     </div>
@@ -297,6 +299,7 @@
 
 <script src="js/sim.js"></script>
 <script src="js/adapter.js"></script>
+<script src="js/plaques.js"></script>
 <script src="js/map-geometry.js"></script>
 <script src="js/map-canvas.js"></script>
 <script src="js/lore.js"></script>

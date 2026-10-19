@@ -150,7 +150,7 @@
     return { unitPlaques: unitPlaques, buildingMarks: buildingMarks };
   }
 
-  function renderPlaques(container, view) {
+  function renderPlaques(container, view, opts) {
     if (typeof document === 'undefined') {
       return;
     }
@@ -223,7 +223,9 @@
       layer.appendChild(el);
     });
 
-    descriptors.buildingMarks.forEach(function (d) {
+    var skipBuildings = !!(opts && opts.buildings === false);
+    var marks = skipBuildings ? [] : descriptors.buildingMarks;
+    marks.forEach(function (d) {
       var el = document.createElement('div');
       el.className = 'building-mark mark-' + d.kind;
       el.dataset.province = d.provinceId;
@@ -245,7 +247,7 @@
     });
 
     container.appendChild(layer);
-    container.dataset.plaqueCount = String(descriptors.unitPlaques.length + descriptors.buildingMarks.length);
+    container.dataset.plaqueCount = String(descriptors.unitPlaques.length + marks.length);
   }
 
   var AshesPlaques = {
