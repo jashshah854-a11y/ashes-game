@@ -388,3 +388,289 @@ test('plaque build: fresh seed 42 game view returns 8 live unit groups and zero 
   assert.strictEqual(liveGroups, 8, 'live unit groups ' + liveGroups);
   assert.strictEqual(rememberedGroups, 0, 'remembered groups ' + rememberedGroups);
 });
+
+// Map geometry tests (Cycle 23 Step 6a)
+const AshesMapGeometry = require('../js/map-geometry.js');
+
+test('map geometry: buildGeometry is deterministic and does not mutate the view (seed 42)', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const viewBefore = JSON.stringify(view);
+
+  const geomA = AshesMapGeometry.buildGeometry(view);
+  const viewAfterFirst = JSON.stringify(view);
+  assert.strictEqual(viewAfterFirst, viewBefore, 'view unchanged after first buildGeometry call');
+
+  const geomB = AshesMapGeometry.buildGeometry(view);
+  const viewAfterSecond = JSON.stringify(view);
+  assert.strictEqual(viewAfterSecond, viewBefore, 'view unchanged after second buildGeometry call');
+
+  assert.deepStrictEqual(geomB, geomA, 'two calls to buildGeometry are deep equal');
+});
+
+test('map geometry: buildGeometry is deterministic and does not mutate the view (fixture worst-case)', () => {
+  const Save = require('../js/save.js');
+  const fixturePath = path.join(__dirname, '..', 'tools', 'fixture', 'worst-case.json');
+  const fixtureText = fs.readFileSync(fixturePath, 'utf8');
+  const readBack = Save.deserializeSave(fixtureText);
+  assert.strictEqual(readBack.ok, true, readBack.reason || 'deserialize failed');
+  const s = readBack.state;
+  const view = playerView(s);
+  const viewBefore = JSON.stringify(view);
+
+  const geomA = AshesMapGeometry.buildGeometry(view);
+  const viewAfterFirst = JSON.stringify(view);
+  assert.strictEqual(viewAfterFirst, viewBefore, 'view unchanged after first buildGeometry call (fixture)');
+
+  const geomB = AshesMapGeometry.buildGeometry(view);
+  const viewAfterSecond = JSON.stringify(view);
+  assert.strictEqual(viewAfterSecond, viewBefore, 'view unchanged after second buildGeometry call (fixture)');
+
+  assert.deepStrictEqual(geomB, geomA, 'two calls to buildGeometry are deep equal (fixture)');
+});
+
+test('map geometry: topology - edge endpoints share exactly 2 polygon points matching view edge set', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+
+  // Build set of view edge keys (sorted a|b).
+  var viewEdgeKeys = new Set();
+  view.edges.forEach(function (e) {
+    var key = e.a < e.b ? e.a + '|' + e.b : e.b + '|' + e.a;
+    viewEdgeKeys.add(key);
+  });
+
+  // Build set of province pairs sharing >= 2 identical polygon points.
+  var sharedEdgeKeys = new Set();
+  var provinces = geom.provinces;
+  for (var i = 0; i < provinces.length; i++) {
+    for (var j = i + 1; j < provinces.length; j++) {
+      var pa = provinces[i];
+      var pb = provinces[j];
+      var shared = 0;
+      for (var pi = 0; pi < pa.polygon.length; pi++) {
+        for (var pj = 0; pj < pb.polygon.length; pj++) {
+          if (pa.polygon[pi].x === pb.polygon[pj].x && pa.polygon[pi].y === pb.polygon[pj].y) {
+            shared++;
+          }
+        }
+      }
+      if (shared >= 2) {
+        var key = pa.id < pb.id ? pa.id + '|' + pb.id : pb.id + '|' + pa.id;
+        sharedEdgeKeys.add(key);
+      }
+    }
+  }
+
+  // The two sets must be equal.
+  assert.strictEqual(sharedEdgeKeys.size, viewEdgeKeys.size, 'shared edge count ' + sharedEdgeKeys.size + ' vs view edge count ' + viewEdgeKeys.size);
+  sharedEdgeKeys.forEach(function (key) {
+    assert.ok(viewEdgeKeys.has(key), 'shared edge ' + key + ' not in view edges');
+  });
+  viewEdgeKeys.forEach(function (key) {
+    assert.ok(sharedEdgeKeys.has(key), 'view edge ' + key + ' not in shared edges');
+  });
+});
+
+test('map geometry: river/rail/coast segment counts match view exactly, coast path points are in province polygon', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+
+  // River segments: one per view edge with terrain === 'river'.
+  var viewRivers = view.edges.filter(function (e) { return e.terrain === 'river'; }).length;
+  assert.strictEqual(geom.riverSegments.length, viewRivers, 'riverSegments count ' + geom.riverSegments.length + ' vs view rivers ' + viewRivers);
+
+  // Rail segments: one per view edge with railState !== 'none'.
+  var viewRails = view.edges.filter(function (e) { return e.railState !== 'none'; }).length;
+  assert.strictEqual(geom.railSegments.length, viewRails, 'railSegments count ' + geom.railSegments.length + ' vs view rails ' + viewRails);
+
+  // Coast segments: one per coastal province.
+  var viewCoastal = view.provinces.filter(function (p) { return p.coastal; }).length;
+  assert.strictEqual(geom.coastSegments.length, viewCoastal, 'coastSegments count ' + geom.coastSegments.length + ' vs coastal provinces ' + viewCoastal);
+
+  // Every coast segment's path points must appear in the province's polygon.
+  geom.coastSegments.forEach(function (cs) {
+    var province = geom.provinces.find(function (p) { return p.id === cs.provinceId; });
+    assert.ok(province, 'coast segment province ' + cs.provinceId + ' found in geometry');
+    cs.path.forEach(function (pt) {
+      var found = province.polygon.some(function (pp) { return pp.x === pt.x && pp.y === pt.y; });
+      assert.ok(found, 'coast segment point (' + pt.x + ',' + pt.y + ') not in polygon of ' + cs.provinceId);
+    });
+  });
+});
+
+test('map geometry: every edge path point appears in both endpoint province polygons', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+
+  geom.edges.forEach(function (e) {
+    var pa = geom.provinces.find(function (p) { return p.id === e.a; });
+    var pb = geom.provinces.find(function (p) { return p.id === e.b; });
+    assert.ok(pa, 'province ' + e.a + ' exists');
+    assert.ok(pb, 'province ' + e.b + ' exists');
+    e.path.forEach(function (pt) {
+      var inA = pa.polygon.some(function (pp) { return pp.x === pt.x && pp.y === pt.y; });
+      var inB = pb.polygon.some(function (pp) { return pp.x === pt.x && pp.y === pt.y; });
+      assert.ok(inA, 'edge path point (' + pt.x + ',' + pt.y + ') not in polygon of ' + e.a);
+      assert.ok(inB, 'edge path point (' + pt.x + ',' + pt.y + ') not in polygon of ' + e.b);
+    });
+  });
+});
+
+test('map geometry: corner displacement - at least 20 corners displaced >0.01, at least one coast corner >0.20', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+
+  var displacedCount = 0;
+  var coastDisplacedOver20 = 0;
+
+  geom.provinces.forEach(function (p) {
+    var poly = p.polygon;
+    // Corners at polygon indices 0 (TL), 2 (TR), 4 (BR), 6 (BL).
+    var cornerIndices = [0, 2, 4, 6];
+    cornerIndices.forEach(function (idx) {
+      var pt = poly[idx];
+      // Infer lattice position from province x,y and corner index.
+      var latticeX, latticeY;
+      if (idx === 0) { latticeX = p.x; latticeY = p.y; } // TL
+      else if (idx === 2) { latticeX = p.x + 1; latticeY = p.y; } // TR
+      else if (idx === 4) { latticeX = p.x + 1; latticeY = p.y + 1; } // BR
+      else { latticeX = p.x; latticeY = p.y + 1; } // BL
+
+      var dx = Math.abs(pt.x - latticeX);
+      var dy = Math.abs(pt.y - latticeY);
+      var maxDisp = Math.max(dx, dy);
+      if (maxDisp > 0.01) displacedCount++;
+      // Check if this is a coast corner (province is coastal and corner is on coast edge).
+      if (p.coastal) {
+        var isCoastCorner = false;
+        if (p.y === 0 && (idx === 0 || idx === 2)) isCoastCorner = true; // top coast
+        if (p.y === geom.mapH - 1 && (idx === 4 || idx === 6)) isCoastCorner = true; // bottom coast
+        if (isCoastCorner && maxDisp > 0.20) coastDisplacedOver20++;
+      }
+    });
+  });
+
+  assert.ok(displacedCount >= 20, 'at least 20 corners displaced >0.01, got ' + displacedCount);
+  assert.ok(coastDisplacedOver20 >= 1, 'at least one coast corner displaced >0.20, got ' + coastDisplacedOver20);
+});
+
+test('map geometry: hitTest centres return own id (seed 42 and fixture), outside points null, sweep step 0.25 inside never null and within 1 cell', () => {
+  // Seed 42
+  var s = Sim.createGame(42);
+  var view = playerView(s);
+  var geom = AshesMapGeometry.buildGeometry(view);
+
+  // Centres return own id.
+  geom.provinces.forEach(function (p) {
+    var hit = AshesMapGeometry.hitTest(geom, p.center.x, p.center.y);
+    assert.strictEqual(hit, p.id, 'hitTest at center of ' + p.id + ' returns ' + hit);
+  });
+
+  // Outside points return null.
+  assert.strictEqual(AshesMapGeometry.hitTest(geom, -1, 3), null, 'hitTest(-1,3) is null');
+  assert.strictEqual(AshesMapGeometry.hitTest(geom, 10, 3), null, 'hitTest(10,3) is null');
+  assert.strictEqual(AshesMapGeometry.hitTest(geom, 3, -1), null, 'hitTest(3,-1) is null');
+  assert.strictEqual(AshesMapGeometry.hitTest(geom, 3, 7), null, 'hitTest(3,7) is null');
+
+  // Sweep step 0.25 inside board: never null, result within 1 cell of lattice candidate.
+  for (var y = 0; y < geom.mapH; y += 0.25) {
+    for (var x = 0; x < geom.mapW; x += 0.25) {
+      var hit = AshesMapGeometry.hitTest(geom, x, y);
+      assert.ok(hit !== null, 'hitTest(' + x + ',' + y + ') returned null inside board');
+      var hp = geom.provinces.find(function (p) { return p.id === hit; });
+      assert.ok(hp, 'hit province ' + hit + ' exists in geometry');
+      // Lattice candidate.
+      var gx = Math.floor(x);
+      var gy = Math.floor(y);
+      var candidateId = 'p' + gx + '_' + gy;
+      // Result must be candidate or an edge neighbour of candidate.
+      var isCandidateOrNeighbour = (hit === candidateId);
+      if (!isCandidateOrNeighbour) {
+        geom.edges.forEach(function (e) {
+          if (e.a === candidateId && e.b === hit) isCandidateOrNeighbour = true;
+          if (e.b === candidateId && e.a === hit) isCandidateOrNeighbour = true;
+        });
+      }
+      assert.ok(isCandidateOrNeighbour, 'hitTest(' + x + ',' + y + ') = ' + hit + ' not candidate ' + candidateId + ' or its neighbour');
+    }
+  }
+
+  // Fixture worst-case
+  const Save = require('../js/save.js');
+  const fixturePath = path.join(__dirname, '..', 'tools', 'fixture', 'worst-case.json');
+  const fixtureText = fs.readFileSync(fixturePath, 'utf8');
+  const readBack = Save.deserializeSave(fixtureText);
+  assert.strictEqual(readBack.ok, true, readBack.reason || 'deserialize failed');
+  const s2 = readBack.state;
+  const view2 = playerView(s2);
+  const geom2 = AshesMapGeometry.buildGeometry(view2);
+
+  geom2.provinces.forEach(function (p) {
+    var hit = AshesMapGeometry.hitTest(geom2, p.center.x, p.center.y);
+    assert.strictEqual(hit, p.id, 'fixture: hitTest at center of ' + p.id + ' returns ' + hit);
+  });
+
+  assert.strictEqual(AshesMapGeometry.hitTest(geom2, -1, 3), null, 'fixture: hitTest(-1,3) is null');
+  assert.strictEqual(AshesMapGeometry.hitTest(geom2, 10, 3), null, 'fixture: hitTest(10,3) is null');
+  assert.strictEqual(AshesMapGeometry.hitTest(geom2, 3, -1), null, 'fixture: hitTest(3,-1) is null');
+  assert.strictEqual(AshesMapGeometry.hitTest(geom2, 3, 7), null, 'fixture: hitTest(3,7) is null');
+
+  for (var y2 = 0; y2 < geom2.mapH; y2 += 0.25) {
+    for (var x2 = 0; x2 < geom2.mapW; x2 += 0.25) {
+      var hit2 = AshesMapGeometry.hitTest(geom2, x2, y2);
+      assert.ok(hit2 !== null, 'fixture: hitTest(' + x2 + ',' + y2 + ') returned null inside board');
+      var hp2 = geom2.provinces.find(function (p) { return p.id === hit2; });
+      assert.ok(hp2, 'fixture: hit province ' + hit2 + ' exists in geometry');
+      var gx2 = Math.floor(x2);
+      var gy2 = Math.floor(y2);
+      var candidateId2 = 'p' + gx2 + '_' + gy2;
+      var isCandidateOrNeighbour2 = (hit2 === candidateId2);
+      if (!isCandidateOrNeighbour2) {
+        geom2.edges.forEach(function (e) {
+          if (e.a === candidateId2 && e.b === hit2) isCandidateOrNeighbour2 = true;
+          if (e.b === candidateId2 && e.a === hit2) isCandidateOrNeighbour2 = true;
+        });
+      }
+      assert.ok(isCandidateOrNeighbour2, 'fixture: hitTest(' + x2 + ',' + y2 + ') = ' + hit2 + ' not candidate ' + candidateId2 + ' or its neighbour');
+    }
+  }
+});
+
+test('map geometry: CELL_PX is 160 and board dimensions are 1600x1120', () => {
+  const s = Sim.createGame(42);
+  const view = playerView(s);
+  const geom = AshesMapGeometry.buildGeometry(view);
+
+  assert.strictEqual(AshesMapGeometry.CELL_PX, 160, 'CELL_PX is 160');
+  assert.strictEqual(geom.cellPx, 160, 'geom.cellPx is 160');
+  assert.strictEqual(geom.boardWidthPx, 1600, 'boardWidthPx is 1600');
+  assert.strictEqual(geom.boardHeightPx, 1120, 'boardHeightPx is 1120');
+  assert.strictEqual(geom.mapW, 10, 'mapW is 10');
+  assert.strictEqual(geom.mapH, 7, 'mapH is 7');
+});
+
+test('map geometry: toPx converts cell coordinates to pixel coordinates', () => {
+  assert.deepStrictEqual(AshesMapGeometry.toPx({ x: 0, y: 0 }), { x: 0, y: 0 });
+  assert.deepStrictEqual(AshesMapGeometry.toPx({ x: 1, y: 0 }), { x: 160, y: 0 });
+  assert.deepStrictEqual(AshesMapGeometry.toPx({ x: 0, y: 1 }), { x: 0, y: 160 });
+  assert.deepStrictEqual(AshesMapGeometry.toPx({ x: 9, y: 6 }), { x: 1440, y: 960 });
+});
+
+test('map geometry source lint: js/map-geometry.js contains no banned strings, no sim require, no Math.random', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-geometry.js'), 'utf8');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'map-geometry.js must not contain ' + str);
+  });
+  assert.ok(!/require\(['\"]\.\/sim\.js['\"]\)/.test(src), 'map-geometry.js must not require sim.js');
+  assert.ok(!/Math\.random\(\)/.test(src), 'map-geometry.js must not use Math.random');
+  // Also verify no Date usage
+  assert.ok(!/new Date\(\)/.test(src), 'map-geometry.js must not use new Date()');
+  assert.ok(!/Date\.now\(\)/.test(src), 'map-geometry.js must not use Date.now()');
+  // Verify no em/en dashes
+  assert.ok(!/[\u2013\u2014]/.test(src), 'map-geometry.js must not contain em or en dashes');
+});
