@@ -117,10 +117,30 @@ async function cardChecks(page, label) {
   return c;
 }
 
+// The war runs again when the day counter moves off the value sampled
+// at the start of a wait. That one fact is enough: the day only moves
+// while the war is unpaused, and reading a second fact (the pause
+// button) in a later round trip races the next card, which can re-pause
+// the war in between. A card that is open when the wait starts, or that
+// opens before the day moves, is the war running into its next burst,
+// not a failure: the burst is dismissed and the wait starts again from
+// a fresh day sample. The whole wait is capped at 15 seconds. A lost
+// pause restoration still fails: the war stays paused with no card
+// open, the day never moves, and the helper returns false.
 async function running(page) {
-  const a = await page.textContent('#day-counter');
-  const moved = await H.waitFor(page, async () => (await page.textContent('#day-counter')) !== a, 3000);
-  return moved && (await page.textContent('#btn-pause')) === 'Pause';
+  const end = Date.now() + 15000;
+  while (Date.now() < end) {
+    if (await page.isVisible('#event-overlay')) await H.dismissBurst(page);
+    const a = await page.textContent('#day-counter');
+    let card = false;
+    const moved = await H.tryWait(async () => {
+      if ((await page.textContent('#day-counter')) !== a) return true;
+      card = await page.isVisible('#event-overlay');
+      return card;
+    }, Math.max(0, end - Date.now()));
+    if (moved && !card) return true;
+  }
+  return false;
 }
 
 async function untilCard(page) {
@@ -189,13 +209,8 @@ async function drainBurst(page, label, first) {
         const texPending = await page.$$eval('.codex-texture', (ns) => ns.map((n) => n.textContent));
         check('A: the unreached recurring texture is marked not yet in the codex', texPending.length === 1 && texPending[0].indexOf(Lore.textures.lineCapped.title) !== -1, texPending.join(' / '));
         await page.click('#btn-codex-close');
-        // Day advance only here: the war demonstrably resumed (pause
-        // restoration itself is pinned above and in Runs B and D), but
-        // the day 25 texture card can legitimately re-pause the war
-        // before a button text read lands, which is the war running
-        // into its next card, not a lost restoration.
-        const dayBefore = await page.textContent('#day-counter');
-        check('A: the war runs again after the codex (the day advances)', await H.waitFor(page, async () => (await page.textContent('#day-counter')) !== dayBefore, 3000), 'day ' + dayBefore);
+        // Uses the shared resumption helper (day advance, cards drained).
+        check('A: the war runs again after the codex (the day advances)', await running(page));
       } else if (run === 'C') {
         check('C: first card appears', await untilCard(page));
         await page.click('#btn-event-continue'); // day 11
