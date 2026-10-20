@@ -3282,3 +3282,220 @@ test('TX-PNL main.js pin: --tx-pnl-image is set only in the onload of the TX-PNL
   assert.ok(body.indexOf('img.src = uri;') > onerror, 'src is assigned after both handlers');
   assert.ok(src.indexOf('(function startPanelTexture() {') < src.lastIndexOf('newGame();'), 'loader starts before the first newGame');
 });
+
+// Cycle 23 Step 20b: DC-xx decals. Scorch (DC01 to DC04) and crater (DC05 to
+// DC07) stamps derived in js/decals.js from a pre-tick owner snapshot, drawn
+// by js/map-canvas.js clipped to the hit polygons on #map-decals.
+const AshesDecalsMod = require('../js/decals.js');
+const DC_IDS = ['DC01', 'DC02', 'DC03', 'DC04', 'DC05', 'DC06', 'DC07'];
+
+test('decals: a witnessed owner change gives exactly one event with the hashed variant and its kind', () => {
+  const prev = { p1: 'player', p2: 'enemy' };
+  const next = { p1: 'enemy', p2: 'enemy' };
+  const events = AshesDecalsMod.deriveDecalEvents(prev, next, 12, ['p1', 'p2']);
+  const variant = AshesDecalsMod.variantFor('p1', 12);
+  assert.deepStrictEqual(events, [
+    { provinceId: 'p1', day: 12, by: 'enemy', variant: variant, kind: AshesDecalsMod.kindFor(variant) }
+  ]);
+  // A Set works the same as an array.
+  assert.deepStrictEqual(AshesDecalsMod.deriveDecalEvents(prev, next, 12, new Set(['p1'])), events);
+});
+
+test('decals: an unwitnessed change, an unchanged owner, and a province missing from either map give no event', () => {
+  assert.deepStrictEqual(AshesDecalsMod.deriveDecalEvents({ p1: 'player' }, { p1: 'enemy' }, 3, ['p2']), []);
+  assert.deepStrictEqual(AshesDecalsMod.deriveDecalEvents({ p1: 'player' }, { p1: 'player' }, 3, ['p1']), []);
+  assert.deepStrictEqual(AshesDecalsMod.deriveDecalEvents({}, { p1: 'enemy' }, 3, ['p1']), []);
+  assert.deepStrictEqual(AshesDecalsMod.deriveDecalEvents({ p1: 'player' }, {}, 3, ['p1']), []);
+});
+
+test('decals: events come out sorted by province id and the inputs are not mutated', () => {
+  const prev = { p30: 'a', p04: 'a', p11: 'a' };
+  const next = { p30: 'b', p04: 'b', p11: 'b' };
+  const wit = ['p30', 'p11', 'p04'];
+  const before = JSON.stringify([prev, next, wit]);
+  const events = AshesDecalsMod.deriveDecalEvents(prev, next, 5, wit);
+  assert.deepStrictEqual(events.map(e => e.provinceId), ['p04', 'p11', 'p30']);
+  assert.strictEqual(JSON.stringify([prev, next, wit]), before);
+});
+
+test('decals: variantFor is deterministic and always DC01 to DC07; kindFor maps DC01-04 to scorch and DC05-07 to crater', () => {
+  const seen = new Set();
+  for (let d = 1; d <= 60; d++) {
+    ['p00', 'p17', 'p42', 'p69'].forEach(pid => {
+      const v = AshesDecalsMod.variantFor(pid, d);
+      assert.strictEqual(v, AshesDecalsMod.variantFor(pid, d));
+      assert.ok(DC_IDS.indexOf(v) !== -1, v + ' is a built variant');
+      assert.strictEqual(v, 'DC0' + (1 + (AshesDecalsMod.fnv1a(pid + ':' + d) % 7)));
+      seen.add(v);
+    });
+  }
+  assert.strictEqual(seen.size, 7, 'all seven variants occur over 240 draws');
+  ['DC01', 'DC02', 'DC03', 'DC04'].forEach(v => assert.strictEqual(AshesDecalsMod.kindFor(v), 'scorch'));
+  ['DC05', 'DC06', 'DC07'].forEach(v => assert.strictEqual(AshesDecalsMod.kindFor(v), 'crater'));
+  // Same algorithm as js/map-canvas.js fnv1a (the decal hash export).
+  assert.strictEqual(AshesMapCanvas.decalOpsHash([{ provinceId: 'p1', day: 2, variant: 'DC03', cx: 1, cy: 2 }]),
+    AshesDecalsMod.fnv1a('p1|2|DC03|1.0000|2.0000').toString(16).padStart(8, '0'));
+});
+
+test('decals: appendDecals dedupes by province and day, keeps the latest 3 per province, and mutates nothing', () => {
+  const ev = (pid, day) => ({ provinceId: pid, day: day, by: 'x', variant: 'DC01', kind: 'scorch' });
+  const existing = [ev('p1', 1), ev('p2', 1)];
+  const events = [ev('p1', 1), ev('p1', 2)];
+  const snap = JSON.stringify([existing, events]);
+  const out = AshesDecalsMod.appendDecals(existing, events);
+  assert.deepStrictEqual(out.map(e => e.provinceId + ':' + e.day), ['p1:1', 'p2:1', 'p1:2']);
+  assert.notStrictEqual(out, existing);
+  assert.strictEqual(JSON.stringify([existing, events]), snap, 'inputs unchanged');
+  const many = AshesDecalsMod.appendDecals(out, [ev('p1', 3), ev('p1', 4), ev('p2', 4)]);
+  assert.deepStrictEqual(many.map(e => e.provinceId + ':' + e.day), ['p2:1', 'p1:2', 'p1:3', 'p1:4', 'p2:4']);
+  // Total cap: 210, oldest dropped.
+  let rec = [];
+  for (let d = 1; d <= 3; d++) {
+    const batch = [];
+    for (let i = 0; i < 80; i++) batch.push(ev('q' + String(i).padStart(2, '0'), d));
+    rec = AshesDecalsMod.appendDecals(rec, batch);
+  }
+  assert.strictEqual(rec.length, 210);
+  assert.deepStrictEqual(rec[0], ev('q30', 1));
+  assert.deepStrictEqual(rec[209], ev('q79', 3));
+});
+
+// Minimal 8 bit RGBA PNG decoder (zlib inflate plus the five scanline filters).
+function dcDecodeRgba(buf) {
+  let off = 8;
+  let width = 0, height = 0, colorType = 0;
+  const idat = [];
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('ascii', off + 4, off + 8);
+    const data = buf.subarray(off + 8, off + 8 + len);
+    if (type === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); colorType = data[9]; }
+    if (type === 'IDAT') idat.push(data);
+    if (type === 'IEND') break;
+    off += 12 + len;
+  }
+  assert.strictEqual(colorType, 6, 'RGBA');
+  const bpp = 4;
+  const stride = width * bpp;
+  const raw = require('node:zlib').inflateSync(Buffer.concat(idat));
+  const out = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    const src = y * (stride + 1) + 1;
+    const row = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? out[row + x - bpp] : 0;
+      const b = y > 0 ? out[row - stride + x] : 0;
+      const c = x >= bpp && y > 0 ? out[row - stride + x - bpp] : 0;
+      let pred = 0;
+      if (filter === 1) pred = a;
+      else if (filter === 2) pred = b;
+      else if (filter === 3) pred = (a + b) >> 1;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+        pred = pa <= pb && pa <= pc ? a : (pb <= pc ? b : c);
+      }
+      out[row + x] = (raw[src + x] + pred) & 255;
+    }
+  }
+  return { width, height, data: out };
+}
+
+test('DC data: js/dc-data.js has exactly DC01 to DC07, each the committed alpha PNG bytes, 256 square, ink RGB, 8 px frame clear', () => {
+  const data = require('../js/dc-data.js');
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'dc-data.js'), 'utf8');
+  assert.deepStrictEqual(Object.keys(data), DC_IDS);
+  DC_IDS.forEach(id => {
+    const rel = 'art-direction/textures/' + id + '/candidate-b-alpha.png';
+    const disk = fs.readFileSync(path.join(REPO_ROOT, rel));
+    const prefix = 'data:image/png;base64,';
+    assert.strictEqual(data[id].indexOf(prefix), 0, id + ' is a PNG data URI');
+    const bytes = Buffer.from(data[id].slice(prefix.length), 'base64');
+    assert.ok(bytes.equals(disk), id + ' payload is byte identical to ' + rel);
+    const sha = crypto.createHash('sha256').update(disk).digest('hex');
+    const block = '// Source file: ' + rel + '\n// Source byte length: ' + disk.length + '\n// Source sha256: ' + sha + '\n';
+    assert.ok(src.indexOf(block) !== -1, id + ' header names its file, byte length, and sha256');
+    assert.ok(bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), id + ' PNG signature');
+    assert.strictEqual(bytes.toString('ascii', 12, 16), 'IHDR');
+    assert.strictEqual(bytes.readUInt32BE(16), 256);
+    assert.strictEqual(bytes.readUInt32BE(20), 256);
+    const img = dcDecodeRgba(bytes);
+    let opaque = 0, framed = 0, offInk = 0;
+    for (let y = 0; y < 256; y++) {
+      for (let x = 0; x < 256; x++) {
+        const k = (y * 256 + x) * 4;
+        const a = img.data[k + 3];
+        if (a === 255) opaque++;
+        if ((x < 8 || y < 8 || x >= 248 || y >= 248) && a > 0) framed++;
+        if (img.data[k] !== 43 || img.data[k + 1] !== 38 || img.data[k + 2] !== 32) offInk++;
+      }
+    }
+    assert.ok(opaque > 0, id + ' has fully opaque ink');
+    assert.strictEqual(framed, 0, id + ' outer 8 px alpha is all zero');
+    assert.strictEqual(offInk, 0, id + ' RGB is the flat board ink 43, 38, 32');
+  });
+});
+
+test('decal ops: on the seed 42 chart every op centre lies inside its hit polygon, ops sort by day then province, placement is deterministic', () => {
+  const s = Sim.createGame(42);
+  const geom = AshesMapGeometry.buildGeometry(playerView(s));
+  const chart = AshesChart.buildChart(geom);
+  const ids = Object.keys(chart.hitPolygons).sort();
+  const decals = [];
+  ids.forEach((pid, i) => {
+    const day = 30 - (i % 5);
+    const variant = AshesDecalsMod.variantFor(pid, day);
+    decals.push({ provinceId: pid, day: day, by: 'enemy', variant: variant, kind: AshesDecalsMod.kindFor(variant) });
+  });
+  decals.push({ provinceId: 'no-such-province', day: 1, by: 'enemy', variant: 'DC01', kind: 'scorch' });
+  const before = JSON.stringify(decals);
+  const ops = AshesMapCanvas.buildDecalOps(chart, decals);
+  assert.strictEqual(JSON.stringify(decals), before, 'decals not mutated');
+  assert.strictEqual(ops.length, ids.length, 'one op per decal with a hit polygon');
+  ops.forEach((op, i) => {
+    assert.ok(AshesMapCanvas.pointInFlat(op.cx, op.cy, op.polygon), op.provinceId + ' centre inside its polygon');
+    assert.strictEqual(op.size, 0.62);
+    if (i > 0) {
+      const p = ops[i - 1];
+      assert.ok(p.day < op.day || (p.day === op.day && p.provinceId < op.provinceId), 'sorted by day then province');
+    }
+    const again = AshesMapCanvas.decalPlacement(op.polygon, op.provinceId, op.day);
+    assert.deepStrictEqual(again, { cx: op.cx, cy: op.cy, size: op.size });
+  });
+  assert.deepStrictEqual(AshesMapCanvas.buildDecalOps(chart, decals), ops, 'two builds are deep equal');
+});
+
+test('decal canvas in node: renderDecalCanvas returns null and every decal state is unavailable', () => {
+  assert.strictEqual(AshesMapCanvas.renderDecalCanvas({}, {}, [], 10, 10), null);
+  assert.deepStrictEqual(AshesMapCanvas.textureDebug.decalStates, {
+    DC01: 'unavailable', DC02: 'unavailable', DC03: 'unavailable', DC04: 'unavailable',
+    DC05: 'unavailable', DC06: 'unavailable', DC07: 'unavailable'
+  });
+});
+
+test('decal wiring: index.html has #map-decals between #map-base and #map-fog, and loads dc-data before map-canvas and decals before main', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const base = html.indexOf('<canvas id="map-base"');
+  const dec = html.indexOf('<canvas id="map-decals" aria-hidden="true"></canvas>');
+  const fog = html.indexOf('<canvas id="map-fog"');
+  assert.ok(base !== -1 && dec > base && fog > dec, 'base, then decals, then fog');
+  const tag = f => '<script src="js/' + f + '"></script>';
+  ['dc-data.js', 'decals.js'].forEach(f => assert.strictEqual(html.split(tag(f)).length - 1, 1, f + ' loads once'));
+  assert.ok(html.indexOf(tag('dc-data.js')) < html.indexOf(tag('map-canvas.js')));
+  assert.ok(html.indexOf(tag('decals.js')) < html.indexOf(tag('main.js')));
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  assert.ok(css.indexOf('#map-decals { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }') !== -1);
+  assert.ok(css.indexOf('#map-decals {') < css.indexOf('#map-fog {'), 'decal rule sits beside the fog rule');
+});
+
+test('decal sources: js/decals.js is pure (no sim require or call, no randomness) and has no em or en dashes', () => {
+  ['decals.js', 'dc-data.js'].forEach(f => {
+    const src = fs.readFileSync(path.join(REPO_ROOT, 'js', f), 'utf8');
+    assert.ok(!/require\(['"]\.\/sim\.js['"]\)/.test(src), f + ' must not require sim.js');
+    assert.ok(!/\bSim\./.test(src), f + ' must not call the sim');
+    assert.ok(!/Math\.random\(\)/.test(src), f + ' must not use Math.random');
+    assert.ok(!/[\u2013\u2014]/.test(src), f + ' must not contain em or en dashes');
+    BANNED_PRESENTATION_STRINGS.forEach(str => assert.ok(src.indexOf(str) === -1, f + ' must not contain ' + str));
+  });
+});

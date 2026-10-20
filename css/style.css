@@ -370,6 +370,10 @@ button.linkish:hover { background: none; color: #fff2c4; }
 #map { position: relative; z-index: 1; }
 .map-zoom { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 
+/* Cycle 23 Step 20b: decal canvas between the base canvas and the fog;
+   same z-index as the fog, so DOM order paints the fog above it. */
+#map-decals { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+
 /* Cycle 23 Step 8: fog canvas between the base canvas and the tiles.
    Fogged tiles turn translucent so the fog treatments show through. */
 #map-fog { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }

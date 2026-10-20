@@ -44,6 +44,13 @@
   var currentBeats = null; // {day, edges} or null
   var beatPhase = 0;
   var beatTimers = [];
+  // Decals (Cycle 23 Step 20b): the session record of witnessed changes of
+  // hands. Session only, like beats: a new game or a load starts it empty.
+  var decalRecord = [];
+  var decalFingerprint = null;
+  var decalDrawCount = 0;
+  var decalHash = null;
+  var decalOps = [];
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
@@ -70,7 +77,7 @@
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
    'progression-blocks', 'progression-explain',
-   'map-base', 'map-fog', 'map-state', 'map-beats', 'map-board', 'map-labels', 'map-chart-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
+   'map-base', 'map-decals', 'map-fog', 'map-state', 'map-beats', 'map-board', 'map-labels', 'map-chart-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -99,9 +106,12 @@
         return { id: u.id, nation: u.nation, provinceId: u.provinceId, orderTarget: u.order ? u.order.target : null };
       });
       var logTail = state.log.length ? state.log[state.log.length - 1] : null;
+      var ownerSnapshot = {};
+      Object.keys(state.provinces).forEach(function (k) { ownerSnapshot[k] = state.provinces[k].owner; });
       Sim.tick(state);
       render();
       deriveBeats(fightDay, beatSnapshot, logTail);
+      updateDecals(fightDay, ownerSnapshot);
       if (state.gameOver) showBanner();
       else checkLoreCards(); // no card over the end banner; the codex still lists what fired
     }, ms);
@@ -202,6 +212,63 @@
     refreshBeatDebug();
   }
 
+  // ---------- Decals (Cycle 23 Step 20b) ----------
+  // A province that changed hands on a tick the player witnessed (intel live
+  // or remembered after the tick, the sim's own readout) earns one stamp.
+  // js/decals.js diffs the pre-tick owner snapshot against the owners now.
+  function updateDecals(day, prevOwners) {
+    if (typeof AshesDecals === 'undefined') return;
+    var nextOwners = {};
+    Object.keys(state.provinces).forEach(function (k) { nextOwners[k] = state.provinces[k].owner; });
+    var witnessed = Object.keys(state.provinces).filter(function (k) {
+      var intel = Sim.intelState(state, 'player', k);
+      return intel === 'live' || intel === 'remembered';
+    });
+    var events = AshesDecals.deriveDecalEvents(prevOwners, nextOwners, day, witnessed);
+    if (!events.length) return;
+    decalRecord = AshesDecals.appendDecals(decalRecord, events);
+    renderDecalCanvasNow();
+  }
+
+  function refreshDecalDebug() {
+    window.AshesDecalDebug = {
+      count: decalRecord.length,
+      events: decalRecord,
+      hash: decalHash,
+      drawCount: decalDrawCount,
+      ops: decalOps
+    };
+  }
+
+  function renderDecalCanvasNow() {
+    if (!el.mapDecals) { refreshDecalDebug(); return; }
+    var view = View(state);
+    var geom = MapGeom.buildGeometry(view);
+    var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
+    // Cycle 23 Step 9: canvases cover the whole chart board, margins included.
+    var cssW = el.mapBoard.clientWidth || Math.round(geom.boardWidthPx * 1.26);
+    var cssH = el.mapBoard.clientHeight || Math.round(geom.boardHeightPx * (9.85 / 7));
+    var widthPx = Math.round(cssW * dpr * mapZoom);
+    var heightPx = Math.round(cssH * dpr * mapZoom);
+    var fp = JSON.stringify([decalRecord, widthPx, heightPx]);
+    if (decalFingerprint === fp) { refreshDecalDebug(); return; }
+    var off = MapCanvas.renderDecalCanvas(geom, view, decalRecord, widthPx, heightPx);
+    if (off) {
+      if (el.mapDecals.width !== off.width || el.mapDecals.height !== off.height) {
+        el.mapDecals.width = off.width;
+        el.mapDecals.height = off.height;
+      }
+      var ctx = el.mapDecals.getContext('2d');
+      ctx.clearRect(0, 0, el.mapDecals.width, el.mapDecals.height);
+      ctx.drawImage(off.canvas, 0, 0);
+      decalFingerprint = fp;
+      decalDrawCount++;
+      decalHash = off.hash;
+      decalOps = off.ops;
+    }
+    refreshDecalDebug();
+  }
+
   // A first game may be replayed with ?seed=N in the address (used by
   // tools/lore-check.js); New Game always draws a fresh random seed.
   var urlSeed = (function () {
@@ -280,6 +347,8 @@
     // Also render the fog and state layers after base settles
     renderFogCanvasNow();
     renderStateCanvasNow();
+    // Cycle 23 Step 20b: the decal layer re-sizes with the base.
+    renderDecalCanvasNow();
   }
 
   // Fog layer (Cycle 23 Step 8): the fog fingerprint holds only the
@@ -425,7 +494,12 @@
     stateFingerprint = null;
     fogFingerprint = null;
     clearBeats();
+    // Cycle 23 Step 20b: a new game starts with no decals.
+    decalRecord = [];
+    decalFingerprint = null;
+    decalOps = [];
     render();
+    renderDecalCanvasNow();
     startTimer();
   }
 
@@ -531,10 +605,16 @@
     el.eventOverlay.classList.add('hidden');
     el.codexOverlay.classList.add('hidden');
     clearBeats();
+    // Cycle 23 Step 20b: decals are session records and are not in the
+    // save, so a loaded game starts with none (the stated session rule).
+    decalRecord = [];
+    decalFingerprint = null;
+    decalOps = [];
     if (state.gameOver) showBanner();
     else el.banner.classList.add('hidden');
     startTimer();
     render();
+    renderDecalCanvasNow();
     return true;
   }
 
@@ -2386,6 +2466,9 @@
   // fingerprint to force one fog redraw when each becomes ready.
   window.addEventListener('ashes-foguk-texture-ready', function () { fogFingerprint = null; renderFogCanvasNow(); });
   window.addEventListener('ashes-fogls-texture-ready', function () { fogFingerprint = null; renderFogCanvasNow(); });
+  // Cycle 23 Step 20b: each decal variant loads as its own Image; null the
+  // decal fingerprint to force one redraw when a variant becomes ready.
+  window.addEventListener('ashes-decals-ready', function () { decalFingerprint = null; renderDecalCanvasNow(); });
 
   // Cycle 23 Step 20a: TX-PNL, the panel grain. CSS cannot read the data
   // module, so load it as an Image (as js/map-canvas.js loads its textures)

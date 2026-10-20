@@ -53,6 +53,12 @@
     ? require('./rx-data.js')
     : global.AshesRxData;
 
+  // DC01 to DC07 decal data (Cycle 23 Step 20b): node require, browser
+  // global.
+  var AshesDcData = (typeof module !== 'undefined' && module.exports)
+    ? require('./dc-data.js')
+    : global.AshesDcData;
+
   // Rail restyle (Cycle 23 Step 10, MAP_TREATMENT 2.6), in cell units.
   var RAIL_LINE_W = 0.008;
   var RAIL_TIE_STEP = 0.06;
@@ -1085,7 +1091,12 @@
     rxSize: RX_SIZE,
     rxAlphaLand: RX_ALPHA_LAND,
     rxAlphaBeyond: RX_ALPHA_BEYOND,
-    rxValueScale: RX_VALUE_SCALE
+    rxValueScale: RX_VALUE_SCALE,
+    // Cycle 23 Step 20b: one load state per decal variant.
+    decalStates: {
+      DC01: 'unavailable', DC02: 'unavailable', DC03: 'unavailable', DC04: 'unavailable',
+      DC05: 'unavailable', DC06: 'unavailable', DC07: 'unavailable'
+    }
   };
   var txLandSource = null;
 
@@ -2421,6 +2432,156 @@
     };
   }
 
+  // Decals (Cycle 23 Step 20b, MAP_TREATMENT 8.1 Step 20 and C7): one ink
+  // stamp per witnessed change of hands, clipped to the province hit polygon,
+  // on its own canvas between the base chart and the fog. The variants are
+  // the P9 luminance alpha PNGs from js/dc-data.js, drawn as baked (flat
+  // board ink, straight alpha). Sizes are in cells.
+  var DECAL_VARIANTS = ['DC01', 'DC02', 'DC03', 'DC04', 'DC05', 'DC06', 'DC07'];
+  var DECAL_SIZE = 0.62;
+  var DECAL_JITTER = 0.18;
+  var DECAL_ALPHA = 0.9;
+  var decalImages = {};
+
+  // Browser-only loader, started lazily by the first renderDecalCanvas call:
+  // one Image per variant, drawn directly once loaded. Never throws into
+  // rendering: a decode failure records 'error' for that variant.
+  function startDecalTextures() {
+    var states = txLandDebug.decalStates;
+    if (typeof document === 'undefined' || typeof Image === 'undefined') return;
+    if (typeof AshesDcData === 'undefined' || !AshesDcData) return;
+    DECAL_VARIANTS.forEach(function (v) {
+      if (states[v] !== 'unavailable' || typeof AshesDcData[v] !== 'string') return;
+      states[v] = 'loading';
+      try {
+        var img = new Image();
+        img.onload = function () {
+          decalImages[v] = img;
+          states[v] = 'ready';
+          try {
+            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new Event('ashes-decals-ready'));
+            }
+          } catch (e) { /* the image stays ready; the next redraw uses it */ }
+        };
+        img.onerror = function () {
+          delete decalImages[v];
+          states[v] = 'error';
+        };
+        img.src = AshesDcData[v];
+      } catch (e) {
+        states[v] = 'error';
+      }
+    });
+  }
+
+  // Deterministic placement in cell units: the hit polygon's area centroid
+  // plus an offset of up to DECAL_JITTER cells per axis from hash bytes 0
+  // and 1; the bare centroid when the offset point falls outside.
+  function decalPlacement(polyFlat, provinceId, day) {
+    var c = flatCentroid(polyFlat);
+    var h = fnv1a(provinceId + ':place:' + day);
+    var dx = ((h & 0xff) / 255 * 2 - 1) * DECAL_JITTER;
+    var dy = (((h >>> 8) & 0xff) / 255 * 2 - 1) * DECAL_JITTER;
+    var cx = c.x + dx;
+    var cy = c.y + dy;
+    if (!pointInFlat(cx, cy, polyFlat)) {
+      cx = c.x;
+      cy = c.y;
+    }
+    return { cx: cx, cy: cy, size: DECAL_SIZE };
+  }
+
+  // One op per decal event whose province has a hit polygon, sorted by day
+  // then province id.
+  function buildDecalOps(chart, decals) {
+    var ops = [];
+    (decals || []).forEach(function (e) {
+      var poly = chart && chart.hitPolygons ? chart.hitPolygons[e.provinceId] : null;
+      if (!poly) return;
+      var flat = flatPoints(poly);
+      var place = decalPlacement(flat, e.provinceId, e.day);
+      ops.push({
+        provinceId: e.provinceId, day: e.day, variant: e.variant, kind: e.kind,
+        polygon: flat, cx: place.cx, cy: place.cy, size: place.size
+      });
+    });
+    ops.sort(function (x, y) {
+      if (x.day !== y.day) return x.day - y.day;
+      if (x.provinceId !== y.provinceId) return x.provinceId < y.provinceId ? -1 : 1;
+      return 0;
+    });
+    return ops;
+  }
+
+  // Each ready op drawn clipped to its hit polygon. The stamp is square in
+  // device px: scaleX sizes both axes, as the rail dots size their radius
+  // by scaleX, because the board's cell aspect lives in the transform.
+  // Ops whose image is not ready are skipped; main redraws on
+  // 'ashes-decals-ready'. Returns the number of ops drawn.
+  function drawDecals(ctx, ops, scaleX, scaleY) {
+    var drawn = 0;
+    ops.forEach(function (op) {
+      var img = decalImages[op.variant];
+      if (!img || !op.polygon || op.polygon.length < 6) return;
+      var side = op.size * scaleX;
+      ctx.save();
+      tracePolygon(ctx, op.polygon, scaleX, scaleY);
+      ctx.clip();
+      ctx.globalAlpha = DECAL_ALPHA;
+      ctx.drawImage(img, op.cx * scaleX - side / 2, op.cy * scaleY - side / 2, side, side);
+      ctx.restore();
+      drawn++;
+    });
+    return drawn;
+  }
+
+  // FNV-1a over each op's province, day, variant, and centre, toFixed(4).
+  function decalOpsHash(ops) {
+    var parts = [];
+    ops.forEach(function (op) {
+      parts.push(op.provinceId, String(op.day), op.variant, op.cx.toFixed(4), op.cy.toFixed(4));
+    });
+    return fnv1a(parts.join('|')).toString(16).padStart(8, '0');
+  }
+
+  // Render the decal offscreen canvas. Browser only (needs document).
+  // Returns {canvas, width, height, hash, ops, drawn} or null if not in
+  // browser.
+  function renderDecalCanvas(geom, view, decals, widthPx, heightPx) {
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    startDecalTextures();
+
+    var canvas = document.createElement('canvas');
+    var fitted = fitPixels(widthPx, heightPx);
+    canvas.width = fitted.width;
+    canvas.height = fitted.height;
+
+    var ctx = canvas.getContext('2d');
+
+    // Shared chart transform (Cycle 23 Step 9).
+    var chart = AshesChart.buildChart(geom);
+    var ops = buildDecalOps(chart, decals);
+    var tf = chartTransform(canvas, chart);
+
+    ctx.save();
+    ctx.translate(tf.tx, tf.ty);
+    var drawn = drawDecals(ctx, ops, tf.scaleX, tf.scaleY);
+    ctx.restore();
+
+    return {
+      canvas: canvas,
+      width: canvas.width,
+      height: canvas.height,
+      hash: decalOpsHash(ops),
+      ops: ops,
+      drawn: drawn
+    };
+  }
+
   var AshesMapCanvas = {
     DPR_CAP_DESKTOP: DPR_CAP_DESKTOP,
     DPR_CAP_MOBILE: DPR_CAP_MOBILE,
@@ -2506,7 +2667,18 @@
     rxLandAlpha: rxLandAlpha,
     buildRxZones: buildRxZones,
     drawRxLand: drawRxLand,
-    drawRxBeyondLand: drawRxBeyondLand
+    drawRxBeyondLand: drawRxBeyondLand,
+    // Decal exports (Cycle 23 Step 20b)
+    DECAL_VARIANTS: DECAL_VARIANTS,
+    DECAL_SIZE: DECAL_SIZE,
+    DECAL_ALPHA: DECAL_ALPHA,
+    pointInFlat: pointInFlat,
+    buildDecalOps: buildDecalOps,
+    decalPlacement: decalPlacement,
+    decalOpsHash: decalOpsHash,
+    drawDecals: drawDecals,
+    renderDecalCanvas: renderDecalCanvas,
+    startDecalTextures: startDecalTextures
   };
 
   if (typeof module !== 'undefined' && module.exports) {
