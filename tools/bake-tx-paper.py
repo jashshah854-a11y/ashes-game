@@ -31,7 +31,10 @@ Hard limits on the baked PNG (Rec 601 luma): mean 208 to 220, max at most
 The script checks them after the bake and exits 1 if any fails.
 
 Output: art-direction/textures/TX-PAPER/candidate-b.png (8 bit RGB) and
-candidate-b.webp (quality 90). Blender's bundled Python has no PIL, so the
+candidate-b.webp (quality 95). Quality 90 failed the Step 19d-2 seam check
+on the decoded WebP (horizontal ratio 2.0038) while the PNG passed, because
+compression smoothed the interior grain; quality 95 passes at about 1.03.
+Blender's bundled Python has no PIL, so the
 last step shells to the system python3 to re-save the PNG without Blender's
 metadata chunks, write the WebP, and measure the luma limits.
 
@@ -39,7 +42,9 @@ RESULT (Step 19b bake, measured on candidate-b.png): mean sRGB 229.99,
 215.99, 180.99; luma mean 216.19, min 210.01, max 222.08, std 1.47; 9 x 9
 box high-pass spread 1.41; mean absolute horizontal and vertical neighbour
 differences 1.03 and 1.03 (isotropic). The decoded WebP (what the board
-draws) measures luma mean 216.39, min 210.38, max 221.38. Gain 0.5 gave max
+draws) at the shipped quality 95 measures luma mean 216.42, min 209.38,
+max 223.38 (the quality 90 encoding measured mean 216.39, max 221.38).
+Gain 0.5 gave max
 227.38 and gain 0.3 gave PNG max 223.38 but WebP max 224.61, too close to
 the 225 gate, so 0.25 ships.
 """
@@ -79,7 +84,7 @@ ORTHO_SCALE = 2.0
 # the pixel filter at the frame edge samples wrapped paper (as TX-LAND).
 PLANE_HALF = 1.1
 # WebP quality, per the bake-off spec.
-WEBP_QUALITY = 90
+WEBP_QUALITY = 95
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "art-direction", "textures", "TX-PAPER")

@@ -2970,7 +2970,7 @@ test('TX-SEA data: js/tx-sea-data.js decodes to the committed candidate-b.webp b
 });
 
 test('TX-PAPER data: js/tx-paper-data.js decodes to the committed candidate-b.webp bytes', () => {
-  txDataCheck('tx-paper-data.js', 'TX-PAPER', 26298);
+  txDataCheck('tx-paper-data.js', 'TX-PAPER', 74132);
 });
 
 test('TX-SEA and TX-PAPER constants: sea alpha 0.30, sizes 1024, sea value scale matching the source, node states unavailable', () => {
