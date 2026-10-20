@@ -246,6 +246,20 @@ async function main() {
       }
     }, 15000);
 
+    // Cycle 23 Step 19c: wait until the TX-FOG-UK and TX-FOG-LS patterns are
+    // ready (and the fog canvas redrawn with them) so every sample below
+    // measures the textured board deterministically.
+    await H.waitFor(page, async () => {
+      try {
+        return await page.evaluate(() => {
+          const d = window.AshesTextureDebug;
+          return !!d && d.fogUkState === 'ready' && d.fogLsState === 'ready';
+        });
+      } catch (e) {
+        return false;
+      }
+    }, 30000);
+
     // ----- Part A: seed 42 -----
     const canvasCheck = await page.evaluate(() => {
       const fog = document.getElementById('map-fog');

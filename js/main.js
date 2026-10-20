@@ -2378,6 +2378,11 @@
   // when each becomes ready.
   window.addEventListener('ashes-sea-texture-ready', function () { renderBaseCanvasNow(); });
   window.addEventListener('ashes-paper-texture-ready', function () { renderBaseCanvasNow(); });
+  // Cycle 23 Step 19c: TX-FOG-UK and TX-FOG-LS live on the fog canvas, whose
+  // redraw is skipped while the fog fingerprint is unchanged, so null the
+  // fingerprint to force one fog redraw when each becomes ready.
+  window.addEventListener('ashes-foguk-texture-ready', function () { fogFingerprint = null; renderFogCanvasNow(); });
+  window.addEventListener('ashes-fogls-texture-ready', function () { fogFingerprint = null; renderFogCanvasNow(); });
 
   newGame();
   updateSlotMeta();

@@ -45,14 +45,16 @@
 // composite under 225, n >= 20 per row, and the page board identity
 // (AshesFogDebug counts equal the node counts).
 //
-// Textures (Cycle 23 Steps 19a and 19b). The measured #map-base now includes
-// the wired TX-LAND land texture (soft-light pattern above the relief raster),
-// the TX-SEA sea texture (soft-light pattern over the sea, below the beach
-// and coastline), and the TX-PAPER border paper (opaque fill of the border
-// strip, below the vignette and the furniture). The patterns load
+// Textures (Cycle 23 Steps 19a, 19b, and 19c). The measured #map-base now
+// includes the wired TX-LAND land texture (soft-light pattern above the relief
+// raster), the TX-SEA sea texture (soft-light pattern over the sea, below the
+// beach and coastline), and the TX-PAPER border paper (opaque fill of the
+// border strip, below the vignette and the furniture); the measured #map-fog
+// includes the TX-FOG-UK Unknown paper (pattern fill at alpha 1) and the
+// TX-FOG-LS last seen wash (pattern fill at alpha 0.65). The patterns load
 // asynchronously, so before each board's measurement the harness waits until
-// window.AshesTextureDebug.landState, seaState, and paperState are all
-// 'ready'; an 'error' state in any of them (or a timeout) is a harness error
+// window.AshesTextureDebug.landState, seaState, paperState, fogUkState, and
+// fogLsState are all 'ready'; an 'error' state in any of them (or a timeout) is a harness error
 // (exit 2), never a silent untextured pass.
 //
 // Uses playwright-core from PLAYWRIGHT env var and Chromium from CHROME env var.
@@ -219,9 +221,10 @@ function reportBoard(label, built, m, expectSep) {
   return { prov: prov, sea: sea, globalMax: m.globalMax, stateMean: stateMean };
 }
 
-// Wait for the TX-LAND (Step 19a), TX-SEA, and TX-PAPER (Step 19b) textures
-// to finish loading; an 'error' state in any of them throws.
-const TEXTURE_STATES = ['landState', 'seaState', 'paperState'];
+// Wait for the TX-LAND (Step 19a), TX-SEA, TX-PAPER (Step 19b), TX-FOG-UK,
+// and TX-FOG-LS (Step 19c) textures to finish loading; an 'error' state in
+// any of them throws.
+const TEXTURE_STATES = ['landState', 'seaState', 'paperState', 'fogUkState', 'fogLsState'];
 async function waitTextures(page, label) {
   await H.waitUntil(async () => {
     try {
@@ -232,7 +235,7 @@ async function waitTextures(page, label) {
     } catch (e) {
       return false;
     }
-  }, 30000, label + ': TX-LAND, TX-SEA, and TX-PAPER texture states settle');
+  }, 30000, label + ': TX-LAND, TX-SEA, TX-PAPER, TX-FOG-UK, and TX-FOG-LS texture states settle');
   const st = await page.evaluate((keys) => keys.map((k) => k + '=' + window.AshesTextureDebug[k]), TEXTURE_STATES);
   if (st.some((s) => !/=ready$/.test(s))) throw new Error(label + ': texture states not all ready: ' + st.join(' '));
 }

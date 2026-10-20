@@ -3041,3 +3041,77 @@ test('TX-PAPER structural pin: drawn in renderBaseCanvas after the chart over op
   assert.strictEqual(defs, 1);
   assert.strictEqual(mentions - defs, 1, 'drawPaperTexture has exactly one call site');
 });
+
+// Cycle 23 Step 19c: TX-FOG-UK and TX-FOG-LS, Blender route bakes
+// (Candidate B), wired as pattern fills in drawFogOps (MAP_TREATMENT 6.5).
+function txDataHeaderCheck(file, family) {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', file), 'utf8');
+  const webp = fs.readFileSync(path.join(REPO_ROOT, 'art-direction', 'textures', family, 'candidate-b.webp'));
+  const len = src.match(/\/\/ Source byte length: (\d+)/);
+  const sha = src.match(/\/\/ Source sha256: ([0-9a-f]{64})/);
+  assert.ok(src.indexOf('// Source file: art-direction/textures/' + family + '/candidate-b.webp') !== -1);
+  assert.ok(len && sha, file + ' header names byte length and sha256');
+  assert.strictEqual(Number(len[1]), webp.length);
+  assert.strictEqual(sha[1], crypto.createHash('sha256').update(webp).digest('hex'));
+  txDataCheck(file, family, Number(len[1]));
+}
+
+test('TX-FOG-UK data: js/tx-foguk-data.js decodes to the committed candidate-b.webp bytes and matches its header', () => {
+  txDataHeaderCheck('tx-foguk-data.js', 'TX-FOG-UK');
+});
+
+test('TX-FOG-LS data: js/tx-fogls-data.js decodes to the committed candidate-b.webp bytes and matches its header', () => {
+  txDataHeaderCheck('tx-fogls-data.js', 'TX-FOG-LS');
+});
+
+test('TX-FOG constants: sizes 1024, node states unavailable, fog constants and earlier debug fields unchanged', () => {
+  assert.strictEqual(AshesMapCanvas.TX_FOG_UK_SIZE, 1024);
+  assert.strictEqual(AshesMapCanvas.TX_FOG_LS_SIZE, 1024);
+  const dbg = AshesMapCanvas.textureDebug;
+  assert.strictEqual(dbg.fogUkState, 'unavailable');
+  assert.strictEqual(dbg.fogUkSize, 1024);
+  assert.strictEqual(dbg.fogLsState, 'unavailable');
+  assert.strictEqual(dbg.fogLsSize, 1024);
+  assert.strictEqual(dbg.landState, 'unavailable');
+  assert.strictEqual(dbg.seaState, 'unavailable');
+  assert.strictEqual(dbg.paperState, 'unavailable');
+  assert.strictEqual(dbg.paperSize, 1024);
+  assert.strictEqual(AshesMapCanvas.FOG_UNKNOWN_FILL, '#DCCDA8');
+  assert.strictEqual(AshesMapCanvas.FOG_REMEMBERED_FILL, '#C2AE86');
+  assert.strictEqual(AshesMapCanvas.FOG_REMEMBERED_ALPHA, 0.65);
+});
+
+// Structural pin, not a render test: it checks the source text only. In
+// drawFogOps the Unknown branch fills with the TX-FOG-UK pattern when its
+// source is ready and the flat FOG_UNKNOWN_FILL otherwise, and the remembered
+// branch fills with the TX-FOG-LS pattern at FOG_REMEMBERED_ALPHA and the
+// flat FOG_REMEMBERED_FILL otherwise; renderFogCanvas starts both loaders.
+test('TX-FOG structural pin: drawFogOps uses the UK pattern for unknown and the LS pattern for remembered, flat fills as the fallback', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  function bodyOf(name) {
+    const start = src.indexOf('function ' + name + '(');
+    assert.ok(start !== -1, name + ' is defined');
+    return src.slice(start, src.indexOf('\n  }\n', start));
+  }
+  const fog = bodyOf('drawFogOps');
+  const unknown = fog.indexOf("op.kind === 'unknown'");
+  const remembered = fog.indexOf("op.kind === 'remembered'");
+  assert.ok(unknown !== -1 && remembered !== -1 && unknown < remembered);
+  const ukFill = "ctx.fillStyle = txFogUkSource ? ctx.createPattern(txFogUkSource, 'repeat') : FOG_UNKNOWN_FILL;";
+  const lsFill = "ctx.fillStyle = txFogLsSource ? ctx.createPattern(txFogLsSource, 'repeat') : FOG_REMEMBERED_FILL;";
+  const uk = fog.indexOf(ukFill);
+  const ls = fog.indexOf(lsFill);
+  assert.ok(uk > unknown && uk < remembered, 'the UK pattern fill sits in the unknown branch');
+  assert.ok(ls > remembered, 'the LS pattern fill sits in the remembered branch');
+  assert.strictEqual(fog.split(ukFill).length - 1, 1);
+  assert.strictEqual(fog.split(lsFill).length - 1, 1);
+  const ukAlpha = fog.lastIndexOf('ctx.globalAlpha = 1;', uk);
+  assert.ok(ukAlpha > unknown, 'the UK fill is drawn at alpha 1');
+  const lsAlpha = fog.lastIndexOf('ctx.globalAlpha = FOG_REMEMBERED_ALPHA;', ls);
+  assert.ok(lsAlpha > remembered, 'the LS fill is drawn at FOG_REMEMBERED_ALPHA');
+  assert.strictEqual(fog.indexOf('ctx.fillStyle = FOG_UNKNOWN_FILL;'), -1, 'no unconditional flat Unknown fill');
+  assert.strictEqual(fog.indexOf('ctx.fillStyle = FOG_REMEMBERED_FILL;'), -1, 'no unconditional flat remembered fill');
+  const render = bodyOf('renderFogCanvas');
+  assert.ok(render.indexOf('startFogUkTexture();') !== -1 && render.indexOf('startFogLsTexture();') !== -1,
+    'renderFogCanvas starts both fog texture loaders');
+});

@@ -38,6 +38,15 @@
     ? require('./tx-paper-data.js')
     : global.AshesTxPaperData;
 
+  // TX-FOG-UK and TX-FOG-LS texture data (Cycle 23 Step 19c): node require,
+  // browser global.
+  var AshesTxFogUkData = (typeof module !== 'undefined' && module.exports)
+    ? require('./tx-foguk-data.js')
+    : global.AshesTxFogUkData;
+  var AshesTxFogLsData = (typeof module !== 'undefined' && module.exports)
+    ? require('./tx-fogls-data.js')
+    : global.AshesTxFogLsData;
+
   // Rail restyle (Cycle 23 Step 10, MAP_TREATMENT 2.6), in cell units.
   var RAIL_LINE_W = 0.008;
   var RAIL_TIE_STEP = 0.06;
@@ -959,6 +968,17 @@
   // strip. It is a fill, not an overlay, so it has no alpha or value scale.
   var TX_PAPER_SIZE = 1024;
 
+  // TX-FOG textures (Cycle 23 Step 19c, MAP_TREATMENT 6.5 and 7.3): Blender
+  // route bakes (tools/bake-tx-foguk.py, tools/bake-tx-fogls.py) used as
+  // pattern fills in drawFogOps. TX-FOG-UK replaces the flat Unknown fill
+  // (alpha 1); TX-FOG-LS replaces the flat last seen wash and keeps
+  // FOG_REMEMBERED_ALPHA. Both are fills used as baked, so they have no value
+  // scale. The LS texture is grain only: the fine ink hatching of the last
+  // seen surface is already the code hatch in drawFogOps (Ink at alpha 0.30,
+  // pinned by tests), so baking hatching in would double it.
+  var TX_FOG_UK_SIZE = 1024;
+  var TX_FOG_LS_SIZE = 1024;
+
   // Shared texture debug object (exported as textureDebug and as the global
   // AshesTextureDebug). The land field names predate Step 19b and keep their
   // meaning; tools/band-report.js reads them.
@@ -972,7 +992,11 @@
     seaSize: TX_SEA_SIZE,
     seaValueScale: TX_SEA_VALUE_SCALE,
     paperState: 'unavailable',
-    paperSize: TX_PAPER_SIZE
+    paperSize: TX_PAPER_SIZE,
+    fogUkState: 'unavailable',
+    fogUkSize: TX_FOG_UK_SIZE,
+    fogLsState: 'unavailable',
+    fogLsSize: TX_FOG_LS_SIZE
   };
   var txLandSource = null;
 
@@ -1123,6 +1147,79 @@
       img.src = 'data:image/webp;base64,' + AshesTxPaperData;
     } catch (e) {
       txLandDebug.paperState = 'error';
+    }
+  }
+
+  var txFogUkSource = null;
+  var txFogLsSource = null;
+
+  // Browser-only loader for TX-FOG-UK, started lazily by the first
+  // renderFogCanvas call. Never throws into rendering. No value remap: the
+  // Unknown paper is a fill and is used as baked.
+  function startFogUkTexture() {
+    if (txLandDebug.fogUkState !== 'unavailable') return;
+    if (typeof document === 'undefined' || typeof Image === 'undefined' || !AshesTxFogUkData) return;
+    txLandDebug.fogUkState = 'loading';
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var sc = document.createElement('canvas');
+          sc.width = TX_FOG_UK_SIZE;
+          sc.height = TX_FOG_UK_SIZE;
+          sc.getContext('2d').drawImage(img, 0, 0, TX_FOG_UK_SIZE, TX_FOG_UK_SIZE);
+          txFogUkSource = sc;
+          txLandDebug.fogUkState = 'ready';
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new Event('ashes-foguk-texture-ready'));
+          }
+        } catch (e) {
+          txFogUkSource = null;
+          txLandDebug.fogUkState = 'error';
+        }
+      };
+      img.onerror = function () {
+        txFogUkSource = null;
+        txLandDebug.fogUkState = 'error';
+      };
+      img.src = 'data:image/webp;base64,' + AshesTxFogUkData;
+    } catch (e) {
+      txLandDebug.fogUkState = 'error';
+    }
+  }
+
+  // Browser-only loader for TX-FOG-LS, started lazily by the first
+  // renderFogCanvas call. Never throws into rendering. No value remap: the
+  // last seen wash is a fill and is used as baked.
+  function startFogLsTexture() {
+    if (txLandDebug.fogLsState !== 'unavailable') return;
+    if (typeof document === 'undefined' || typeof Image === 'undefined' || !AshesTxFogLsData) return;
+    txLandDebug.fogLsState = 'loading';
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var sc = document.createElement('canvas');
+          sc.width = TX_FOG_LS_SIZE;
+          sc.height = TX_FOG_LS_SIZE;
+          sc.getContext('2d').drawImage(img, 0, 0, TX_FOG_LS_SIZE, TX_FOG_LS_SIZE);
+          txFogLsSource = sc;
+          txLandDebug.fogLsState = 'ready';
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new Event('ashes-fogls-texture-ready'));
+          }
+        } catch (e) {
+          txFogLsSource = null;
+          txLandDebug.fogLsState = 'error';
+        }
+      };
+      img.onerror = function () {
+        txFogLsSource = null;
+        txLandDebug.fogLsState = 'error';
+      };
+      img.src = 'data:image/webp;base64,' + AshesTxFogLsData;
+    } catch (e) {
+      txLandDebug.fogLsState = 'error';
     }
   }
 
@@ -1829,7 +1926,10 @@
         tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.clip();
         ctx.globalAlpha = 1;
-        ctx.fillStyle = FOG_UNKNOWN_FILL;
+        // TX-FOG-UK (Step 19c) when its source is ready, else the flat fill.
+        // The context is translated only, so pattern space is device px and
+        // one tile is 1024 device px; no pattern transform (as TX-LAND).
+        ctx.fillStyle = txFogUkSource ? ctx.createPattern(txFogUkSource, 'repeat') : FOG_UNKNOWN_FILL;
         tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.fill();
 
@@ -1865,7 +1965,9 @@
         tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.clip();
         ctx.globalAlpha = FOG_REMEMBERED_ALPHA;
-        ctx.fillStyle = FOG_REMEMBERED_FILL;
+        // TX-FOG-LS (Step 19c) when its source is ready, else the flat wash;
+        // same alpha either way, pattern space as for TX-FOG-UK above.
+        ctx.fillStyle = txFogLsSource ? ctx.createPattern(txFogLsSource, 'repeat') : FOG_REMEMBERED_FILL;
         tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.fill();
         ctx.restore();
@@ -1988,6 +2090,9 @@
     if (typeof document === 'undefined') {
       return null;
     }
+
+    startFogUkTexture();
+    startFogLsTexture();
 
     var canvas = document.createElement('canvas');
     var fitted = fitPixels(widthPx, heightPx);
@@ -2185,7 +2290,10 @@
     TX_SEA_VALUE_SCALE: TX_SEA_VALUE_SCALE,
     TX_PAPER_SIZE: TX_PAPER_SIZE,
     drawSeaTexture: drawSeaTexture,
-    drawPaperTexture: drawPaperTexture
+    drawPaperTexture: drawPaperTexture,
+    // TX-FOG texture exports (Cycle 23 Step 19c)
+    TX_FOG_UK_SIZE: TX_FOG_UK_SIZE,
+    TX_FOG_LS_SIZE: TX_FOG_LS_SIZE
   };
 
   if (typeof module !== 'undefined' && module.exports) {
