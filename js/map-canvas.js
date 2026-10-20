@@ -813,6 +813,102 @@
     ctx.restore();
   }
 
+  // Corner vignette (Cycle 23 Step 17a, K-ATM, VISUAL_STRATEGY 5.2 and 7.5).
+  // Ink at most 0.045 alpha: 0.045 * (FRAME_PAPER luma 216.5 - INK luma
+  // 38.6) = 8.0, so the vignette lowers a pixel by at most 8 luma levels, and
+  // only at the exact extent corners. It darkens only, so nothing below 225
+  // can rise to it. Province interiors are masked out by construction.
+  var VIGNETTE_MAX_ALPHA = 0.045;
+  var VIGNETTE_RANGE = 1.6;
+  var VIGNETTE_RES = 8;
+
+  // Pure vignette raster over the chart extent, node safe. A pixel inside
+  // any hit polygon is transparent; elsewhere (border strip, sea margin,
+  // beyond-land margin) alpha falls off from each extent edge over
+  // VIGNETTE_RANGE cells, as the product of the two edge factors.
+  function buildVignetteRaster(chart) {
+    var ext = chart.extent;
+    var extW = ext.x1 - ext.x0;
+    var extH = ext.y1 - ext.y0;
+    var width = Math.round(extW * VIGNETTE_RES);
+    var height = Math.round(extH * VIGNETTE_RES);
+    var rgba = new Uint8ClampedArray(width * height * 4);
+    var ids = (chart.provinceOrder || Object.keys(chart.hitPolygons)).filter(function (id) {
+      return chart.hitPolygons[id];
+    });
+    var polys = ids.map(function (id) {
+      var flat = flatPoints(chart.hitPolygons[id]);
+      var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+      for (var i = 0; i < flat.length; i += 2) {
+        if (flat[i] < bx0) bx0 = flat[i];
+        if (flat[i] > bx1) bx1 = flat[i];
+        if (flat[i + 1] < by0) by0 = flat[i + 1];
+        if (flat[i + 1] > by1) by1 = flat[i + 1];
+      }
+      return { flat: flat, x0: bx0, y0: by0, x1: bx1, y1: by1 };
+    });
+    function inAnyProvince(x, y) {
+      for (var k = 0; k < polys.length; k++) {
+        var p = polys[k];
+        if (x < p.x0 || x > p.x1 || y < p.y0 || y > p.y1) continue;
+        if (pointInFlat(x, y, p.flat)) return true;
+      }
+      return false;
+    }
+    function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+    var maxAlpha = 0;
+    for (var py = 0; py < height; py++) {
+      var y = ext.y0 + (py + 0.5) * extH / height;
+      var dy = Math.min(y - ext.y0, ext.y1 - y);
+      var sy = clamp01(1 - dy / VIGNETTE_RANGE);
+      for (var px = 0; px < width; px++) {
+        var o = (py * width + px) * 4;
+        rgba[o] = 43;
+        rgba[o + 1] = 38;
+        rgba[o + 2] = 32;
+        if (sy === 0) continue;
+        var x = ext.x0 + (px + 0.5) * extW / width;
+        var dx = Math.min(x - ext.x0, ext.x1 - x);
+        var sx = clamp01(1 - dx / VIGNETTE_RANGE);
+        if (sx === 0) continue;
+        if (inAnyProvince(x, y)) continue;
+        var a = VIGNETTE_MAX_ALPHA * sx * sy;
+        if (a > maxAlpha) maxAlpha = a;
+        rgba[o + 3] = Math.round(a * 255);
+      }
+    }
+    return { width: width, height: height, rgba: rgba, maxAlpha: maxAlpha };
+  }
+
+  // Vignette raster canvas, cached per chart object (mirrors reliefRaster).
+  var vignetteRasterCache = null;
+  function vignetteRasterCanvas(chart) {
+    if (vignetteRasterCache && vignetteRasterCache.chart === chart) return vignetteRasterCache.canvas;
+    var v = buildVignetteRaster(chart);
+    var vc = document.createElement('canvas');
+    vc.width = v.width;
+    vc.height = v.height;
+    var vctx = vc.getContext('2d');
+    var img = vctx.createImageData(v.width, v.height);
+    img.data.set(v.rgba);
+    vctx.putImageData(img, 0, 0);
+    vignetteRasterCache = { chart: chart, canvas: vc };
+    return vc;
+  }
+
+  // Vignette on the base canvas, scaled over the full chart extent. Drawn
+  // after the chart over ops and before the furniture, so degree labels,
+  // the scale bar, and the north arrow stay crisp on top.
+  function drawVignette(ctx, chart, scaleX, scaleY) {
+    var ext = chart.extent;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(vignetteRasterCanvas(chart), ext.x0 * scaleX, ext.y0 * scaleY,
+      (ext.x1 - ext.x0) * scaleX, (ext.y1 - ext.y0) * scaleY);
+    ctx.restore();
+  }
+
   // Render the base offscreen canvas. Browser only (needs document).
   // Returns {canvas, width, height, hash, ops} or null if not in browser.
   function renderBaseCanvas(geom, view, widthPx, heightPx) {
@@ -855,6 +951,7 @@
     drawRelief(ctx, chart, scaleX, scaleY);
     drawOps(ctx, opsOfKind(['river', 'river-mouths']).concat(opsOfKind(['border']), opsOfKind(['rail'])), scaleX, scaleY);
     drawChartOps(ctx, chartOps.over, scaleX, scaleY);
+    drawVignette(ctx, chart, scaleX, scaleY);
     drawChartFurniture(ctx, chartOps.furniture, scaleX, scaleY);
     ctx.restore();
 
@@ -1787,7 +1884,13 @@
     BEAT_PHASE_ALPHA: BEAT_PHASE_ALPHA,
     buildBeatOps: buildBeatOps,
     drawBeatOps: drawBeatOps,
-    renderBeatCanvas: renderBeatCanvas
+    renderBeatCanvas: renderBeatCanvas,
+    // Vignette exports (Cycle 23 Step 17a)
+    VIGNETTE_MAX_ALPHA: VIGNETTE_MAX_ALPHA,
+    VIGNETTE_RANGE: VIGNETTE_RANGE,
+    VIGNETTE_RES: VIGNETTE_RES,
+    buildVignetteRaster: buildVignetteRaster,
+    drawVignette: drawVignette
   };
 
   if (typeof module !== 'undefined' && module.exports) {

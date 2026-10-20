@@ -2607,3 +2607,114 @@ test('lint: js/beats.js contains no banned presentation strings and never requir
   assert.ok(src.indexOf('require(') === -1, 'beats.js requires nothing');
   assert.ok(!/[\u2013\u2014]/.test(src), 'no en or em dashes');
 });
+
+// Corner vignette (Cycle 23 Step 17a, K-ATM). AshesChart, step9Chart, flatOf,
+// and hexLuma are defined above in this file.
+function step17aAlphaAt(chart, r, x, y) {
+  const ext = chart.extent;
+  const px = Math.min(r.width - 1, Math.max(0, Math.floor((x - ext.x0) / (ext.x1 - ext.x0) * r.width)));
+  const py = Math.min(r.height - 1, Math.max(0, Math.floor((y - ext.y0) / (ext.y1 - ext.y0) * r.height)));
+  return r.rgba[(py * r.width + px) * 4 + 3];
+}
+
+function step17aInsideFlat(x, y, flat) {
+  let inside = false;
+  const n = flat.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = flat[2 * i], yi = flat[2 * i + 1];
+    const xj = flat[2 * j], yj = flat[2 * j + 1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+test('vignette: raster shape follows the extent formula and two builds are byte identical (seed 42)', () => {
+  const c = step9Chart(42);
+  const ext = c.chart.extent;
+  const res = AshesMapCanvas.VIGNETTE_RES;
+  const a = AshesMapCanvas.buildVignetteRaster(c.chart);
+  const b = AshesMapCanvas.buildVignetteRaster(step9Chart(42).chart);
+  assert.strictEqual(a.width, Math.round((ext.x1 - ext.x0) * res));
+  assert.strictEqual(a.height, Math.round((ext.y1 - ext.y0) * res));
+  assert.ok(a.rgba instanceof Uint8ClampedArray, 'rgba is a Uint8ClampedArray');
+  assert.strictEqual(a.rgba.length, a.width * a.height * 4);
+  assert.ok(Buffer.from(a.rgba.buffer).equals(Buffer.from(b.rgba.buffer)), 'byte identical rgba');
+  assert.strictEqual(a.maxAlpha, b.maxAlpha);
+  assert.strictEqual(AshesMapCanvas.VIGNETTE_MAX_ALPHA, 0.045);
+  assert.strictEqual(AshesMapCanvas.VIGNETTE_RANGE, 1.6);
+  assert.strictEqual(AshesMapCanvas.VIGNETTE_RES, 8);
+  for (let i = 0; i < a.rgba.length; i += 4) {
+    if (a.rgba[i + 3] === 0) continue;
+    assert.deepStrictEqual([a.rgba[i], a.rgba[i + 1], a.rgba[i + 2]], [43, 38, 32], 'ink rgb at ' + i);
+  }
+});
+
+test('vignette: top-left corner pixel is darkest, the extent center is clear, maxAlpha is capped', () => {
+  const c = step9Chart(42);
+  const r = AshesMapCanvas.buildVignetteRaster(c.chart);
+  assert.ok(r.rgba[3] >= 10, 'top-left corner alpha byte ' + r.rgba[3]);
+  assert.ok(r.rgba[(r.width * r.height - 1) * 4 + 3] >= 10, 'bottom-right corner alpha byte');
+  const cx = Math.floor(r.width / 2);
+  const cy = Math.floor(r.height / 2);
+  assert.strictEqual(r.rgba[(cy * r.width + cx) * 4 + 3], 0, 'extent center alpha 0');
+  assert.ok(r.maxAlpha > 0.04, 'maxAlpha ' + r.maxAlpha);
+  assert.ok(r.maxAlpha <= AshesMapCanvas.VIGNETTE_MAX_ALPHA, 'maxAlpha at most the cap');
+});
+
+test('vignette: every pixel whose center lies in a hit polygon is clear, and a sea margin point is darkened', () => {
+  const c = step9Chart(42);
+  const chart = c.chart;
+  const ext = chart.extent;
+  const r = AshesMapCanvas.buildVignetteRaster(chart);
+  const flats = Object.keys(chart.hitPolygons).map(function (id) { return flatOf(chart.hitPolygons[id]); });
+  const inAny = function (x, y) { return flats.some(function (f) { return step17aInsideFlat(x, y, f); }); };
+  // p0_3 lattice center (0.5, 3.5) lies inside its own hit polygon.
+  assert.ok(step17aInsideFlat(0.5, 3.5, flatOf(chart.hitPolygons.p0_3)), 'p0_3 contains (0.5, 3.5)');
+  assert.strictEqual(step17aAlphaAt(chart, r, 0.5, 3.5), 0, 'p0_3 center alpha 0');
+  // Sea margin inside the neatline near the top-left: (-0.9, -0.9).
+  assert.ok(!inAny(-0.9, -0.9), '(-0.9, -0.9) is outside every hit polygon');
+  assert.ok(step17aAlphaAt(chart, r, -0.9, -0.9) > 0, 'sea margin point darkened');
+  // Full mask sweep over every raster pixel center.
+  let masked = 0;
+  for (let py = 0; py < r.height; py++) {
+    const y = ext.y0 + (py + 0.5) * (ext.y1 - ext.y0) / r.height;
+    for (let px = 0; px < r.width; px++) {
+      const x = ext.x0 + (px + 0.5) * (ext.x1 - ext.x0) / r.width;
+      if (!inAny(x, y)) continue;
+      masked++;
+      assert.strictEqual(r.rgba[(py * r.width + px) * 4 + 3], 0, 'province pixel clear at ' + px + ',' + py);
+    }
+  }
+  assert.ok(masked > 0, 'some pixels fall inside provinces');
+});
+
+test('vignette cap math: VIGNETTE_MAX_ALPHA times the FRAME_PAPER to INK luma gap is at most 8 levels', () => {
+  const K = AshesChart.CHART_CONSTANTS;
+  const gap = hexLuma(K.FRAME_PAPER) - hexLuma(K.INK);
+  // Exact product is 0.045 * 177.82 = 8.0019 (216.45 - 38.63), so the
+  // nominal cap bound is 8.002; the written raster sits well under 8.
+  const drop = AshesMapCanvas.VIGNETTE_MAX_ALPHA * gap;
+  assert.ok(drop <= 8.002, 'nominal max luma drop ' + drop);
+  assert.ok(drop > 7.9, 'cap is near 8, not trivially small: ' + drop);
+  const r = AshesMapCanvas.buildVignetteRaster(step9Chart(42).chart);
+  let maxByte = 0;
+  for (let i = 3; i < r.rgba.length; i += 4) if (r.rgba[i] > maxByte) maxByte = r.rgba[i];
+  assert.ok(maxByte / 255 * gap <= 8, 'written byte drop ' + (maxByte / 255 * gap));
+  assert.ok(r.maxAlpha * gap <= 8, 'written maxAlpha drop ' + (r.maxAlpha * gap));
+});
+
+test('vignette wiring pin: renderBaseCanvas draws the vignette after the chart over ops and before the furniture', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  const start = src.indexOf('function renderBaseCanvas(');
+  assert.ok(start !== -1, 'renderBaseCanvas found');
+  const end = src.indexOf('\n  }\n', start);
+  const body = src.slice(start, end);
+  const over = body.indexOf('drawChartOps(ctx, chartOps.over');
+  const vig = body.indexOf('drawVignette(');
+  const furn = body.indexOf('drawChartFurniture(');
+  assert.ok(over !== -1 && vig !== -1 && furn !== -1, 'all three calls present in renderBaseCanvas');
+  assert.ok(over < vig && vig < furn, 'over ops, then vignette, then furniture');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'map-canvas.js must not contain ' + str);
+  });
+});
