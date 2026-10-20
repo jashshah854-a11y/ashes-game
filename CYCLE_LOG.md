@@ -6283,3 +6283,6 @@ MAP_TREATMENT Step 16a is complete: attack beats are live on the real board, der
 
 ### Cycle 23 Step 16a sync note
 - Sync out after commits 231393b and 1b4645e: the import script completed with exit 0 and sent both Step 16a commits to GitHub (jashshah854-a11y/ashes-game). The remote head sha was not captured in this run's output, so none is recorded here rather than guessed (the Step 14 correction lesson); the script's exit 0 and the clean local tree are the recorded evidence. Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+### Cycle 23 Step 16a sync note correction
+- The sync note above records that the remote head sha was not captured. The sync run's full output, delivered after that note was committed, reads: sent 52c4543 (the pending Step 14b sync note), sent 231393b (remote 249abb0), sent 1b4645e (remote 5cd0c00), remote head 5cd0c00, local head 1b4645e, with the usual note that the commit shas differ while the trees match. The correct remote head for local 1b4645e is 5cd0c00. The sync itself succeeded exactly as recorded (exit 0); only the missing sha is supplied here. The sync note commit 7071e73 itself was not part of that sync and rides the next run's sync, as prior sync notes have.
