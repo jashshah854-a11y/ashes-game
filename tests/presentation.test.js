@@ -2769,3 +2769,110 @@ test('pan wiring pin: main.js drags past a 6 px threshold, swallows only the pos
   assert.ok(src.indexOf('maxScrollLeft: Math.max(0, vp.scrollWidth - vp.clientWidth)') !== -1, 'debug maxScrollLeft clamped');
   assert.ok(src.indexOf("el.mapViewport.addEventListener('scroll', updatePanDebug);") !== -1, 'debug follows scroll');
 });
+
+// Step 18a: tools/master-sheet.js draws panel P2 in code and checks the
+// master sheet v2 manifest.
+const { describe } = require('node:test');
+const zlibMs = require('node:zlib');
+const MasterSheet = require('../tools/master-sheet.js');
+
+// Decodes the PNG layout buildP2 writes: chunks after the signature, one
+// IDAT, color type 2, filter byte 0 on every scanline.
+function decodeMasterSheetPng(buf) {
+  let off = 8;
+  let width = 0;
+  let height = 0;
+  const idat = [];
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('ascii', off + 4, off + 8);
+    const data = buf.subarray(off + 8, off + 8 + len);
+    if (type === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); }
+    if (type === 'IDAT') idat.push(data);
+    off += 12 + len;
+  }
+  const raw = zlibMs.inflateSync(Buffer.concat(idat));
+  const stride = 1 + width * 3;
+  return {
+    width, height, raw, stride,
+    pixel(x, y) {
+      const i = y * stride + 1 + x * 3;
+      return [raw[i], raw[i + 1], raw[i + 2]];
+    }
+  };
+}
+
+describe('master sheet tool (tools/master-sheet.js)', () => {
+  test('master sheet palette: PALETTE carries the five fixed hex values exactly, in order', () => {
+    assert.deepStrictEqual(MasterSheet.PALETTE.map(p => [p.name, p.hex]), [
+      ['Paper', '#E6D8B5'], ['Ink', '#2B2620'], ['Vessari blue', '#2E6FD8'],
+      ['Khessite red', '#C8372D'], ['Ember', '#F29A2E']
+    ]);
+    assert.deepStrictEqual(MasterSheet.REQUIRED_PANELS, ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10']);
+    assert.deepStrictEqual(MasterSheet.BANDS.map(b => b.name), ['Ink', 'Terrain', 'Last seen', 'Unknown', 'State lights']);
+  });
+
+  test('master sheet luma: Ink sits in the Ink band and Vessari blue in the Terrain band', () => {
+    const band = name => MasterSheet.BANDS.find(b => b.name === name);
+    const hex = name => MasterSheet.PALETTE.find(p => p.name === name).hex;
+    const ink = MasterSheet.luma(MasterSheet.hexToRgb(hex('Ink')));
+    const blue = MasterSheet.luma(MasterSheet.hexToRgb(hex('Vessari blue')));
+    assert.deepStrictEqual(MasterSheet.hexToRgb('#2B2620'), { r: 43, g: 38, b: 32 });
+    assert.ok(ink >= band('Ink').min && ink <= band('Ink').max, 'Ink luma ' + ink + ' in 0 to 40');
+    assert.ok(blue >= band('Terrain').min && blue <= band('Terrain').max, 'Vessari blue luma ' + blue + ' in 60 to 150');
+    assert.strictEqual(MasterSheet.luma({ r: 255, g: 255, b: 255 }), 255);
+  });
+
+  test('master sheet P2: buildP2 is a 768 x 768 PNG with swatches on top and a non-decreasing gray ramp below', () => {
+    const png = MasterSheet.buildP2();
+    assert.ok(Buffer.isBuffer(png));
+    assert.deepStrictEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const img = decodeMasterSheetPng(png);
+    assert.strictEqual(img.width, 768);
+    assert.strictEqual(img.height, 768);
+    assert.strictEqual(img.raw.length, 768 * (1 + 768 * 3), '768 scanlines of 1 + 768 * 3 bytes');
+    for (let y = 0; y < 768; y++) assert.strictEqual(img.raw[y * img.stride], 0, 'filter byte 0');
+    assert.deepStrictEqual(img.pixel(10, 10), [230, 216, 181], 'Paper');
+    assert.deepStrictEqual(img.pixel(200, 10), [43, 38, 32], 'Ink');
+    assert.deepStrictEqual(img.pixel(10, 400), [0, 0, 0], 'ramp starts black');
+    assert.deepStrictEqual(img.pixel(760, 400), [255, 255, 255], 'ramp ends white');
+    let prev = -1;
+    const seen = new Set();
+    for (let x = 0; x < 768; x++) {
+      const [r, g, b] = img.pixel(x, 400);
+      assert.ok(r === g && g === b, 'ramp is neutral gray');
+      assert.ok(r >= prev, 'ramp non-decreasing at x ' + x);
+      prev = r;
+      seen.add(r);
+    }
+    assert.strictEqual(seen.size, 13, 'thirteen ramp steps');
+    assert.ok(MasterSheet.buildP2().equals(png), 'deterministic');
+  });
+
+  test('master sheet manifest: the shipped v2 manifest validates with all ten panels', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'art-direction', 'master-sheet', 'v2', 'manifest.json'), 'utf8'));
+    const result = MasterSheet.validateManifest(manifest);
+    assert.deepStrictEqual(result.errors, []);
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.panels.map(p => p.id), MasterSheet.REQUIRED_PANELS);
+    assert.strictEqual(result.panels.find(p => p.id === 'P2').status, 'built');
+    assert.strictEqual(result.panels.find(p => p.id === 'P6').status, 'pending');
+    assert.ok(fs.existsSync(path.join(REPO_ROOT, manifest.panels.P2.file)), 'P2 file exists on disk');
+  });
+
+  test('master sheet manifest: a manifest missing P6 and a built panel naming no file are both rejected', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'art-direction', 'master-sheet', 'v2', 'manifest.json'), 'utf8'));
+    const noP6 = JSON.parse(JSON.stringify(manifest));
+    delete noP6.panels.P6;
+    const r1 = MasterSheet.validateManifest(noP6);
+    assert.strictEqual(r1.ok, false);
+    assert.ok(r1.errors.length > 0 && r1.errors.some(e => e.indexOf('P6') !== -1));
+    const noFile = JSON.parse(JSON.stringify(manifest));
+    delete noFile.panels.P2.file;
+    const r2 = MasterSheet.validateManifest(noFile);
+    assert.strictEqual(r2.ok, false);
+    assert.ok(r2.errors.length > 0 && r2.errors.some(e => e.indexOf('P2') !== -1));
+    assert.strictEqual(MasterSheet.validateManifest(null).ok, false);
+    assert.strictEqual(MasterSheet.validateManifest({ version: 'v1', panels: manifest.panels }).ok, false);
+  });
+});

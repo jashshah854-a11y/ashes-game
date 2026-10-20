@@ -1,0 +1,55 @@
+{
+  "version": "v2",
+  "panels": {
+    "P1": {
+      "status": "sourced",
+      "file": "art-direction/master-diorama-board.png",
+      "note": "the adopted diorama, scaled to fit, unedited (VISUAL_STRATEGY 2.2)"
+    },
+    "P2": {
+      "status": "built",
+      "file": "art-direction/master-sheet/v2/panels/P2.png",
+      "note": "palette strip and 13-step luma ramp, drawn in code by tools/master-sheet.js"
+    },
+    "P3": {
+      "status": "pending",
+      "session": "R1",
+      "note": "material swatches: paper, ink, table wood, brass, board base, painted pewter"
+    },
+    "P4": {
+      "status": "pending",
+      "session": "R1",
+      "note": "unit lineup: infantry stack, drone wing, flotilla"
+    },
+    "P5": {
+      "status": "pending",
+      "session": "R1",
+      "note": "structure lineup: city, capital, factory, fort"
+    },
+    "P6": {
+      "status": "pending",
+      "session": "R0",
+      "note": "MAP_TREATMENT 7.2 replaces P6 with a 768 by 768 crop of MAP-TGT centred on the river and one coast; waits on the R0 winner"
+    },
+    "P7": {
+      "status": "pending",
+      "session": "R1",
+      "note": "smoke and ember: smoke column, scorch, crater, ember glow"
+    },
+    "P8": {
+      "status": "pending",
+      "session": "R1",
+      "note": "fog papers: in sight, last seen, unknown"
+    },
+    "P9": {
+      "status": "pending",
+      "session": "R1",
+      "note": "the lamp at night: table, lamp at upper left, falloff across the board edge"
+    },
+    "P10": {
+      "status": "pending",
+      "session": "R1",
+      "note": "scene keys: title, victory, defeat thumbnails"
+    }
+  }
+}
