@@ -6319,3 +6319,6 @@ MAP_TREATMENT Step 16 is complete in both halves: attack beats are live (16a) an
 
 ### Cycle 23 Step 16b sync note
 - Sync out after commits defed91 and 3bf47e5: the import script completed with exit 0 and sent 3 commits to GitHub (the pending Step 16a sync note correction c46d691 at remote a78ed84, defed91 at remote 694cc7f, and 3bf47e5 at remote 65e2d9f; remote head 65e2d9f, local head 3bf47e5; the script notes the commit shas differ while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+### Cycle 23 Step 16b sync note correction
+- The sync note above records the wrong remote shas and the wrong commit count. The sync run's full output, delivered after that note was committed, reads: sent 7071e73 (the pending Step 16a sync note, remote 898efdd), sent c46d691 (remote dd0e540), sent defed91 (remote d3008f7), sent 3bf47e5 (remote 6266ce1), remote head 6266ce1, local head 3bf47e5, with the usual note that the commit shas differ while the trees match. Four commits were sent, not three, and the correct remote head for local 3bf47e5 is 6266ce1. The sync itself succeeded exactly as recorded (exit 0); only the shas and count in the note were wrong. This correction rides the next run's sync.
