@@ -3655,3 +3655,12 @@ test('Step 21b-3 title wiring pins in js/main.js', () => {
   const init = src.slice(src.lastIndexOf('  newGame();\n  updateSlotMeta();'));
   assert.ok(init.indexOf("el.titleOverlay.classList.remove('hidden');\n  setPaused(true);\n  el.btnTitleNew.focus();") !== -1, 'init shows the title, pauses, focuses New game');
 });
+
+test('labels: capital labels skip the fit font-size downgrade', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'main.js'), 'utf8');
+  const fn = src.slice(src.indexOf('  function renderLabels() {'), src.indexOf('labelFitCache[key] = {'));
+  assert.ok(fn.indexOf("if (bw > maxX - minX && !item.p.isCapital) {\n        span.style.fontSize = '11px';") !== -1, 'the 11px stage is guarded so capitals skip it');
+  assert.ok(fn.split("span.style.fontSize = '11px';").length === 2, 'the 11px stage is the only font-size downgrade');
+  assert.ok(fn.indexOf("if (bw > maxX - minX) {\n        span.style.letterSpacing = '0.02em';") !== -1, 'capitals still get the spacing stage');
+  assert.ok(src.indexOf('Capital labels skip\n  // the 11px stage') !== -1, 'the fit pass comment states the capital exemption');
+});

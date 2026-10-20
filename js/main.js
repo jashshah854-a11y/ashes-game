@@ -856,8 +856,10 @@
   // Province names on terrain (MAP_TREATMENT 5.5, Cycle 23 Step 12b). Each
   // name sits on its Step 11 label reserve, then one measurement pass fits it
   // inside its province: tighter letter-spacing, then 11px, then a clamp of
-  // the anchor into the province bounds inset by 0.06 cell. Every name and
-  // position comes from the sim and chart readouts; nothing here is a game fact.
+  // the anchor into the province bounds inset by 0.06 cell. Capital labels skip
+  // the 11px stage: capitals keep their 14px hierarchy size, and the spacing and
+  // the anchor clamp absorb the fit. Every name and position comes from the sim
+  // and chart readouts; nothing here is a game fact.
   var labelFontHooked = false;
   // Fit cache: a fitted label depends only on its name, capital flag, hit
   // polygon, the layer's client size, and whether the face has loaded, so the
@@ -1002,7 +1004,7 @@
         bw = span.offsetWidth / pxX;
         bh = span.offsetHeight / pxY;
       }
-      if (bw > maxX - minX) {
+      if (bw > maxX - minX && !item.p.isCapital) {
         span.style.fontSize = '11px';
         bw = span.offsetWidth / pxX;
         bh = span.offsetHeight / pxY;

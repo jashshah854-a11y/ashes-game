@@ -18,6 +18,20 @@
 // bottom-right shifted 22 px left of the corner to clear the arrow column.
 // Both read pure frame paper under the vignette. The top-center control
 // window uses 12 rows too, so it reads frame paper, not the degree bar.
+// Corner cap re-pin (Step 21b-5): the 213.5 cap was derived at Step 17a
+// from flat paper (FRAME_PAPER luma 216.45 minus at least 3 levels). Since
+// Step 19b the border strip is the TX-PAPER texture (decoded max luma 223.38,
+// inside its bake limit of 224), so a corner maximum is a bright grain peak
+// minus the vignette at that pixel. Step 19d-2 re-encoded TX-PAPER at quality
+// 95, which the seam check required (q90 ratio 2.0038 against the limit 2),
+// and that raised the bright grain peaks and the bottom-right window maximum
+// with them: 213.24 at q90, 214.45 at q95 on the pre-frame geometry, 213.59
+// on the current tree. The cap is therefore re-pinned to 215.5, still below
+// flat FRAME_PAPER 216.45, so a corner under it still proves the vignette
+// darkened even the brightest texture peak below the untextured paper tone.
+// Two more checks compare each corner maximum with the top-center control
+// maximum on the same textured paper, a darkening proof that does not
+// depend on the texture's absolute peaks.
 // Pattern from tools/fog-check.js; cell mapping from tools/chart-check.js.
 // Uses playwright-core from PLAYWRIGHT env var and Chromium from CHROME env var.
 // Uses tools/browser-helper.js for waiting (no waitForTimeout, no local sleep).
@@ -139,12 +153,12 @@ async function main() {
 
     // Corner darkening on the real #map-base canvas.
     const tl = await windowMaxLuma(page, 0, 0, 24, 12);
-    check('browser: top-left 24x12 corner max luma pixel is darkened paper (195 to 213.5)',
-      tl.luma >= 195 && tl.luma <= 213.5,
+    check('browser: top-left 24x12 corner max luma pixel is darkened paper (195 to 215.5)',
+      tl.luma >= 195 && tl.luma <= 215.5,
       'luma=' + tl.luma.toFixed(2) + ' at ' + JSON.stringify(tl.at) + ' canvas=' + tl.cw + 'x' + tl.ch);
     const br = await windowMaxLuma(page, -46, -12, 24, 12);
-    check('browser: bottom-right 24x12 corner (22 px left of the arrow column) max luma pixel is darkened paper (195 to 213.5)',
-      br.luma >= 195 && br.luma <= 213.5,
+    check('browser: bottom-right 24x12 corner (22 px left of the arrow column) max luma pixel is darkened paper (195 to 215.5)',
+      br.luma >= 195 && br.luma <= 215.5,
       'luma=' + br.luma.toFixed(2) + ' at ' + JSON.stringify(br.at));
 
     // Control: top-center of the border strip, far from both vertical edges.
@@ -152,6 +166,10 @@ async function main() {
     const tc = await windowMaxLuma(page, tcX, 0, 80, 12);
     check('browser: top-center border strip max luma pixel is essentially undarkened (at least 214)',
       tc.luma >= 214, 'luma=' + tc.luma.toFixed(2) + ' at ' + JSON.stringify(tc.at));
+    check('browser: top-left corner max luma is below the top-center control max (vignette darkening on textured paper)',
+      tl.luma < tc.luma, 'top-left=' + tl.luma.toFixed(2) + ' top-center=' + tc.luma.toFixed(2));
+    check('browser: bottom-right corner max luma is below the top-center control max (vignette darkening on textured paper)',
+      br.luma < tc.luma, 'bottom-right=' + br.luma.toFixed(2) + ' top-center=' + tc.luma.toFixed(2));
 
     // Province safety: live province cell center stays in the Terrain band.
     const prov = await page.evaluate(([cx, cy]) => {
