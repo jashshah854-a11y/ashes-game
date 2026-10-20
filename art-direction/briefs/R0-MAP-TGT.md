@@ -60,4 +60,4 @@ After selection the winner is logged as MAP-TGT-R0-cN, with parent master-sheet-
 
 ## Session notes
 
-(none yet)
+- 2026-10-20 (build loop, Step 18b partial): candidate 1 generated in a new temporary chat and downloaded (.webp) on the browser host; no daily cap was hit and no sign-in wall appeared. The download is not reachable from the build VM and a Drive upload attempt failed in the browser host's file picker, so candidate 1 is not in the repo yet and no selection was made. Candidate 2's generation was interrupted by a browser session drop before download. Resume order: solve the conveyor for candidate 1 first, then resume at candidate 2. Full record in CYCLE_LOG, Step 18b PARTIAL entry.
