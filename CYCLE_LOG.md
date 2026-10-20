@@ -6502,3 +6502,6 @@ Claimed this run: the R0 half of Step 18b only, under a route ruling made this r
 
 ### State and next claim
 - Step 18b is still NOT complete: R1 sessions, the v2 assembly with the P6 crop from MAP-TGT-R0-c3, and R2 remain. Because R0 produced a gate passing winner, DECISIONS item 36 extends the same media pipeline route to R1 and R2. Next run claims the first R1 sub-split. The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure; the transport blocker that held two runs is closed by the route ruling, with its evidence above.
+
+### Cycle 23 Step 18b R0 sync note
+- Sync out after commits db35563 and e544625: the import script completed with exit 0 and sent 4 commits to GitHub (d652cff, the conveyor retry sync note carried over, plus 04d9994, db35563, and e544625; jashshah854-a11y/ashes-game, master now at remote a0600dc; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). All figures read from the sync log file (/tmp/ashes-18b-r0-sync.log) directly. Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
