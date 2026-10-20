@@ -39,6 +39,7 @@
         <div id="map" class="map" aria-label="Province map"></div>
         <div id="map-labels"></div>
         <div id="map-chart-labels"></div>
+        <canvas id="map-beats" aria-hidden="true"></canvas>
       </div>
     </div>
     <div id="start-statement" class="intel-legend">
@@ -98,6 +99,7 @@
         <li>A dashed gold badge reading Order: Inf ordered here at dawn, or Order: Drone ordered here at dawn, is an order marker: it marks a province one of your units is ordered to march or attack at dawn, one badge for each ordered unit.</li>
         <li>A hollow dashed plaque on a remembered tile is a unit group from the last day you saw it; the province card names that day.</li>
         <li>A yellow alarm mark on a plaque means that stack is out of supply; the unit card shows its supply penalty.</li>
+        <li>A bright flash on a border after a day of fighting marks an attack that crossed that border that day.</li>
       </ul>
     </div>
     <p class="hint">
@@ -308,6 +310,7 @@
 <script src="js/sim.js"></script>
 <script src="js/adapter.js"></script>
 <script src="js/plaques.js"></script>
+<script src="js/beats.js"></script>
 <script src="js/map-geometry.js"></script>
 <script src="js/map-chart.js"></script>
 <script src="js/map-canvas.js"></script>

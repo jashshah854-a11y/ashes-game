@@ -39,6 +39,11 @@
   var fogDrawCount = 0;
   var settleTimer = null;
   var lastChart = null; // Cycle 23 Step 9: the chart built with the last base render
+  // Attack beats (Cycle 23 Step 16a): the edges the last fought day lit, the
+  // phase (1 flash, 2 fade, 0 dark), and the two pending phase timers.
+  var currentBeats = null; // {day, edges} or null
+  var beatPhase = 0;
+  var beatTimers = [];
 
   var el = {};
   ['map', 'day-counter', 'day-max', 'btn-pause', 'btn-speed1', 'btn-speed2', 'btn-new',
@@ -65,7 +70,7 @@
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
    'progression-blocks', 'progression-explain',
-   'map-base', 'map-fog', 'map-state', 'map-board', 'map-labels', 'map-chart-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
+   'map-base', 'map-fog', 'map-state', 'map-beats', 'map-board', 'map-labels', 'map-chart-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -89,13 +94,113 @@
     var ms = speed === 1 ? 900 : 300;
     timer = setInterval(function () {
       if (paused || state.gameOver) return;
+      var fightDay = state.day;
+      var beatSnapshot = state.units.map(function (u) {
+        return { id: u.id, nation: u.nation, provinceId: u.provinceId, orderTarget: u.order ? u.order.target : null };
+      });
+      var logTail = state.log.length ? state.log[state.log.length - 1] : null;
       Sim.tick(state);
       render();
+      deriveBeats(fightDay, beatSnapshot, logTail);
       if (state.gameOver) showBanner();
       else checkLoreCards(); // no card over the end banner; the codex still lists what fired
     }, ms);
   }
   function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+
+  // ---------- Attack beats (Cycle 23 Step 16a) ----------
+  // The sim resolves a whole day inside one tick, so the edge an attack
+  // crossed is rebuilt by js/beats.js from the pre-tick snapshot, the tick's
+  // new battle records, and the post-tick units. Only edges touching a live
+  // province (the sim's own intel readout) light; fog hides the rest.
+  function clearBeatTimers() {
+    beatTimers.forEach(function (t) { clearTimeout(t); });
+    beatTimers = [];
+  }
+
+  function clearBeats() {
+    clearBeatTimers();
+    currentBeats = null;
+    beatPhase = 0;
+    renderBeatCanvasNow();
+  }
+
+  function deriveBeats(fightDay, snapshot, logTail) {
+    if (typeof AshesBeats === 'undefined') return;
+    var idx = logTail ? state.log.indexOf(logTail) : -1;
+    var fresh;
+    if (logTail && idx === -1) {
+      // The log cap shifted the tail out: take this day's battle entries.
+      fresh = state.log.filter(function (en) { return en.day === fightDay && en.battle; });
+    } else {
+      fresh = state.log.slice(idx + 1);
+    }
+    var records = fresh.filter(function (en) { return en.battle; }).map(function (en) { return en.battle; });
+    var neighbors = {};
+    Object.keys(state.provinces).forEach(function (pid) {
+      neighbors[pid] = Sim.neighborsOf(state, state.provinces[pid]).map(function (p) { return p.id; });
+    });
+    var edges = AshesBeats.deriveBeatEdges({
+      fightDay: fightDay,
+      snapshot: snapshot,
+      records: records,
+      postUnits: state.units,
+      neighbors: neighbors
+    }).filter(function (e) {
+      return Sim.intelState(state, 'player', e.a) === 'live' || Sim.intelState(state, 'player', e.b) === 'live';
+    });
+    clearBeatTimers();
+    if (!edges.length) {
+      currentBeats = null;
+      beatPhase = 0;
+      renderBeatCanvasNow();
+      return;
+    }
+    currentBeats = { day: fightDay, edges: edges };
+    beatPhase = 1;
+    renderBeatCanvasNow();
+    beatTimers.push(setTimeout(function () {
+      beatPhase = 2;
+      renderBeatCanvasNow();
+    }, 300));
+    beatTimers.push(setTimeout(function () {
+      // currentBeats stays for the debug record; the canvas goes dark.
+      beatPhase = 0;
+      renderBeatCanvasNow();
+    }, 900));
+  }
+
+  function refreshBeatDebug() {
+    window.AshesBeatDebug = {
+      day: currentBeats ? currentBeats.day : null,
+      edges: currentBeats ? currentBeats.edges : [],
+      phase: beatPhase
+    };
+  }
+
+  function renderBeatCanvasNow() {
+    if (!el.mapBeats) { refreshBeatDebug(); return; }
+    var lit = beatPhase !== 0 && currentBeats && currentBeats.edges.length;
+    var dpr = MapCanvas.effectiveDpr(window.devicePixelRatio || 1, window.innerWidth || 1024);
+    // The geometry is only built when there is a beat to draw; a dark layer
+    // sizes from the board alone, the same way renderStateCanvasNow does.
+    var geom = lit ? MapGeom.buildGeometry(View(state)) : null;
+    var cssW = el.mapBoard.clientWidth || (geom ? Math.round(geom.boardWidthPx * 1.26) : 0);
+    var cssH = el.mapBoard.clientHeight || (geom ? Math.round(geom.boardHeightPx * (9.85 / 7)) : 0);
+    var fitted = MapCanvas.fitPixels(Math.round(cssW * dpr * mapZoom), Math.round(cssH * dpr * mapZoom));
+    if (fitted.width > 0 && fitted.height > 0 &&
+        (el.mapBeats.width !== fitted.width || el.mapBeats.height !== fitted.height)) {
+      el.mapBeats.width = fitted.width;
+      el.mapBeats.height = fitted.height;
+    }
+    var ctx = el.mapBeats.getContext('2d');
+    ctx.clearRect(0, 0, el.mapBeats.width, el.mapBeats.height);
+    if (lit) {
+      var off = MapCanvas.renderBeatCanvas(geom, currentBeats.edges, el.mapBeats.width, el.mapBeats.height, beatPhase);
+      if (off) ctx.drawImage(off.canvas, 0, 0);
+    }
+    refreshBeatDebug();
+  }
 
   // A first game may be replayed with ?seed=N in the address (used by
   // tools/lore-check.js); New Game always draws a fresh random seed.
@@ -315,6 +420,7 @@
     baseFingerprint = null;
     stateFingerprint = null;
     fogFingerprint = null;
+    clearBeats();
     render();
     startTimer();
   }
@@ -420,6 +526,7 @@
     urlSeed = null;
     el.eventOverlay.classList.add('hidden');
     el.codexOverlay.classList.add('hidden');
+    clearBeats();
     if (state.gameOver) showBanner();
     else el.banner.classList.add('hidden');
     startTimer();
@@ -648,6 +755,8 @@
     renderPlaqueLayerNow(view);
     // Province names (Cycle 23 Step 12b): the name layer under the plaques.
     renderLabels();
+    // Attack beats (Cycle 23 Step 16a): re-sized with the board and zoom.
+    renderBeatCanvasNow();
   }
 
   // Province names on terrain (MAP_TREATMENT 5.5, Cycle 23 Step 12b). Each

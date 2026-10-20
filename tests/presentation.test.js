@@ -2393,3 +2393,217 @@ test('fog hash: covers the chart fog op shape, deterministic on the fixture, gra
   // Measured before Step 14 on the Step 13 module: furniture alone hashed 7077c178.
   assert.strictEqual(AshesMapCanvas.fogOpsHash(AshesMapCanvas.buildFurnitureOps(geom)), '7077c178');
 });
+
+// ---------- Cycle 23 Step 16a: attack beats (K-BEAT) ----------
+
+const AshesBeats = require('../js/beats.js');
+
+function beatNeighbors() {
+  const s = Sim.createGame(42);
+  const out = {};
+  Object.keys(s.provinces).forEach(function (pid) {
+    out[pid] = Sim.neighborsOf(s, s.provinces[pid]).map(function (p) { return p.id; });
+  });
+  return out;
+}
+
+function beatSnap(id, nation, provinceId, orderTarget) {
+  return { id: id, nation: nation, provinceId: provinceId, orderTarget: orderTarget == null ? null : orderTarget };
+}
+
+function beatPost(id, nation, provinceId, lastCombatDay) {
+  return { id: id, nation: nation, provinceId: provinceId, lastCombatDay: lastCombatDay };
+}
+
+function beatRecord(kind, targetId, aNation, bNation) {
+  return { kind: kind, targetId: targetId, aNation: aNation, bNation: bNation };
+}
+
+test('beats: a player attack by snapshot order lights its edge once; the defender at the target gets no edge', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', 'p5_3'), beatSnap(2, 'enemy', 'p5_3', null)],
+    records: [beatRecord('battle', 'p5_3', 'player', 'enemy')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 5), beatPost(2, 'enemy', 'p5_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }]);
+});
+
+test('beats: a repelled enemy attacker lights its edge by post-position (post equals origin)', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', null), beatSnap(2, 'enemy', 'p5_3', null)],
+    records: [beatRecord('battle', 'p4_3', 'enemy', 'player')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 5), beatPost(2, 'enemy', 'p5_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }]);
+});
+
+test('beats: a capturing enemy attacker lights its edge by post-position (post equals target)', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', null), beatSnap(2, 'enemy', 'p5_3', null)],
+    records: [beatRecord('battle', 'p4_3', 'enemy', 'player')],
+    postUnits: [beatPost(2, 'enemy', 'p4_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }]);
+});
+
+test('beats: a defender alone at the battle target gets no edge', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', null)],
+    records: [beatRecord('battle', 'p4_3', 'enemy', 'player')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, []);
+});
+
+test('beats: a drawn defender ordered elsewhere gets no order edge (defense drawn first)', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', 'p4_2'), beatSnap(2, 'enemy', 'p5_3', null), beatSnap(3, 'enemy', 'p4_2', null)],
+    records: [beatRecord('battle', 'p4_3', 'enemy', 'player'), beatRecord('battle', 'p4_2', 'player', 'enemy')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 5), beatPost(2, 'enemy', 'p5_3', 5), beatPost(3, 'enemy', 'p4_2', 4)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }], 'only the enemy attack edge, never p4_2 to p4_3');
+});
+
+test('beats: a meeting lights one deduped edge from the snapshot order and the enemy pairing', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', 'p5_3'), beatSnap(2, 'enemy', 'p5_3', null)],
+    records: [beatRecord('meeting', null, 'player', 'enemy')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 5), beatPost(2, 'enemy', 'p5_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }]);
+  const enemyOnly = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', 'p5_3'), beatSnap(2, 'enemy', 'p5_3', null)],
+    records: [beatRecord('meeting', null, 'enemy', 'player')],
+    postUnits: [beatPost(2, 'enemy', 'p5_3', 5), beatPost(1, 'player', 'p4_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(enemyOnly, [{ a: 'p4_3', b: 'p5_3' }], 'record nation order does not matter');
+});
+
+test('beats: a destroyed ordered group still lights its edge', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', 'p5_3'), beatSnap(2, 'enemy', 'p5_3', null)],
+    records: [beatRecord('battle', 'p5_3', 'player', 'enemy')],
+    postUnits: [beatPost(2, 'enemy', 'p5_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }]);
+  const homeAttacked = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', 'p5_3')],
+    records: [beatRecord('battle', 'p5_3', 'player', 'enemy'), beatRecord('battle', 'p4_3', 'enemy', 'player')],
+    postUnits: [],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(homeAttacked, [], 'a unit lost at a home battle was a defender, not an attacker');
+});
+
+test('beats: a clash record lights both nations edges into the empty province', () => {
+  const edges = AshesBeats.deriveBeatEdges({
+    fightDay: 5,
+    snapshot: [beatSnap(1, 'player', 'p4_3', 'p5_3'), beatSnap(2, 'enemy', 'p6_3', null)],
+    records: [beatRecord('clash', 'p5_3', 'player', 'enemy')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 5), beatPost(2, 'enemy', 'p6_3', 5)],
+    neighbors: beatNeighbors()
+  });
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }, { a: 'p5_3', b: 'p6_3' }]);
+});
+
+test('beats: no records, or records with no matching fought units, give no edges; other kinds are ignored', () => {
+  const neighbors = beatNeighbors();
+  const snapshot = [beatSnap(1, 'player', 'p4_3', 'p5_3'), beatSnap(2, 'enemy', 'p5_3', null)];
+  assert.deepStrictEqual(AshesBeats.deriveBeatEdges({
+    fightDay: 5, snapshot: snapshot, records: [],
+    postUnits: [beatPost(1, 'player', 'p5_3', null), beatPost(2, 'enemy', 'p6_3', null)], neighbors: neighbors
+  }), []);
+  assert.deepStrictEqual(AshesBeats.deriveBeatEdges({
+    fightDay: 5, snapshot: snapshot, records: [beatRecord('battle', 'p0_0', 'enemy', 'player')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 3), beatPost(2, 'enemy', 'p5_3', 3)], neighbors: neighbors
+  }), []);
+  assert.deepStrictEqual(AshesBeats.deriveBeatEdges({
+    fightDay: 5, snapshot: snapshot, records: [beatRecord('move', 'p5_3', 'player', 'enemy')],
+    postUnits: [beatPost(1, 'player', 'p4_3', 5), beatPost(2, 'enemy', 'p5_3', 5)], neighbors: neighbors
+  }), []);
+});
+
+test('beats: several units on one edge dedupe, and edges sort by a then b; the input is not mutated', () => {
+  const input = {
+    fightDay: 9,
+    snapshot: [
+      beatSnap(7, 'player', 'p5_4', 'p5_3'), beatSnap(3, 'player', 'p4_3', 'p5_3'),
+      beatSnap(4, 'player', 'p4_3', 'p5_3'), beatSnap(5, 'player', 'p5_3', 'p4_3'),
+      beatSnap(9, 'enemy', 'p5_3', null)
+    ],
+    records: [beatRecord('battle', 'p5_3', 'player', 'enemy')],
+    postUnits: [beatPost(7, 'player', 'p5_4', 9), beatPost(3, 'player', 'p4_3', 9), beatPost(4, 'player', 'p4_3', 9), beatPost(9, 'enemy', 'p5_3', 9)],
+    neighbors: beatNeighbors()
+  };
+  const before = JSON.stringify(input);
+  const edges = AshesBeats.deriveBeatEdges(input);
+  assert.deepStrictEqual(edges, [{ a: 'p4_3', b: 'p5_3' }, { a: 'p5_3', b: 'p5_4' }]);
+  assert.strictEqual(JSON.stringify(input), before, 'input unchanged');
+});
+
+test('beat ops: buildBeatOps path is the chart edge path for a real pair, and nothing for a non pair', () => {
+  const c = step9Chart(42);
+  const edge = c.chart.chartEdges.find(function (e) { return (e.a === 'p4_3' && e.b === 'p5_3') || (e.a === 'p5_3' && e.b === 'p4_3'); });
+  assert.ok(edge, 'p4_3 and p5_3 share a chart edge');
+  const ops = AshesMapCanvas.buildBeatOps(c.geom, [{ a: 'p4_3', b: 'p5_3' }]);
+  assert.strictEqual(ops.length, 1);
+  assert.deepStrictEqual(ops[0], { kind: 'beat', a: 'p4_3', b: 'p5_3', path: flatOf(edge.path) });
+  assert.deepStrictEqual(AshesMapCanvas.buildBeatOps(c.geom, [{ a: 'p0_0', b: 'p9_6' }]), []);
+  const two = AshesMapCanvas.buildBeatOps(c.geom, [{ a: 'p5_3', b: 'p6_3' }, { a: 'p4_3', b: 'p5_3' }]);
+  assert.deepStrictEqual(two.map(function (op) { return op.a + '|' + op.b; }), ['p4_3|p5_3', 'p5_3|p6_3'], 'sorted by a then b');
+});
+
+test('beat ops: drawBeatOps strokes wide then core in BEAT_COLOR at the phase alphas and widths', () => {
+  const c = step9Chart(42);
+  const ops = AshesMapCanvas.buildBeatOps(c.geom, [{ a: 'p4_3', b: 'p5_3' }]);
+  const scaleX = 160;
+  [[1, 0.35, 0.95], [2, 0.15, 0.45]].forEach(function (row) {
+    const r = step14Recorder();
+    AshesMapCanvas.drawBeatOps(r.ctx, ops, scaleX, scaleX, row[0]);
+    assert.strictEqual(r.rec.strokes.length, 2, 'two strokes in phase ' + row[0]);
+    const [wide, core] = r.rec.strokes;
+    assert.strictEqual(wide.style, AshesMapCanvas.BEAT_COLOR);
+    assert.strictEqual(core.style, AshesMapCanvas.BEAT_COLOR);
+    assert.strictEqual(wide.alpha, row[1]);
+    assert.strictEqual(core.alpha, row[2]);
+    assert.strictEqual(wide.width, 0.09 * scaleX);
+    assert.strictEqual(core.width, 0.03 * scaleX);
+    assert.strictEqual(r.ctx.lineJoin, 'round');
+    assert.strictEqual(r.ctx.globalAlpha, 1, 'alpha reset after');
+    assert.strictEqual(r.rec.fills.length, 0, 'no fills');
+  });
+  assert.strictEqual(AshesMapCanvas.BEAT_COLOR, '#FFF3C4');
+  assert.strictEqual(AshesMapCanvas.BEAT_WIDE_W, 0.09);
+  assert.strictEqual(AshesMapCanvas.BEAT_CORE_W, 0.03);
+});
+
+test('beat color: BEAT_COLOR luma sits in the State lights band 225 to 255', () => {
+  const l = hexLuma(AshesMapCanvas.BEAT_COLOR);
+  assert.ok(l >= 225 && l <= 255, 'beat luma ' + l);
+});
+
+test('lint: js/beats.js contains no banned presentation strings and never requires the sim', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'beats.js'), 'utf8');
+  BANNED_PRESENTATION_STRINGS.forEach(str => {
+    assert.ok(src.indexOf(str) === -1, 'beats.js must not contain ' + str);
+  });
+  assert.ok(src.indexOf('require(') === -1, 'beats.js requires nothing');
+  assert.ok(!/[\u2013\u2014]/.test(src), 'no en or em dashes');
+});

@@ -400,6 +400,7 @@ button.linkish:hover { background: none; color: #fff2c4; }
    English (roman) is declared per the treatment; only the SC face ships, so
    the roman labels fall back to Georgia until a roman asset lands. */
 #map-chart-labels { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+#map-beats { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; }
 .chart-label {
   position: absolute;
   transform: translate(-50%, -50%);

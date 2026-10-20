@@ -1642,6 +1642,100 @@
     };
   }
 
+  // Attack beats (Cycle 23 Step 16a, MAP_TREATMENT 8.1 Step 16): a state
+  // light on each attacked edge in the moment after a fight. One pale gold,
+  // luma about 241, inside the State lights band (225 to 255). Widths are in
+  // cells; phase 1 is the flash, phase 2 the fade.
+  var BEAT_COLOR = '#FFF3C4';
+  var BEAT_WIDE_W = 0.09;
+  var BEAT_CORE_W = 0.03;
+  var BEAT_PHASE_ALPHA = {
+    1: { wide: 0.35, core: 0.95 },
+    2: { wide: 0.15, core: 0.45 }
+  };
+
+  // One beat op per edge with a chart (or geometry) edge path, matched by
+  // unordered pair, sorted by a then b. An edge with no path emits no op.
+  function buildBeatOps(geom, edges) {
+    var chart = AshesChart ? AshesChart.buildChart(geom) : null;
+    var source = chart ? chart.chartEdges : geom.edges;
+    var pathByPair = {};
+    source.forEach(function (e) {
+      pathByPair[e.a + '|' + e.b] = e.path;
+      pathByPair[e.b + '|' + e.a] = e.path;
+    });
+    var ops = [];
+    (edges || []).forEach(function (e) {
+      var path = pathByPair[e.a + '|' + e.b];
+      if (!path) return;
+      ops.push({ kind: 'beat', a: e.a, b: e.b, path: flatPoints(path) });
+    });
+    ops.sort(function (x, y) {
+      if (x.a !== y.a) return x.a < y.a ? -1 : 1;
+      if (x.b !== y.b) return x.b < y.b ? -1 : 1;
+      return 0;
+    });
+    return ops;
+  }
+
+  function strokeBeatPath(ctx, path, scaleX, scaleY) {
+    ctx.beginPath();
+    ctx.moveTo(path[0] * scaleX, path[1] * scaleY);
+    for (var i = 2; i < path.length; i += 2) ctx.lineTo(path[i] * scaleX, path[i + 1] * scaleY);
+    ctx.stroke();
+  }
+
+  // Each op stroked twice: the wide glow, then the bright core.
+  function drawBeatOps(ctx, ops, scaleX, scaleY, phase) {
+    var alpha = BEAT_PHASE_ALPHA[phase];
+    if (!alpha) return;
+    ctx.lineJoin = 'round';
+    ops.forEach(function (op) {
+      if (op.kind !== 'beat' || op.path.length < 4) return;
+      ctx.strokeStyle = BEAT_COLOR;
+      ctx.lineWidth = BEAT_WIDE_W * scaleX;
+      ctx.globalAlpha = alpha.wide;
+      strokeBeatPath(ctx, op.path, scaleX, scaleY);
+      ctx.strokeStyle = BEAT_COLOR;
+      ctx.lineWidth = BEAT_CORE_W * scaleX;
+      ctx.globalAlpha = alpha.core;
+      strokeBeatPath(ctx, op.path, scaleX, scaleY);
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // Render the beat offscreen canvas. Browser only (needs document).
+  // Returns {canvas, width, height, ops} or null if not in browser.
+  function renderBeatCanvas(geom, edges, widthPx, heightPx, phase) {
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    var canvas = document.createElement('canvas');
+    var fitted = fitPixels(widthPx, heightPx);
+    canvas.width = fitted.width;
+    canvas.height = fitted.height;
+
+    var ctx = canvas.getContext('2d');
+
+    var ops = buildBeatOps(geom, edges);
+
+    // Shared chart transform (Cycle 23 Step 9).
+    var tf = chartTransform(canvas, AshesChart.buildChart(geom));
+
+    ctx.save();
+    ctx.translate(tf.tx, tf.ty);
+    drawBeatOps(ctx, ops, tf.scaleX, tf.scaleY, phase);
+    ctx.restore();
+
+    return {
+      canvas: canvas,
+      width: canvas.width,
+      height: canvas.height,
+      ops: ops
+    };
+  }
+
   var AshesMapCanvas = {
     DPR_CAP_DESKTOP: DPR_CAP_DESKTOP,
     DPR_CAP_MOBILE: DPR_CAP_MOBILE,
@@ -1685,7 +1779,15 @@
     buildFogOps: buildFogOps,
     drawFogOps: drawFogOps,
     fogOpsHash: fogOpsHash,
-    renderFogCanvas: renderFogCanvas
+    renderFogCanvas: renderFogCanvas,
+    // Attack beat exports (Cycle 23 Step 16a)
+    BEAT_COLOR: BEAT_COLOR,
+    BEAT_WIDE_W: BEAT_WIDE_W,
+    BEAT_CORE_W: BEAT_CORE_W,
+    BEAT_PHASE_ALPHA: BEAT_PHASE_ALPHA,
+    buildBeatOps: buildBeatOps,
+    drawBeatOps: drawBeatOps,
+    renderBeatCanvas: renderBeatCanvas
   };
 
   if (typeof module !== 'undefined' && module.exports) {
