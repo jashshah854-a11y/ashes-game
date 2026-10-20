@@ -1,0 +1,91 @@
+{
+  "id": "BL00-testunit",
+  "step": "22a",
+  "rig": "blender/rig/aoe_rig_sprite_v1.blend",
+  "golden": "blender/golden/golden_v1.blend",
+  "blender": {
+    "version_string": "5.2.2 LTS",
+    "version": [
+      5,
+      2,
+      2
+    ],
+    "build_hash": "d13f752e3b9c"
+  },
+  "frame_px": [
+    224,
+    224
+  ],
+  "anchor_px": [
+    112,
+    168
+  ],
+  "anchor_projected_px": [
+    112.0,
+    168.0
+  ],
+  "anchor_rule": "model origin at the footprint centre on z = 0 at world origin",
+  "camera": "CAM_SPRITE",
+  "render": {
+    "engine": "CYCLES",
+    "device": "CPU",
+    "seed": 0,
+    "adaptive_sampling": false,
+    "filter_width_px": 1.5,
+    "film_transparent": true,
+    "samples": {
+      "beauty": 256,
+      "golden": 256,
+      "mask": 16,
+      "swatchmask": 16,
+      "shadow": 256
+    },
+    "denoise": {
+      "beauty": "OIDN (OPENIMAGEDENOISE, CPU)",
+      "golden": "OIDN (OPENIMAGEDENOISE, CPU)",
+      "mask": "off",
+      "swatchmask": "off",
+      "shadow": "off"
+    },
+    "view_transform": "Standard",
+    "look": "None",
+    "exposure": 0.0,
+    "gamma": 1.0,
+    "display_device": "sRGB",
+    "dither_intensity": 0.0,
+    "format": "PNG RGBA",
+    "bit_depth": 16,
+    "resolution": [
+      224,
+      224
+    ]
+  },
+  "outputs": {
+    "beauty": {
+      "file": "blender/golden/passes/testunit_beauty.png",
+      "sha256": "a4023424aa961241ab543401c3519cd8c0ca72d8510919e3d28cf1440e56fbae",
+      "how": "all unit objects visible, film transparent, shadow catcher off"
+    },
+    "mask": {
+      "file": "blender/golden/passes/testunit_mask.png",
+      "sha256": "f88924733eb180c1ad42292b0110673507c7b49af67b3dd9907f0b3bede69250",
+      "how": "TINT_ materials swapped to MASK_white (emission 1.0), all others to MASK_black"
+    },
+    "shadow": {
+      "file": "blender/golden/passes/testunit_shadow.png",
+      "sha256": "4e4100b5e10e0a8f37155e6e5f286b73097ba34748da5a5aea24d22b28a5d129",
+      "how": "4 x 4 m shadow catcher at z = 0, unit visible_camera off but casting; shadow in alpha"
+    },
+    "swatchmask": {
+      "file": "blender/golden/passes/testunit_swatchmask.png",
+      "sha256": "c97e752e111b1665919059afe0ad11028d80b723f735b417ad9dceffd63d7d70",
+      "how": "G10 swatch: the swatch card's CARD_emission patch alone, material swapped to MASK_half (emission linear 0.215861, which Standard encodes to sRGB 128), mask pass settings",
+      "patch_center_px": [
+        38.08,
+        45.96
+      ]
+    }
+  },
+  "observation": "The mask pass is encoded by the Standard view transform, so its antialiased edge values are sRGB encoded coverage, not linear coverage; recorded for the atlas packer, not changed here.",
+  "route_substitution": "Route substitution: the spec assumes the Colab lane (golden established in session C1 and passed on an A100 and an L4, OptiX GPU). This golden was established on local Blender 5.2.2 LTS, Cycles on CPU, because the rig and golden must live in the repo and no GPU exists in this environment. The A100 and L4 pass remains owed; no GPU pass is claimed."
+}

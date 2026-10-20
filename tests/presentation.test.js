@@ -3664,3 +3664,98 @@ test('labels: capital labels skip the fit font-size downgrade', () => {
   assert.ok(fn.indexOf("if (bw > maxX - minX) {\n        span.style.letterSpacing = '0.02em';") !== -1, 'capitals still get the spacing stage');
   assert.ok(src.indexOf('Capital labels skip\n  // the 11px stage') !== -1, 'the fit pass comment states the capital exemption');
 });
+
+// Cycle 23 Step 22a: the pinned sprite rig (VISUAL_STRATEGY 4.1), the golden
+// frame (4.2), the swatch card round trip (4.5 A3, STRATEGY G10 to G12), and
+// the golden test unit's three passes (4.4). Built on local Blender 5.2.2 CPU
+// by tools/build-sprite-rig.py; the A100 and L4 pass is owed.
+const SPRITE_GOLDEN_DIR = path.join(REPO_ROOT, 'blender', 'golden');
+
+function pngHeader(file) {
+  const b = fs.readFileSync(file);
+  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20), bitDepth: b[24], colorType: b[25] };
+}
+
+test('Step 22a sprite rig build script pins CAM_SPRITE, KEY, render settings, and the Blender 5.2.2 assert', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'tools', 'build-sprite-rig.py'), 'utf8');
+  [
+    'PINNED_VERSION = (5, 2, 2)',
+    'if tuple(bpy.app.version) != PINNED_VERSION or not bpy.app.version_string.startswith(PINNED_VERSION_PREFIX):',
+    '    sys.exit(1)',
+    'CAM_SPRITE_LOCATION = (0.0, -10.0, 10.0)',
+    'CAM_SPRITE_ROTATION_DEG = (45.0, 0.0, 0.0)',
+    'CAM_SPRITE_ORTHO_SCALE = 2.0',
+    'CAM_SPRITE_SHIFT_X = 0.0',
+    'CAM_SPRITE_SHIFT_Y = 0.25',
+    'CAM_TEX_LOCATION = (0.0, 0.0, 10.0)',
+    'FRAME = 224',
+    'ANCHOR_PX = (112, 168)',
+    'KEY_LOCATION = (-5.5, 4.5, 7.0)',
+    'KEY_STRENGTH = 3.0',
+    'KEY_ANGLE_DEG = 2.0',
+    'WORLD_STRENGTH = 0.3',
+    'SEED = 0',
+    'FILTER_WIDTH = 1.5',
+    'TINT_SRGB = 128',
+    'TINT_ROUGHNESS = 0.6',
+    'cy.use_adaptive_sampling = False',
+    'scene.view_settings.view_transform = "Standard"',
+    'con = key.constraints.new("TRACK_TO")',
+    'RIG = os.path.join(ROOT, "blender", "rig", "aoe_rig_sprite_v1.blend")'
+  ].forEach(s => assert.ok(src.indexOf(s) !== -1, 'build script carries: ' + s));
+  assert.ok(src.indexOf('A100 and L4 pass remains owed') !== -1, 'route substitution recorded in the header');
+});
+
+test('Step 22a golden manifest parses, names Blender 5.2.2, records both tolerance sets, and states the owed GPU pass', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(SPRITE_GOLDEN_DIR, 'golden_v1.json'), 'utf8'));
+  assert.strictEqual(m.id, 'BL00');
+  assert.deepStrictEqual(m.blender.version, [5, 2, 2]);
+  assert.ok(m.blender.version_string.indexOf('5.2.2') === 0);
+  assert.strictEqual(m.rig.file, 'blender/rig/aoe_rig_sprite_v1.blend');
+  assert.ok(/^[0-9a-f]{64}$/.test(m.rig.sha256_at_save));
+  assert.ok(m.route_substitution.indexOf('A100 and L4 pass remains owed') !== -1);
+  assert.ok(m.golden_png.established_on.indexOf('local CPU') === 0);
+  assert.deepStrictEqual(m.golden_png.frame, [224, 224]);
+  assert.strictEqual(m.tolerances.visual_strategy_4_2.mean_abs_diff_max_levels, 1.0);
+  assert.strictEqual(m.tolerances.visual_strategy_4_2.pixels_within_8_levels_min_fraction, 0.995);
+  assert.strictEqual(m.tolerances.strategy_g11.mean_abs_error_max_levels, 0.5);
+  assert.strictEqual(m.tolerances.strategy_g11.p99_5_max_levels, 3);
+  const pngSha = crypto.createHash('sha256').update(fs.readFileSync(path.join(SPRITE_GOLDEN_DIR, 'golden_v1.png'))).digest('hex');
+  assert.strictEqual(m.golden_png.sha256, pngSha, 'manifest names the archived golden');
+  assert.ok(m.measured && m.measured.all_pass === true, 'check tool measured block recorded and passing');
+  assert.strictEqual(m.measured.golden_png_sha256, pngSha);
+  assert.ok(Math.abs(m.measured.g10_swatch_mask.mean - 128) <= 1);
+  assert.ok(m.measured.a3_delta_e_2000.Vessari <= 2.0 && m.measured.a3_delta_e_2000.Khessite <= 2.0);
+  assert.strictEqual(m.measured.g12_highlight.quadrant, 'upper left');
+  const h = pngHeader(path.join(SPRITE_GOLDEN_DIR, 'golden_v1.png'));
+  assert.deepStrictEqual(h, { width: 224, height: 224, bitDepth: 16, colorType: 6 });
+});
+
+test('Step 22a passes manifest: 224 frame, anchor (112, 168), four outputs present at 16 bit RGBA with matching sha256', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(SPRITE_GOLDEN_DIR, 'passes', 'testunit.json'), 'utf8'));
+  assert.deepStrictEqual(m.frame_px, [224, 224]);
+  assert.deepStrictEqual(m.anchor_px, [112, 168]);
+  assert.deepStrictEqual(m.anchor_projected_px, [112, 168]);
+  assert.strictEqual(m.rig, 'blender/rig/aoe_rig_sprite_v1.blend');
+  assert.strictEqual(m.render.bit_depth, 16);
+  ['beauty', 'mask', 'shadow', 'swatchmask'].forEach(k => {
+    const o = m.outputs[k];
+    assert.strictEqual(o.file, 'blender/golden/passes/testunit_' + k + '.png');
+    const file = path.join(REPO_ROOT, o.file);
+    assert.strictEqual(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'), o.sha256, k + ' sha256');
+    assert.deepStrictEqual(pngHeader(file), { width: 224, height: 224, bitDepth: 16, colorType: 6 }, k + ' header');
+  });
+});
+
+test('Step 22a asset log admits BL00 at the golden location, and the new files carry no em or en dash', () => {
+  const lines = fs.readFileSync(path.join(REPO_ROOT, 'art-direction', 'asset-log.jsonl'), 'utf8').split('\n').filter(Boolean);
+  const bl = lines.map(l => JSON.parse(l)).filter(e => e.id === 'BL00');
+  assert.strictEqual(bl.length, 1);
+  assert.strictEqual(bl[0].status, 'admitted');
+  assert.strictEqual(bl[0].location, 'blender/golden/golden_v1.png');
+  ['tools/build-sprite-rig.py', 'tools/sprite-rig-check.py', 'blender/golden/golden_v1.json',
+    'blender/golden/passes/testunit.json'].forEach(f => {
+    const s = fs.readFileSync(path.join(REPO_ROOT, f), 'utf8');
+    assert.ok(s.indexOf('\u2014') === -1 && s.indexOf('\u2013') === -1, f + ' has no em or en dash');
+  });
+});

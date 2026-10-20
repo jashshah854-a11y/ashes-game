@@ -1,0 +1,319 @@
+{
+  "id": "BL00",
+  "step": "22a",
+  "build_script": "tools/build-sprite-rig.py",
+  "check_tool": "tools/sprite-rig-check.py",
+  "blender": {
+    "version_string": "5.2.2 LTS",
+    "version": [
+      5,
+      2,
+      2
+    ],
+    "build_hash": "d13f752e3b9c"
+  },
+  "rig": {
+    "file": "blender/rig/aoe_rig_sprite_v1.blend",
+    "sha256_at_save": "447c17442d721a51eae11526e715bfe07285467371032606cf650b71fec85a46",
+    "note": ".blend bytes can differ between saves (file header and timestamps) while renders reproduce; the render, not the .blend sha256, is the reproducibility baseline"
+  },
+  "golden_blend": {
+    "file": "blender/golden/golden_v1.blend",
+    "sha256_at_save": "edb9f8f7114f0a0a280a6d11339159329772a1905a3c74bfed982368283c8b74"
+  },
+  "golden_png": {
+    "file": "blender/golden/golden_v1.png",
+    "sha256": "e4686f74aaaf258297c6a331ce151dc5c7157c9244b966eca75fcf94c0d21a07",
+    "established": "2026-10-20",
+    "established_on": "local CPU (Cycles CPU, this VM); A100 and L4 pass owed",
+    "frame": [
+      224,
+      224
+    ],
+    "deviation_448": false,
+    "last_build_event": "re-render diffed against the archived golden: PASS golden diff: mean abs diff 0.0000 levels (max 1.0), pixels within 8 levels 100.0000% (min 99.5%), max diff 0.00; STRATEGY G11 set: p99.5 0.000, strict set met"
+  },
+  "camera": {
+    "CAM_SPRITE": {
+      "type": "ORTHO",
+      "location": [
+        0.0,
+        -10.0,
+        10.0
+      ],
+      "rotation_deg": [
+        45.0,
+        0.0,
+        0.0
+      ],
+      "ortho_scale": 2.0,
+      "shift_x": 0.0,
+      "shift_y": 0.25,
+      "px_per_m": 112.0
+    },
+    "CAM_TEX": {
+      "type": "ORTHO",
+      "location": [
+        0.0,
+        0.0,
+        10.0
+      ],
+      "rotation_deg": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "ortho_scale": 2.0
+    }
+  },
+  "light": {
+    "KEY": {
+      "type": "SUN",
+      "strength": 3.0,
+      "angle_deg": 2.0,
+      "location": [
+        -5.5,
+        4.5,
+        7.0
+      ],
+      "constraint": "TRACK_TO KEY_target at the origin"
+    },
+    "world": {
+      "color_linear": 0.5,
+      "strength": 0.3,
+      "hdri": false
+    }
+  },
+  "render": {
+    "engine": "CYCLES",
+    "device": "CPU",
+    "seed": 0,
+    "adaptive_sampling": false,
+    "filter_width_px": 1.5,
+    "film_transparent": true,
+    "samples": {
+      "beauty": 256,
+      "golden": 256,
+      "mask": 16,
+      "swatchmask": 16,
+      "shadow": 256
+    },
+    "denoise": {
+      "beauty": "OIDN (OPENIMAGEDENOISE, CPU)",
+      "golden": "OIDN (OPENIMAGEDENOISE, CPU)",
+      "mask": "off",
+      "swatchmask": "off",
+      "shadow": "off"
+    },
+    "view_transform": "Standard",
+    "look": "None",
+    "exposure": 0.0,
+    "gamma": 1.0,
+    "display_device": "sRGB",
+    "dither_intensity": 0.0,
+    "format": "PNG RGBA",
+    "bit_depth": 16,
+    "resolution": [
+      224,
+      224
+    ]
+  },
+  "anchor_px": [
+    112,
+    168
+  ],
+  "anchor_projected_px": [
+    112.0,
+    168.0
+  ],
+  "scene": {
+    "test_unit": {
+      "objects": [
+        "UNIT_base",
+        "UNIT_body",
+        "UNIT_plate",
+        "UNIT_turret"
+      ],
+      "footprint_m": 1.0,
+      "height_m": 0.66,
+      "tint_material": "TINT_paint",
+      "other_material": "NEUTRAL_gray"
+    },
+    "swatch_card": {
+      "emission_patch": "CARD_emission",
+      "emission_srgb": [
+        128,
+        128,
+        128
+      ],
+      "lit_patches": [
+        "CARD_lit_sunward",
+        "CARD_lit_square",
+        "CARD_lit_away"
+      ],
+      "expected_luma_order": "CARD_lit_sunward > CARD_lit_square > CARD_lit_away",
+      "patch_size_m": 0.3,
+      "patch_centers_px": {
+        "CARD_emission": [
+          38.08,
+          45.96
+        ],
+        "CARD_lit_square": [
+          87.36,
+          45.96
+        ],
+        "CARD_lit_sunward": [
+          136.64,
+          45.96
+        ],
+        "CARD_lit_away": [
+          185.92,
+          45.96
+        ]
+      }
+    },
+    "ink_cube": {
+      "material": "INK_black",
+      "base_srgb": 22,
+      "roughness": 0.9
+    },
+    "probe_sphere": {
+      "center_px": [
+        25.76,
+        153.74
+      ],
+      "radius_px": 20.16,
+      "material": "PROBE_gray",
+      "base_srgb": 128,
+      "roughness": 0.25
+    },
+    "screen_regions_px": {
+      "unit": [
+        56.0,
+        103.85,
+        168.0,
+        207.6
+      ],
+      "card": [
+        5.6,
+        12.36,
+        218.4,
+        79.56
+      ],
+      "ink_cube": [
+        181.44,
+        132.36,
+        215.04,
+        179.88
+      ],
+      "probe_sphere": [
+        5.6,
+        125.23,
+        45.92,
+        182.26
+      ]
+    }
+  },
+  "materials": {
+    "TINT_paint": {
+      "base_srgb": [
+        128,
+        128,
+        128
+      ],
+      "roughness": 0.6,
+      "metallic": 0.0
+    },
+    "NEUTRAL_gray": {
+      "base_srgb": [
+        100,
+        100,
+        100
+      ],
+      "roughness": 0.7
+    }
+  },
+  "tolerances": {
+    "applied": "VISUAL_STRATEGY 4.2",
+    "visual_strategy_4_2": {
+      "mean_abs_diff_max_levels": 1.0,
+      "pixels_within_8_levels_min_fraction": 0.995
+    },
+    "strategy_g11": {
+      "mean_abs_error_max_levels": 0.5,
+      "p99_5_max_levels": 3,
+      "mask_max_levels": 1,
+      "note": "recorded, not the pass rule for this golden diff, per the Step 22a brief"
+    },
+    "g10_swatch_mask": "128 plus or minus 1",
+    "a3_beauty_patch": "128 plus or minus 2 per channel",
+    "a3_delta_e_2000_max": 2.0,
+    "diff_space": "8 bit levels via PIL, premultiplied RGB plus alpha, all four channels"
+  },
+  "route_substitution": "Route substitution: the spec assumes the Colab lane (golden established in session C1 and passed on an A100 and an L4, OptiX GPU). This golden was established on local Blender 5.2.2 LTS, Cycles on CPU, because the rig and golden must live in the repo and no GPU exists in this environment. The A100 and L4 pass remains owed; no GPU pass is claimed.",
+  "measured": {
+    "golden_png_sha256": "e4686f74aaaf258297c6a331ce151dc5c7157c9244b966eca75fcf94c0d21a07",
+    "date": "2026-10-20",
+    "tool": "tools/sprite-rig-check.py",
+    "all_pass": true,
+    "golden_diff": {
+      "mean_abs_diff_levels": 0.0,
+      "pixels_within_8_fraction": 1.0,
+      "p99_5_levels": 0.0,
+      "max_diff_levels": 0.0,
+      "strategy_g11_strict_met": true
+    },
+    "g10_swatch_mask": {
+      "mean": 128.0,
+      "min": 128,
+      "max": 128
+    },
+    "a3_beauty_patch": {
+      "mean_rgb": [
+        128.0,
+        128.0,
+        128.0
+      ],
+      "min": 128,
+      "max": 128
+    },
+    "a3_delta_e_2000": {
+      "Vessari": 0.2013,
+      "Khessite": 0.1779
+    },
+    "a3_luma_order": {
+      "pre": [
+        148.0,
+        77.0,
+        51.892
+      ],
+      "Vessari": [
+        127.888,
+        62.527,
+        42.142
+      ],
+      "Khessite": [
+        122.584,
+        58.71,
+        39.548
+      ]
+    },
+    "a3_edges": {
+      "differing_px": 8,
+      "beyond_1px": 0
+    },
+    "g12_highlight": {
+      "quadrant": "upper left",
+      "dx_px": -7.26,
+      "dy_px": -10.74,
+      "peak_luma": 255.0
+    },
+    "anchor": {
+      "alpha_centroid_x": 111.99,
+      "bottom_edge_y": 208.0,
+      "expected_bottom_edge_y": 207.6,
+      "anchor_opaque": true
+    },
+    "ink_mean_luma": 29.4
+  }
+}
