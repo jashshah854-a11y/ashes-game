@@ -3264,7 +3264,7 @@ test('TX-PNL CSS pin: panel surfaces blend var(--tx-pnl-image, none) soft-light 
     assert.ok(rule.indexOf('background-blend-mode: soft-light;') !== -1, sel + ' blends soft-light');
     assert.ok(rule.indexOf('background-image') > rule.indexOf('background: '), sel + ' image follows the shorthand');
   });
-  assert.strictEqual(css.split('var(--tx-pnl-image, none)').length - 1, 4, 'exactly the four panel surfaces');
+  assert.strictEqual(css.split('var(--tx-pnl-image, none)').length - 1, 5, 'the four panel surfaces plus the Step 21a table rail');
 });
 
 test('TX-PNL main.js pin: --tx-pnl-image is set only in the onload of the TX-PNL Image', () => {
@@ -3497,5 +3497,114 @@ test('decal sources: js/decals.js is pure (no sim require or call, no randomness
     assert.ok(!/Math\.random\(\)/.test(src), f + ' must not use Math.random');
     assert.ok(!/[\u2013\u2014]/.test(src), f + ' must not contain em or en dashes');
     BANNED_PRESENTATION_STRINGS.forEach(str => assert.ok(src.indexOf(str) === -1, f + ' must not contain ' + str));
+  });
+});
+
+// Cycle 23 MAP_TREATMENT Step 21a: TF interim table frame (UI01), DC09 stains
+// on the frame, and the UI02 HUD card frame. All code and CSS, no assets.
+test('TF frame markup: #tf-frame wraps #map-viewport unchanged, with four corner fittings and the DC09 stains after it', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const frame = html.indexOf('<div id="tf-frame">');
+  const vp = html.indexOf('<div id="map-viewport">');
+  const board = html.indexOf('<div id="map-board">');
+  assert.strictEqual(html.split('id="tf-frame"').length - 1, 1, 'one tf-frame');
+  assert.ok(frame !== -1 && vp > frame && board > vp, 'tf-frame, then map-viewport, then map-board');
+  assert.ok(html.indexOf('class="map-zoom"') < frame, 'zoom row stays above the frame');
+  const order = ['map-base', 'map-decals', 'map-fog', 'map-state'].map(id => html.indexOf('<canvas id="' + id + '" aria-hidden="true"></canvas>'));
+  order.forEach((at, i) => assert.ok(at > board && (i === 0 || at > order[i - 1]), 'canvas ' + i + ' in order inside the board'));
+  const beats = html.indexOf('<canvas id="map-beats" aria-hidden="true"></canvas>');
+  assert.ok(beats > order[3], 'beats canvas still last in the board');
+  ['tl', 'tr', 'bl', 'br'].forEach(k => {
+    const tag = '<span class="tf-corner tf-corner-' + k + '" aria-hidden="true"></span>';
+    assert.strictEqual(html.split(tag).length - 1, 1, 'corner ' + k + ' once');
+    assert.ok(html.indexOf(tag) > beats, 'corner ' + k + ' sits outside the board, after the viewport');
+  });
+  assert.strictEqual(html.split('class="tf-corner ').length - 1, 4, 'exactly four corner fittings');
+  ['dc09-ink', 'dc09-ring'].forEach(cls => {
+    const tag = '<span class="' + cls + '" aria-hidden="true"></span>';
+    assert.strictEqual(html.split(tag).length - 1, 1, cls + ' once');
+    assert.ok(html.indexOf(tag) > beats && html.indexOf(tag) < html.indexOf('<div id="start-statement"'), cls + ' inside the frame, outside the board');
+  });
+});
+
+test('TF frame order safety: stylesheets load in the head and every script still loads once, main.js last', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const head = html.slice(0, html.indexOf('</head>'));
+  assert.ok(head.indexOf('<link rel="stylesheet" href="css/style.css">') !== -1, 'style.css in the head');
+  assert.ok(html.indexOf('<div id="tf-frame">') > html.indexOf('</head>'), 'frame markup in the body');
+  const scripts = [];
+  const re = /<script src="js\/([^"]+)"><\/script>/g;
+  let m;
+  while ((m = re.exec(html)) !== null) scripts.push(m[1]);
+  assert.strictEqual(new Set(scripts).size, scripts.length, 'no script loads twice');
+  assert.strictEqual(scripts[scripts.length - 1], 'main.js', 'main.js loads last');
+  assert.ok(html.lastIndexOf('<script') > html.indexOf('<div id="tf-frame">'), 'scripts load after the frame markup');
+});
+
+test('TF frame legend: one plain sentence says the wooden frame is the table edge and carries no game information', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const legendAt = html.indexOf('<div id="map-legend"');
+  const legend = html.slice(legendAt, html.indexOf('</div>', legendAt));
+  assert.ok(legend.indexOf('<li>The wooden frame around the map is the edge of the war table. It carries no game information. It is scenery only.</li>') !== -1);
+});
+
+test('DC09 stains: classes live in index.html and css/style.css only, never in a canvas module', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  ['dc09-ink', 'dc09-ring'].forEach(cls => {
+    assert.ok(html.indexOf('class="' + cls + '"') !== -1, cls + ' in index.html');
+    assert.ok(css.indexOf('.' + cls + ' {') !== -1, cls + ' rule in style.css');
+  });
+  fs.readdirSync(path.join(REPO_ROOT, 'js')).filter(f => f.endsWith('.js')).forEach(f => {
+    const src = fs.readFileSync(path.join(REPO_ROOT, 'js', f), 'utf8');
+    assert.ok(!/dc09|DC09/.test(src), f + ' must not draw or name DC09');
+  });
+});
+
+test('TF frame CSS pin: rail takes TX-PNL soft-light over flat walnut, fixed RAIL and CORNER, no transform, corners and stains ignore the pointer', () => {
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  function ruleOf(selector) {
+    const start = css.indexOf('\n' + selector + ' {');
+    assert.ok(start !== -1, selector + ' rule exists');
+    return css.slice(start, css.indexOf('}', start));
+  }
+  const rail = ruleOf('#tf-frame');
+  assert.ok(rail.indexOf('padding: 18px;') !== -1, 'RAIL 18px padding');
+  assert.ok(rail.indexOf('background: #3a2c1e;') !== -1, 'flat walnut rail colour');
+  assert.ok(rail.indexOf('background-image: var(--tx-pnl-image, none); background-blend-mode: soft-light;') !== -1, 'rail takes the TX-PNL grain soft-light');
+  assert.ok(rail.indexOf('background-image') > rail.indexOf('background: '), 'image follows the shorthand');
+  assert.ok(!/transform/.test(rail), 'the frame never transforms');
+  assert.strictEqual(css.split(/var\(--tx-pnl-image,\s*none\)/).length - 1, 5, 'four panel surfaces plus the rail');
+  assert.ok(/RAIL 18px/.test(css) && /CORNER 24px/.test(css) && /OVERHANG 6px/.test(css), 'constants named in a CSS comment');
+  const corner = ruleOf('.tf-corner');
+  ['width: 24px;', 'height: 24px;', 'background: #b08d3e;', 'pointer-events: none;'].forEach(d => assert.ok(corner.indexOf(d) !== -1, '.tf-corner ' + d));
+  assert.ok(!/gradient/.test(corner), 'corners are flat brass');
+  ['tl', 'tr', 'bl', 'br'].forEach(k => assert.ok(new RegExp('\\.tf-corner-' + k + ' \\{[^}]*-6px[^}]*-6px').test(css), 'corner ' + k + ' overhangs 6px'));
+  ['.dc09-ink', '.dc09-ring'].forEach(sel => {
+    const r = ruleOf(sel);
+    assert.ok(r.indexOf('#2B2620') !== -1 && r.indexOf('pointer-events: none;') !== -1 && /opacity: 0\.\d+;/.test(r), sel + ' board ink, low opacity, no pointer');
+  });
+  // The frame is markup and CSS only: no JS module builds or styles it.
+  fs.readdirSync(path.join(REPO_ROOT, 'js')).filter(f => f.endsWith('.js')).forEach(f => {
+    const src = fs.readFileSync(path.join(REPO_ROOT, 'js', f), 'utf8');
+    assert.ok(src.indexOf('tf-frame') === -1 && src.indexOf('tf-corner') === -1, f + ' does not touch the frame');
+  });
+});
+
+test('UI02 card frame pin: .card gains outline and box-shadow only; its border, padding, colour and TX-PNL wiring are unchanged', () => {
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  assert.ok(css.indexOf('\n.card { background: #22252a; border: 1px solid #4a4232; border-radius: 4px; padding: 12px; background-image: var(--tx-pnl-image, none); background-blend-mode: soft-light; }\n') !== -1, 'original .card rule byte identical');
+  const frame = '\n.card { outline: 2px solid #2a1f15; outline-offset: 0; box-shadow: inset 0 0 0 1px #8a7034; }\n';
+  assert.ok(css.indexOf(frame) !== -1, 'UI02 frame rule present');
+  assert.strictEqual(css.split('\n.card {').length - 1, 2, 'exactly the base rule and the frame rule');
+  const decls = frame.slice(frame.indexOf('{') + 1, frame.indexOf('}')).split(';').map(s => s.trim()).filter(Boolean).map(s => s.split(':')[0].trim());
+  assert.deepStrictEqual(decls, ['outline', 'outline-offset', 'box-shadow'], 'frame rule sets outline and box-shadow only');
+});
+
+test('Step 21a no art-direction reference: index.html and css/style.css never point at art-direction/', () => {
+  ['index.html', path.join('css', 'style.css')].forEach(rel => {
+    const src = fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
+    assert.ok(src.indexOf('art-direction') === -1, rel + ' must not reference art-direction/');
+    assert.ok(!/[\u2013\u2014]/.test(src), rel + ' must not contain em or en dashes');
   });
 });

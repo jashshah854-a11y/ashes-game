@@ -428,3 +428,59 @@ button.linkish:hover { background: none; color: #fff2c4; }
 .scale-label { font-family: "IM Fell English", Georgia, serif; font-size: 10px; }
 .scale-note { font-family: "IM Fell English", Georgia, serif; font-size: 10px; font-style: italic; transform: translate(0, -50%); }
 .north-label { font-family: "IM Fell English SC", Georgia, serif; font-size: 12px; }
+
+/* Cycle 23 MAP_TREATMENT Step 21a: TF interim table frame (UI01, the war
+   table edge) around the map viewport. Pure code, no image files.
+   Constants (G16 slice margins, fixed px so nothing stretches with the
+   viewport; tools/frame-check.js measures and logs them):
+     RAIL 18px      rail thickness, the #tf-frame padding on all four sides
+     CORNER 24px    brass corner fitting, square
+     OVERHANG 6px   how far a corner fitting sits past the rail's outer edge
+                    (CORNER = RAIL + OVERHANG, so a fitting ends exactly at
+                    the rail's inner edge and never reaches the map)
+   The wrapper never transforms; only #map-board scales inside the viewport.
+   The rail takes the TX-PNL grain the way the panels do: flat walnut colour,
+   then the var image soft-light over it, flat colour alone when the texture
+   is absent. The rail is the fifth consumer of the var; the Step 20a pin
+   now counts five surfaces, and the Step 21a test pins the rail itself. */
+#tf-frame {
+  position: relative;
+  margin: 6px;
+  padding: 18px;
+  background: #3a2c1e;
+  background-image: var(--tx-pnl-image, none); background-blend-mode: soft-light;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px #1e1710, inset 0 0 0 2px #54402a;
+}
+.tf-corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  background: #b08d3e;
+  border: 1px solid #6e5626;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 3px #9a7a34;
+  pointer-events: none;
+}
+.tf-corner-tl { top: -6px; left: -6px; }
+.tf-corner-tr { top: -6px; right: -6px; }
+.tf-corner-bl { bottom: -6px; left: -6px; }
+.tf-corner-br { bottom: -6px; right: -6px; }
+
+/* DC09 stains on the bottom rail only, never on the map: one ink blot and
+   one cup ring in board ink at low opacity, inside the 18px rail band. */
+.dc09-ink {
+  position: absolute; bottom: 6px; right: 118px; width: 9px; height: 6px;
+  background: #2B2620; opacity: 0.6; pointer-events: none;
+  border-radius: 60% 40% 55% 45% / 50% 60% 40% 50%;
+}
+.dc09-ring {
+  position: absolute; bottom: 2px; right: 70px; width: 13px; height: 13px;
+  border: 2px solid #2B2620; border-radius: 50%; opacity: 0.5; pointer-events: none;
+}
+
+/* Cycle 23 MAP_TREATMENT Step 21a: UI02 HUD card frame. A dark leather edge
+   line outside the border and a thin brass hairline inside it, outline and
+   box-shadow only, so border, padding, layout, colour and the TX-PNL wiring
+   of the .card rule above stay exactly as they were. */
+.card { outline: 2px solid #2a1f15; outline-offset: 0; box-shadow: inset 0 0 0 1px #8a7034; }
