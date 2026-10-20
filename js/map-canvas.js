@@ -47,6 +47,12 @@
     ? require('./tx-fogls-data.js')
     : global.AshesTxFogLsData;
 
+  // RX01 / RX02 micro relief tile data (Cycle 23 Step 19d-1): node require,
+  // browser global.
+  var AshesRxData = (typeof module !== 'undefined' && module.exports)
+    ? require('./rx-data.js')
+    : global.AshesRxData;
+
   // Rail restyle (Cycle 23 Step 10, MAP_TREATMENT 2.6), in cell units.
   var RAIL_LINE_W = 0.008;
   var RAIL_TIE_STEP = 0.06;
@@ -830,6 +836,11 @@
     // rather than inside it, to keep one clip rather than two.
     drawLandTexture(ctx, chart, scaleX, scaleY);
 
+    // RX01 (Step 19d-1) draws here: after drawLandTexture and before the
+    // contours, so the micro relief shades the textured ground and the
+    // contour lines stay crisp above it.
+    drawRxLand(ctx, chart, scaleX, scaleY);
+
     ctx.save();
     ctx.strokeStyle = CHART_CONTOUR;
     ctx.globalAlpha = 0.22;
@@ -979,6 +990,79 @@
   var TX_FOG_UK_SIZE = 1024;
   var TX_FOG_LS_SIZE = 1024;
 
+  // RX01 / RX02 micro relief shade tile (Cycle 23 Step 19d-1, MAP_TREATMENT
+  // 7.5): one Blender route bake (tools/bake-rx.py, KEY light from the upper
+  // left on a periodic displaced plane, normalised to mean luma 128, sd 10 or
+  // less) shared by both. RX01 is a soft-light pattern over land at alpha
+  // RX_ALPHA_LAND times ruggedness r(P), drawn in RX_STEPS quantised alpha
+  // steps clipped to precomputed ruggedness zones (rxLandAlpha, buildRxZones).
+  // RX02 is the same tile as a soft-light pattern over beyond land (the area
+  // TX-SEA clips to) at RX_ALPHA_BEYOND flat. RX_VALUE_SCALE compresses the
+  // tile around mid gray (128) before it becomes a pattern, as
+  // TX_LAND_VALUE_SCALE does; 1 is the image as baked. Value scale ladder
+  // (try 1, then 0.5, then 0.25; ship the first rung that passes), measured
+  // with tools/band-report.js on the wired board, fixture remembered minus
+  // live separation against the 25 gate (Step 19c board without RX: 25.9):
+  // scale 1 gives 25.9 (pass, exit 0, 0 failures of 197; fixture live 118.4,
+  // remembered 144.3, dark 203.4). The ladder stopped at its first rung, so
+  // 0.5 and 0.25 were not measured. Shipped at 1.
+  var RX_ALPHA_LAND = 0.5;
+  var RX_ALPHA_BEYOND = 0.3;
+  var RX_SIZE = 1024;
+  var RX_STEPS = 8;
+  // Ruggedness range from js/map-chart.js buildRuggedness (r = 0.25 + 0.75 u).
+  var RX_RUG_MIN = 0.25;
+  var RX_RUG_MAX = 1.0;
+  var RX_VALUE_SCALE = 1;
+
+  // Quantised RX01 alpha for one ruggedness value, pure and node safe.
+  // Bucket rule: the ruggedness range RX_RUG_MIN to RX_RUG_MAX is cut into
+  // RX_STEPS equal buckets, k = floor((r - RX_RUG_MIN) / width), clamped to 0
+  // to RX_STEPS - 1 (r at or below the minimum, or not a number, is bucket 0;
+  // r at or above the maximum is the top bucket). The bucket representative
+  // is the bucket midpoint, RX_RUG_MIN + (k + 0.5) * width, and the alpha is
+  // RX_ALPHA_LAND times that representative, so the 8 steps run from 0.5 *
+  // 0.296875 to 0.5 * 0.953125 and never exceed 0.5.
+  function rxBucket(r) {
+    var width = (RX_RUG_MAX - RX_RUG_MIN) / RX_STEPS;
+    var k = Math.floor((r - RX_RUG_MIN) / width);
+    if (!(k >= 0)) k = 0;
+    if (k > RX_STEPS - 1) k = RX_STEPS - 1;
+    return k;
+  }
+  function rxLandAlpha(r) {
+    var width = (RX_RUG_MAX - RX_RUG_MIN) / RX_STEPS;
+    return RX_ALPHA_LAND * (RX_RUG_MIN + (rxBucket(r) + 0.5) * width);
+  }
+
+  // Ruggedness zones, pure and node safe: the province hit polygons
+  // (chart.hitPolygons) grouped by rxBucket of chart.relief.ruggedness, in
+  // ascending bucket order, empty buckets dropped. Each zone is
+  // { bucket, alpha, polys } with polys as flat cell space paths.
+  function buildRxZones(chart) {
+    var rug = (chart.relief && chart.relief.ruggedness) || {};
+    var ids = chart.provinceOrder || Object.keys(chart.hitPolygons);
+    var byBucket = [];
+    ids.forEach(function (id) {
+      var poly = chart.hitPolygons[id];
+      if (!poly || typeof rug[id] !== 'number') return;
+      var k = rxBucket(rug[id]);
+      if (!byBucket[k]) byBucket[k] = { bucket: k, alpha: rxLandAlpha(rug[id]), polys: [] };
+      byBucket[k].polys.push(flatPoints(poly));
+    });
+    return byBucket.filter(function (z) { return !!z; });
+  }
+
+  // Zones cached per chart object (mirrors reliefRasterCache), so the frame
+  // path never regroups provinces.
+  var rxZoneCache = null;
+  function rxZones(chart) {
+    if (rxZoneCache && rxZoneCache.chart === chart) return rxZoneCache.zones;
+    var zones = buildRxZones(chart);
+    rxZoneCache = { chart: chart, zones: zones };
+    return zones;
+  }
+
   // Shared texture debug object (exported as textureDebug and as the global
   // AshesTextureDebug). The land field names predate Step 19b and keep their
   // meaning; tools/band-report.js reads them.
@@ -996,7 +1080,12 @@
     fogUkState: 'unavailable',
     fogUkSize: TX_FOG_UK_SIZE,
     fogLsState: 'unavailable',
-    fogLsSize: TX_FOG_LS_SIZE
+    fogLsSize: TX_FOG_LS_SIZE,
+    rxState: 'unavailable',
+    rxSize: RX_SIZE,
+    rxAlphaLand: RX_ALPHA_LAND,
+    rxAlphaBeyond: RX_ALPHA_BEYOND,
+    rxValueScale: RX_VALUE_SCALE
   };
   var txLandSource = null;
 
@@ -1248,6 +1337,112 @@
     return true;
   }
 
+  var rxSource = null;
+
+  // Browser-only loader for the RX tile, started lazily by the first
+  // renderBaseCanvas call. Never throws into rendering: a decode or canvas
+  // failure records 'error'.
+  function startRxTexture() {
+    if (txLandDebug.rxState !== 'unavailable') return;
+    if (typeof document === 'undefined' || typeof Image === 'undefined' || !AshesRxData) return;
+    txLandDebug.rxState = 'loading';
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var sc = document.createElement('canvas');
+          sc.width = RX_SIZE;
+          sc.height = RX_SIZE;
+          var sctx = sc.getContext('2d');
+          // Value remap out = 128 + (in - 128) * RX_VALUE_SCALE, the same mid
+          // gray trick as TX-LAND: source-over of the image at alpha
+          // RX_VALUE_SCALE on mid gray (k * in + (1 - k) * 128 is the same
+          // line), because game code never reads pixels back.
+          if (RX_VALUE_SCALE !== 1) {
+            sctx.fillStyle = 'rgb(128, 128, 128)';
+            sctx.fillRect(0, 0, RX_SIZE, RX_SIZE);
+            sctx.globalAlpha = RX_VALUE_SCALE;
+          }
+          sctx.drawImage(img, 0, 0, RX_SIZE, RX_SIZE);
+          sctx.globalAlpha = 1;
+          rxSource = sc;
+          txLandDebug.rxState = 'ready';
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new Event('ashes-rx-texture-ready'));
+          }
+        } catch (e) {
+          rxSource = null;
+          txLandDebug.rxState = 'error';
+        }
+      };
+      img.onerror = function () {
+        rxSource = null;
+        txLandDebug.rxState = 'error';
+      };
+      img.src = 'data:image/webp;base64,' + AshesRxData;
+    } catch (e) {
+      txLandDebug.rxState = 'error';
+    }
+  }
+
+  // Draw RX01 over land: clipped to the coastline path, then one soft-light
+  // pattern fill per ruggedness zone, each clipped to the union of its
+  // province hit polygons at that zone's quantised alpha (at most RX_STEPS
+  // fills). Returns false, drawing nothing, until the pattern source is
+  // ready. Pattern space is device px, one tile 1024 device px, no pattern
+  // transform (same reasoning as TX-LAND).
+  function drawRxLand(ctx, chart, scaleX, scaleY) {
+    if (!rxSource) return false;
+    var neat = chart.neatline;
+    var x0 = neat.x0 * scaleX;
+    var y0 = neat.y0 * scaleY;
+    var w = (neat.x1 - neat.x0) * scaleX;
+    var h = (neat.y1 - neat.y0) * scaleY;
+    var zones = rxZones(chart);
+    ctx.save();
+    traceClosed(ctx, coastFlat(chart), scaleX, scaleY);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.fillStyle = ctx.createPattern(rxSource, 'repeat');
+    zones.forEach(function (z) {
+      ctx.save();
+      ctx.beginPath();
+      z.polys.forEach(function (p) {
+        ctx.moveTo(p[0] * scaleX, p[1] * scaleY);
+        for (var i = 2; i < p.length; i += 2) ctx.lineTo(p[i] * scaleX, p[i + 1] * scaleY);
+        ctx.closePath();
+      });
+      ctx.clip();
+      ctx.globalAlpha = z.alpha;
+      ctx.fillRect(x0, y0, w, h);
+      ctx.restore();
+    });
+    ctx.restore();
+    return true;
+  }
+
+  // Draw RX02 over beyond land: the same clip as drawSeaTexture (neatline
+  // rect plus coastline, evenodd), soft-light at RX_ALPHA_BEYOND flat.
+  // Returns false, drawing nothing, until the pattern source is ready.
+  function drawRxBeyondLand(ctx, chart, scaleX, scaleY) {
+    if (!rxSource) return false;
+    var neat = chart.neatline;
+    var x0 = neat.x0 * scaleX;
+    var y0 = neat.y0 * scaleY;
+    var w = (neat.x1 - neat.x0) * scaleX;
+    var h = (neat.y1 - neat.y0) * scaleY;
+    ctx.save();
+    traceClosed(ctx, coastFlat(chart), scaleX, scaleY);
+    ctx.rect(x0, y0, w, h);
+    ctx.clip('evenodd');
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = RX_ALPHA_BEYOND;
+    ctx.fillStyle = ctx.createPattern(rxSource, 'repeat');
+    ctx.fillRect(x0, y0, w, h);
+    ctx.restore();
+    return true;
+  }
+
   // Draw the TX-PAPER pattern as an opaque fill (source-over, alpha 1) of the
   // border strip only: one path of the chart extent rect plus the neatline
   // rect, clipped with the evenodd rule. Returns false until the pattern
@@ -1280,6 +1475,7 @@
     startLandTexture();
     startSeaTexture();
     startPaperTexture();
+    startRxTexture();
 
     var canvas = document.createElement('canvas');
     var fitted = fitPixels(widthPx, heightPx);
@@ -1324,6 +1520,10 @@
     // ops, so the beach strip and coastline stroke stay crisp above it, and
     // before the vignette and the furniture.
     drawSeaTexture(ctx, chart, scaleX, scaleY);
+    // RX02 (Step 19d-1) draws here: after TX-SEA, over the same beyond land
+    // area (neatline minus coastline), and before the chart over ops, so the
+    // beach strip and coastline stroke stay crisp above both.
+    drawRxBeyondLand(ctx, chart, scaleX, scaleY);
     drawChartOps(ctx, chartOps.over, scaleX, scaleY);
     // TX-PAPER (Step 19b) fills the border strip here, after the chart over
     // ops and before the vignette, so the vignette darkens its corners as it
@@ -2293,7 +2493,20 @@
     drawPaperTexture: drawPaperTexture,
     // TX-FOG texture exports (Cycle 23 Step 19c)
     TX_FOG_UK_SIZE: TX_FOG_UK_SIZE,
-    TX_FOG_LS_SIZE: TX_FOG_LS_SIZE
+    TX_FOG_LS_SIZE: TX_FOG_LS_SIZE,
+    // RX01 / RX02 micro relief exports (Cycle 23 Step 19d-1)
+    RX_ALPHA_LAND: RX_ALPHA_LAND,
+    RX_ALPHA_BEYOND: RX_ALPHA_BEYOND,
+    RX_SIZE: RX_SIZE,
+    RX_STEPS: RX_STEPS,
+    RX_RUG_MIN: RX_RUG_MIN,
+    RX_RUG_MAX: RX_RUG_MAX,
+    RX_VALUE_SCALE: RX_VALUE_SCALE,
+    rxBucket: rxBucket,
+    rxLandAlpha: rxLandAlpha,
+    buildRxZones: buildRxZones,
+    drawRxLand: drawRxLand,
+    drawRxBeyondLand: drawRxBeyondLand
   };
 
   if (typeof module !== 'undefined' && module.exports) {

@@ -3115,3 +3115,117 @@ test('TX-FOG structural pin: drawFogOps uses the UK pattern for unknown and the 
   assert.ok(render.indexOf('startFogUkTexture();') !== -1 && render.indexOf('startFogLsTexture();') !== -1,
     'renderFogCanvas starts both fog texture loaders');
 });
+
+// Cycle 23 Step 19d-1: RX01 / RX02 micro relief tile, one Blender route bake
+// (tools/bake-rx.py) shared by both, wired per MAP_TREATMENT 7.5.
+test('RX data: js/rx-data.js decodes to the committed RX01 candidate-b.webp bytes and matches its header', () => {
+  txDataHeaderCheck('rx-data.js', 'RX01');
+});
+
+test('RX constants: land alpha 0.5, beyond alpha 0.3, size 1024, 8 steps, value scale matching the source, node state unavailable', () => {
+  assert.strictEqual(AshesMapCanvas.RX_ALPHA_LAND, 0.5);
+  assert.strictEqual(AshesMapCanvas.RX_ALPHA_BEYOND, 0.3);
+  assert.strictEqual(AshesMapCanvas.RX_SIZE, 1024);
+  assert.strictEqual(AshesMapCanvas.RX_STEPS, 8);
+  assert.strictEqual(AshesMapCanvas.RX_RUG_MIN, 0.25);
+  assert.strictEqual(AshesMapCanvas.RX_RUG_MAX, 1.0);
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  const m = src.match(/var RX_VALUE_SCALE = ([0-9.]+);/);
+  assert.ok(m, 'RX_VALUE_SCALE is a named constant in js/map-canvas.js');
+  assert.strictEqual(Number(m[1]), AshesMapCanvas.RX_VALUE_SCALE);
+  assert.ok([1, 0.5, 0.25].indexOf(AshesMapCanvas.RX_VALUE_SCALE) !== -1, 'RX_VALUE_SCALE is a ladder rung');
+  const dbg = AshesMapCanvas.textureDebug;
+  assert.strictEqual(dbg.rxState, 'unavailable');
+  assert.strictEqual(dbg.rxSize, 1024);
+  assert.strictEqual(dbg.rxAlphaLand, 0.5);
+  assert.strictEqual(dbg.rxAlphaBeyond, 0.3);
+  assert.strictEqual(dbg.rxValueScale, AshesMapCanvas.RX_VALUE_SCALE);
+  // Earlier fields unchanged.
+  assert.strictEqual(dbg.landState, 'unavailable');
+  assert.strictEqual(dbg.landAlpha, 0.35);
+  assert.strictEqual(dbg.seaAlpha, 0.30);
+  assert.strictEqual(AshesMapCanvas.TX_LAND_VALUE_SCALE, 0.25);
+  assert.strictEqual(AshesMapCanvas.TX_SEA_VALUE_SCALE, 1);
+});
+
+test('RX quantised alpha: exactly 8 distinct steps, monotonic in r, bucket midpoint rule, at most 0.5', () => {
+  const C = AshesMapCanvas;
+  const width = (C.RX_RUG_MAX - C.RX_RUG_MIN) / C.RX_STEPS;
+  const seen = new Set();
+  let prev = -Infinity;
+  for (let i = 0; i <= 10000; i++) {
+    const r = i / 10000;
+    const a = C.rxLandAlpha(r);
+    assert.ok(a >= prev, 'monotonic at r ' + r);
+    assert.ok(a > 0 && a <= 0.5, 'alpha in (0, 0.5] at r ' + r);
+    prev = a;
+    seen.add(a);
+    let k = Math.floor((r - C.RX_RUG_MIN) / width);
+    k = Math.max(0, Math.min(C.RX_STEPS - 1, k));
+    assert.strictEqual(C.rxBucket(r), k, 'bucket at r ' + r);
+    assert.strictEqual(a, 0.5 * (C.RX_RUG_MIN + (k + 0.5) * width), 'midpoint rule at r ' + r);
+  }
+  assert.strictEqual(seen.size, 8);
+  assert.strictEqual(C.rxLandAlpha(C.RX_RUG_MIN), 0.5 * 0.296875);
+  assert.strictEqual(C.rxLandAlpha(C.RX_RUG_MAX), 0.5 * 0.953125);
+  assert.strictEqual(C.rxLandAlpha(5), 0.5 * 0.953125);
+  assert.strictEqual(C.rxLandAlpha(NaN), 0.5 * 0.296875);
+  // On a real board every province lands in exactly one zone at its own step.
+  const { geom, chart } = step9Chart(42);
+  const zones = C.buildRxZones(chart);
+  assert.ok(zones.length >= 1 && zones.length <= 8);
+  let polys = 0;
+  zones.forEach((z, i) => {
+    if (i > 0) assert.ok(z.bucket > zones[i - 1].bucket, 'zones ascend by bucket');
+    assert.strictEqual(z.alpha, 0.5 * (C.RX_RUG_MIN + (z.bucket + 0.5) * width));
+    polys += z.polys.length;
+  });
+  assert.strictEqual(polys, geom.provinces.length);
+  geom.provinces.forEach(p => {
+    const z = zones.find(q => q.bucket === C.rxBucket(chart.relief.ruggedness[p.id]));
+    assert.ok(z, p.id + ' has a zone');
+  });
+});
+
+// Structural pins, not render tests: they check the source text only. RX01
+// is called inside drawRelief after drawLandTexture and before the contour
+// stroke; RX02 is called in renderBaseCanvas after the TX-SEA draw and
+// before the chart over ops; renderBaseCanvas starts the RX loader.
+test('RX structural pin: RX01 in drawRelief after TX-LAND and before the contours, RX02 after TX-SEA and before the chart over ops', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  function bodyOf(name) {
+    const start = src.indexOf('function ' + name + '(');
+    assert.ok(start !== -1, name + ' is defined');
+    return src.slice(start, src.indexOf('\n  }\n', start));
+  }
+  const relief = bodyOf('drawRelief');
+  const land = relief.indexOf('drawLandTexture(ctx,');
+  const rxLand = relief.indexOf('drawRxLand(ctx,');
+  const contours = relief.indexOf('relief.contours.forEach(');
+  const stroke = relief.indexOf('ctx.stroke();');
+  assert.ok(land !== -1 && rxLand !== -1 && contours !== -1 && stroke !== -1);
+  assert.ok(land < rxLand, 'drawRxLand follows drawLandTexture');
+  assert.ok(rxLand < contours && rxLand < stroke, 'drawRxLand precedes the contour stroke');
+  const { body } = renderBaseBody();
+  const sea = body.indexOf('drawSeaTexture(ctx,');
+  const rxBeyond = body.indexOf('drawRxBeyondLand(ctx,');
+  const over = body.indexOf('drawChartOps(ctx, chartOps.over,');
+  assert.ok(sea !== -1 && rxBeyond !== -1 && over !== -1);
+  assert.ok(sea < rxBeyond, 'drawRxBeyondLand follows drawSeaTexture');
+  assert.ok(rxBeyond < over, 'drawRxBeyondLand precedes the chart over ops');
+  assert.ok(body.indexOf('startRxTexture();') !== -1, 'renderBaseCanvas starts the RX loader');
+  assert.strictEqual(body.indexOf('drawRxLand(ctx,'), -1, 'renderBaseCanvas does not call drawRxLand directly');
+  ['drawRxLand', 'drawRxBeyondLand'].forEach(name => {
+    const mentions = src.split(name + '(ctx,').length - 1;
+    const defs = src.split('function ' + name + '(ctx,').length - 1;
+    assert.strictEqual(defs, 1);
+    assert.strictEqual(mentions - defs, 1, name + ' has exactly one call site');
+    const fn = bodyOf(name);
+    assert.ok(fn.indexOf("'soft-light'") !== -1, name + ' uses soft-light');
+    assert.ok(fn.indexOf('if (!rxSource) return false;') !== -1, name + ' draws nothing until the source is ready');
+  });
+  assert.ok(bodyOf('drawRxLand').indexOf('ctx.globalAlpha = z.alpha;') !== -1, 'RX01 uses the zone alpha');
+  assert.ok(bodyOf('drawRxLand').indexOf('rxZones(chart)') !== -1, 'RX01 uses the cached zones');
+  assert.ok(bodyOf('drawRxBeyondLand').indexOf('ctx.globalAlpha = RX_ALPHA_BEYOND;') !== -1, 'RX02 uses the flat beyond alpha');
+  assert.ok(bodyOf('drawRxBeyondLand').indexOf("clip('evenodd')") !== -1, 'RX02 clips evenodd');
+});

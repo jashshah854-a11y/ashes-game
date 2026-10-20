@@ -2378,6 +2378,9 @@
   // when each becomes ready.
   window.addEventListener('ashes-sea-texture-ready', function () { renderBaseCanvasNow(); });
   window.addEventListener('ashes-paper-texture-ready', function () { renderBaseCanvasNow(); });
+  // Cycle 23 Step 19d-1: the RX01 / RX02 micro relief tile loads the same
+  // way; rebake once when it becomes ready.
+  window.addEventListener('ashes-rx-texture-ready', function () { renderBaseCanvasNow(); });
   // Cycle 23 Step 19c: TX-FOG-UK and TX-FOG-LS live on the fog canvas, whose
   // redraw is skipped while the fog fingerprint is unchanged, so null the
   // fingerprint to force one fog redraw when each becomes ready.
