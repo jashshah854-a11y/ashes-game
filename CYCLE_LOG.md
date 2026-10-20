@@ -6995,3 +6995,6 @@ Claimed this run: Step 21b-2 only (the TF half of R5: 2 candidates under the sta
 
 ### State and next claim
 - Step 21b-2 is complete and session R5 is now complete in both families (SC-TTL at 21b-1, TF here). Next run claims Step 21b-3 (the interim title build from R5-SC-TTL-c2: the selected candidate copied to assets/scenes/ with its admitted log line, the code wordmark and the two F01 buttons, presentation tests, and a new title browser check). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure.
+
+### Cycle 23 Step 21b-2 sync note
+- Sync out after commits 4bf4b46 and 3aef1e4: the import script completed with exit 0 and sent 4 commits to GitHub (the pending Step 21b-1 sync note fbe7dc5 at remote bf3711f, its correction 54d082b at remote 3309c20, 4bf4b46 at remote 334652c, and 3aef1e4 at remote c784744; remote head c784744, local head 3aef1e4; the script notes the commit shas differ while the trees match, as in prior syncs). All figures read from the sync log file (/tmp/ashes-21b2-sync.log) directly, in a separate step after the sync completed. Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
