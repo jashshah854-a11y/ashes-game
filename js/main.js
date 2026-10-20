@@ -416,6 +416,10 @@
     el.mapBoard.style.transform = '';
     el.zoomLabel.textContent = 'Zoom 100%';
     el.mapViewport.style.height = '';
+    el.mapViewport.scrollLeft = 0;
+    el.mapViewport.scrollTop = 0;
+    el.mapViewport.classList.remove('pannable', 'dragging');
+    updatePanDebug();
     baseOffscreen = null;
     baseFingerprint = null;
     stateFingerprint = null;
@@ -2270,8 +2274,89 @@
     el.mapBoard.style.transform = 'scale(' + mapZoom + ')';
     el.zoomLabel.textContent = 'Zoom ' + Math.round(mapZoom * 100) + '%';
     el.mapViewport.style.height = mapZoom === 1 ? '' : (el.mapBoard.offsetHeight * mapZoom) + 'px';
+    if (mapZoom <= 1) {
+      el.mapViewport.scrollLeft = 0;
+      el.mapViewport.scrollTop = 0;
+    }
+    el.mapViewport.classList.toggle('pannable', mapZoom > 1);
+    updatePanDebug();
     scheduleSettle();
   }
+
+  // Pan (Cycle 23 zoom pan step): above zoom 1 the board is wider than the
+  // viewport. The viewport scrolls horizontally (native bar), and a drag on
+  // the map pans it. A gesture only becomes a pan past PAN_THRESHOLD_PX, so a
+  // plain click still selects; the click that ends a real pan is swallowed.
+  var PAN_THRESHOLD_PX = 6;
+  var PAN_CLICK_SWALLOW_MS = 350;
+  var pan = null; // { pointerId, startX, startY, startLeft, startTop, dragging }
+  var panEndedAt = 0; // time the last real pan ended, 0 when none pending
+
+  function updatePanDebug() {
+    var vp = el.mapViewport;
+    window.AshesPanDebug = {
+      zoom: mapZoom,
+      scrollLeft: vp.scrollLeft,
+      scrollTop: vp.scrollTop,
+      maxScrollLeft: Math.max(0, vp.scrollWidth - vp.clientWidth),
+      pannable: vp.classList.contains('pannable')
+    };
+  }
+
+  el.mapViewport.addEventListener('pointerdown', function (e) {
+    if (mapZoom <= 1 || e.button !== 0) return;
+    pan = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: el.mapViewport.scrollLeft,
+      startTop: el.mapViewport.scrollTop,
+      dragging: false
+    };
+  });
+
+  el.mapViewport.addEventListener('pointermove', function (e) {
+    if (!pan || e.pointerId !== pan.pointerId) return;
+    var dx = e.clientX - pan.startX;
+    var dy = e.clientY - pan.startY;
+    if (!pan.dragging) {
+      if (Math.sqrt(dx * dx + dy * dy) <= PAN_THRESHOLD_PX) return;
+      pan.dragging = true;
+      el.mapViewport.classList.add('dragging');
+      try { el.mapViewport.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
+    }
+    el.mapViewport.scrollLeft = pan.startLeft - dx;
+    el.mapViewport.scrollTop = pan.startTop - dy;
+    e.preventDefault();
+  });
+
+  function endPan(e) {
+    if (!pan || e.pointerId !== pan.pointerId) return;
+    if (pan.dragging) {
+      panEndedAt = Date.now();
+      el.mapViewport.classList.remove('dragging');
+      try { el.mapViewport.releasePointerCapture(e.pointerId); } catch (err) { /* not captured */ }
+    }
+    pan = null;
+    updatePanDebug();
+  }
+  el.mapViewport.addEventListener('pointerup', endPan);
+  el.mapViewport.addEventListener('pointercancel', endPan);
+
+  // Capture phase on the viewport: runs before tile, plaque, and board
+  // handlers, so the click ending a pan reaches none of them.
+  el.mapViewport.addEventListener('click', function (e) {
+    if (panEndedAt && Date.now() - panEndedAt <= PAN_CLICK_SWALLOW_MS) {
+      panEndedAt = 0;
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+    panEndedAt = 0;
+  }, true);
+
+  el.mapViewport.addEventListener('scroll', updatePanDebug);
+  updatePanDebug();
 
   function scheduleSettle() {
     if (settleTimer) clearTimeout(settleTimer);

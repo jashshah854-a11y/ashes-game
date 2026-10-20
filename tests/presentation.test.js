@@ -2718,3 +2718,54 @@ test('vignette wiring pin: renderBaseCanvas draws the vignette after the chart o
     assert.ok(src.indexOf(str) === -1, 'map-canvas.js must not contain ' + str);
   });
 });
+
+// Cycle 23 zoom pan step: the player can pan the board at high zoom.
+test('pan css pin: #map-viewport scrolls horizontally and the pannable cursor rules exist', () => {
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  const m = css.match(/#map-viewport\s*\{([^}]*)\}/);
+  assert.ok(m, '#map-viewport rule found');
+  assert.ok(/overflow-x:\s*auto/.test(m[1]), 'overflow-x auto: ' + m[1]);
+  assert.ok(/overflow-y:\s*hidden/.test(m[1]), 'overflow-y hidden: ' + m[1]);
+  assert.ok(!/overflow:\s*hidden/.test(m[1]), 'no blanket overflow hidden left');
+  assert.ok(/#map-viewport\.pannable\s*\{[^}]*cursor:\s*grab;/.test(css), 'pannable cursor grab');
+  assert.ok(/#map-viewport\.pannable\.dragging\s*\{[^}]*cursor:\s*grabbing;/.test(css), 'dragging cursor grabbing');
+});
+
+test('pan hint pin: index.html carries the pan sentence verbatim beside the zoom controls', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const zoomRow = html.indexOf('class="map-zoom"');
+  const hint = html.indexOf('<span id="pan-hint">When zoomed in, drag the map or use the bar under it to pan.</span>');
+  const viewport = html.indexOf('id="map-viewport"');
+  assert.ok(zoomRow !== -1 && hint !== -1 && viewport !== -1, 'zoom row, hint, and viewport present');
+  assert.ok(zoomRow < hint && hint < viewport, 'hint sits in the zoom row, above the map');
+});
+
+test('pan wiring pin: main.js drags past a 6 px threshold, swallows only the post-pan click, and keeps zoom intact', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'main.js'), 'utf8');
+  assert.ok(src.indexOf('var PAN_THRESHOLD_PX = 6;') !== -1, 'threshold 6 px');
+  assert.ok(src.indexOf('var PAN_CLICK_SWALLOW_MS = 350;') !== -1, 'swallow window 350 ms');
+  assert.ok(/el\.mapViewport\.addEventListener\('pointerdown', function \(e\) \{\s*if \(mapZoom <= 1/.test(src), 'no pan starts at zoom 1 or below');
+  assert.ok(src.indexOf('Math.sqrt(dx * dx + dy * dy) <= PAN_THRESHOLD_PX') !== -1, 'threshold gates the pan');
+  assert.ok(src.indexOf('el.mapViewport.scrollLeft = pan.startLeft - dx;') !== -1, 'scrollLeft follows the drag');
+  assert.ok(src.indexOf('el.mapViewport.scrollTop = pan.startTop - dy;') !== -1, 'scrollTop follows the drag');
+  assert.ok(src.indexOf('setPointerCapture(e.pointerId)') !== -1, 'pointer capture');
+  assert.ok(src.indexOf("addEventListener('pointerup', endPan)") !== -1 && src.indexOf("addEventListener('pointercancel', endPan)") !== -1, 'pointerup and pointercancel end the gesture');
+  // Only a real pan stamps panEndedAt, so a plain click is never swallowed.
+  const endStart = src.indexOf('function endPan(e)');
+  const endBody = src.slice(endStart, src.indexOf('\n  }\n', endStart));
+  assert.ok(/if \(pan\.dragging\) \{\s*panEndedAt = Date\.now\(\);/.test(endBody), 'only a drag stamps panEndedAt');
+  const clickAt = src.indexOf("el.mapViewport.addEventListener('click', function (e) {");
+  assert.ok(clickAt !== -1, 'viewport click listener');
+  const clickBody = src.slice(clickAt, src.indexOf('}, true);', clickAt) + 9);
+  assert.ok(clickBody.indexOf('Date.now() - panEndedAt <= PAN_CLICK_SWALLOW_MS') !== -1, 'swallow window checked');
+  assert.ok(clickBody.indexOf('e.stopPropagation();') !== -1 && clickBody.indexOf('e.preventDefault();') !== -1, 'stops the click');
+  assert.ok(/\}, true\);$/.test(clickBody), 'capture phase');
+  const az = src.indexOf('function applyZoom(newIndex)');
+  const azBody = src.slice(az, src.indexOf('\n  }\n', az));
+  assert.ok(azBody.indexOf("el.mapBoard.style.transform = 'scale(' + mapZoom + ')';") !== -1, 'transform unchanged');
+  assert.ok(/if \(mapZoom <= 1\) \{\s*el\.mapViewport\.scrollLeft = 0;\s*el\.mapViewport\.scrollTop = 0;/.test(azBody), 'scroll resets at zoom 1 or below');
+  assert.ok(azBody.indexOf("el.mapViewport.classList.toggle('pannable', mapZoom > 1);") !== -1, 'pannable exactly above 1');
+  assert.ok(azBody.indexOf('scheduleSettle();') !== -1, 'settle still scheduled');
+  assert.ok(src.indexOf('maxScrollLeft: Math.max(0, vp.scrollWidth - vp.clientWidth)') !== -1, 'debug maxScrollLeft clamped');
+  assert.ok(src.indexOf("el.mapViewport.addEventListener('scroll', updatePanDebug);") !== -1, 'debug follows scroll');
+});
