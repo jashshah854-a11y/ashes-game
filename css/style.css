@@ -484,3 +484,63 @@ button.linkish:hover { background: none; color: #fff2c4; }
    box-shadow only, so border, padding, layout, colour and the TX-PNL wiring
    of the .card rule above stay exactly as they were. */
 .card { outline: 2px solid #2a1f15; outline-offset: 0; box-shadow: inset 0 0 0 1px #8a7034; }
+
+/* Cycle 23 Step 21b-3: F01 interim title screen. The admitted SC-TTL scene
+   is the background, the wordmark is typeset in code in the upper third,
+   and the two buttons sit centered in the lower third. It stacks above the
+   other overlays (z-index 50) and shows only at page load. */
+.title-overlay {
+  z-index: 60;
+  background: #0a0b0d;
+  background-image: url("../assets/scenes/sc-ttl-interim.png");
+  background-size: cover;
+  background-position: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: center;
+  overflow-y: auto;
+}
+.title-wordmark-block { padding-top: 10vh; }
+#title-wordmark {
+  margin: 0;
+  font-family: "IM Fell English SC", Georgia, serif;
+  font-weight: normal;
+  font-size: clamp(40px, 7vw, 72px);
+  letter-spacing: 4px;
+  color: #e8c87a;
+  text-shadow: 0 2px 4px #000, 0 0 18px rgba(0, 0, 0, 0.85);
+}
+.title-subtitle {
+  margin: 8px 0 0;
+  color: #c9c0aa;
+  font-size: 16px;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 3px #000, 0 0 10px rgba(0, 0, 0, 0.85);
+}
+#title-buttons {
+  margin-top: auto;
+  padding-bottom: 9vh;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+#title-buttons button { min-height: 44px; min-width: 160px; font-size: 16px; }
+#title-how {
+  text-align: left;
+  max-width: 640px;
+  margin: auto;
+  background: rgba(16, 17, 19, 0.88);
+  border: 1px solid #4a4232;
+  padding: 16px 20px;
+  line-height: 1.55;
+}
+#title-how p { margin: 0 0 10px; }
+#title-how button { min-height: 44px; }
+/* Pin the hidden states at id specificity so no display value set above
+   defeats the shared .hidden rule (the #banner.hidden lesson). */
+#title-overlay.hidden { display: none; }
+#title-buttons.hidden { display: none; }
+#title-how.hidden { display: none; }

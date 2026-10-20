@@ -77,7 +77,8 @@
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
    'progression-blocks', 'progression-explain',
-   'map-base', 'map-decals', 'map-fog', 'map-state', 'map-beats', 'map-board', 'map-labels', 'map-chart-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
+   'map-base', 'map-decals', 'map-fog', 'map-state', 'map-beats', 'map-board', 'map-labels', 'map-chart-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label',
+   'title-overlay', 'title-buttons', 'btn-title-new', 'btn-title-how', 'title-how', 'btn-title-back'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -275,6 +276,10 @@
     var m = /[?&]seed=(\d{1,9})(?:&|$)/.exec(window.location.search || '');
     return m ? parseInt(m[1], 10) : null;
   })();
+  // Cycle 23 Step 21b-3: the page-load newGame() consumes urlSeed, so the
+  // title's New game restores it once and the ?seed=N campaign survives the
+  // title screen.
+  var titleSeed = urlSeed;
 
   // Map canvas helpers
   function baseFingerprintOf(view) {
@@ -479,6 +484,11 @@
     pauseBeforeOverlay = null;
     el.eventOverlay.classList.add('hidden');
     el.codexOverlay.classList.add('hidden');
+    // Cycle 23 Step 21b-3: the title appears only at page load, never again
+    // in a session; every new game hides it and resets its how-to state.
+    el.titleOverlay.classList.add('hidden');
+    el.titleHow.classList.add('hidden');
+    el.titleButtons.classList.remove('hidden');
     // Reset zoom to 1 without scheduling a settle
     mapZoomIndex = 2;
     mapZoom = 1;
@@ -1956,7 +1966,8 @@
     el.btnPause.textContent = paused ? 'Resume' : 'Pause';
   }
   function overlayOpen() {
-    return !el.eventOverlay.classList.contains('hidden') || !el.codexOverlay.classList.contains('hidden');
+    return !el.eventOverlay.classList.contains('hidden') || !el.codexOverlay.classList.contains('hidden') ||
+      !el.titleOverlay.classList.contains('hidden');
   }
   // The player's own pause is remembered once, when the first overlay of a
   // run opens, and kept until the last one closes; a second card on the
@@ -2226,6 +2237,26 @@
   });
   el.btnNew.addEventListener('click', newGame);
   el.btnEndNew.addEventListener('click', newGame);
+  // Cycle 23 Step 21b-3: F01 title screen buttons. How to play and Back only
+  // swap the buttons block and the how-to panel; the game stays paused.
+  el.btnTitleNew.addEventListener('click', function () {
+    el.titleOverlay.classList.add('hidden');
+    el.titleHow.classList.add('hidden');
+    el.titleButtons.classList.remove('hidden');
+    urlSeed = titleSeed;
+    titleSeed = null;
+    newGame();
+  });
+  el.btnTitleHow.addEventListener('click', function () {
+    el.titleButtons.classList.add('hidden');
+    el.titleHow.classList.remove('hidden');
+    el.btnTitleBack.focus();
+  });
+  el.btnTitleBack.addEventListener('click', function () {
+    el.titleHow.classList.add('hidden');
+    el.titleButtons.classList.remove('hidden');
+    el.btnTitleHow.focus();
+  });
   el.btnResearch.addEventListener('click', function () {
     Sim.researchDroneGen2(state, 'player');
     render();
@@ -2491,4 +2522,11 @@
 
   newGame();
   updateSlotMeta();
+  // Cycle 23 Step 21b-3: the title overlay starts visible in the markup;
+  // the newGame() above hides it like every new game does, so show it again
+  // here, the one place it is ever shown, and hold the war paused behind it
+  // until New game is clicked.
+  el.titleOverlay.classList.remove('hidden');
+  setPaused(true);
+  el.btnTitleNew.focus();
 })();

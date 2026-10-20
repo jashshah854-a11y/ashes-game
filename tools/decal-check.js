@@ -210,6 +210,7 @@ async function playRun(cdp, url, label, target, exceptions) {
       return await cdp.evaluate("document.readyState === 'complete' && !!document.getElementById('map-decals') && document.getElementById('day-counter').textContent.trim().length > 0 && !!window.AshesDecalDebug");
     } catch (e) { return false; }
   }, 20000, label + ': page initializes');
+  await cdp.evaluate(H.TITLE_DISMISS_EXPR);
   const t0 = Date.now();
   let count = 0;
   const reached = await H.tryWait(async () => {

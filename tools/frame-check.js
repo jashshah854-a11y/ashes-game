@@ -158,6 +158,7 @@ async function load(cdp, url, vp, label) {
       return await cdp.evaluate("document.readyState === 'complete' && document.getElementById('day-counter').textContent.trim().length > 0 && document.getElementById('map-base').getBoundingClientRect().width > 0 && !!window.AshesPanDebug");
     } catch (e) { return false; }
   }, 20000, label + ': page initializes');
+  await cdp.evaluate(H.TITLE_DISMISS_EXPR);
   await H.waitUntil(async () => { try { return await cdp.evaluate(SETTLE_EXPR); } catch (e) { return false; } }, 10000, label + ': overlay dismissed and clock paused');
   await cdp.evaluate('window.scrollTo(0, 0)');
   await cdp.evaluate(FRAMES_EXPR);

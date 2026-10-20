@@ -3608,3 +3608,50 @@ test('Step 21a no art-direction reference: index.html and css/style.css never po
     assert.ok(!/[\u2013\u2014]/.test(src), rel + ' must not contain em or en dashes');
   });
 });
+
+// ---------- Cycle 23 Step 21b-3: F01 interim title screen ----------
+
+const SC_TTL_SHA256 = '690e576aec22e2e3f509750a53d3435bb4d9a89eebba0e506fd7d0a41385d856';
+
+test('Step 21b-3 SC-TTL scene: assets/scenes/sc-ttl-interim.png is byte identical to the R5 c2 rendition', () => {
+  const scene = fs.readFileSync(path.join(REPO_ROOT, 'assets', 'scenes', 'sc-ttl-interim.png'));
+  const rendition = fs.readFileSync(path.join(REPO_ROOT, 'art-direction', 'renditions', 'SC-TTL', 'R5-SC-TTL-c2.png'));
+  assert.ok(scene.equals(rendition), 'scene bytes equal the rendition bytes');
+  assert.strictEqual(crypto.createHash('sha256').update(scene).digest('hex'), SC_TTL_SHA256);
+});
+
+test('Step 21b-3 asset log: checkAssets returns zero failures on the final tree', () => {
+  const result = assetCheck.checkAssets(REPO_ROOT);
+  assert.deepStrictEqual(result.failures, []);
+});
+
+test('Step 21b-3 title markup and styles: ids, F01 button texts, scene url, no art-direction reference', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  ['title-overlay', 'title-wordmark', 'title-buttons', 'btn-title-new', 'btn-title-how', 'title-how', 'btn-title-back'].forEach(id => {
+    assert.ok(html.indexOf('id="' + id + '"') !== -1, 'index.html carries #' + id);
+  });
+  assert.ok(html.indexOf('<div id="title-overlay" class="overlay title-overlay" role="dialog" aria-modal="true" aria-labelledby="title-wordmark">') !== -1, 'overlay markup');
+  assert.ok(html.indexOf('<button id="btn-title-new" type="button" class="primary">New game</button>') !== -1, 'New game button text');
+  assert.ok(html.indexOf('<button id="btn-title-how" type="button">How to play</button>') !== -1, 'How to play button text');
+  assert.ok(html.indexOf('<div id="title-how" class="hidden">') !== -1, 'how-to panel starts hidden');
+  assert.ok(html.indexOf('id="title-overlay"') < html.indexOf('<script'), 'overlay sits before the script tags');
+  assert.ok(css.indexOf('url("../assets/scenes/sc-ttl-interim.png")') !== -1, 'title background is the admitted scene');
+  assert.ok(css.indexOf('#title-overlay.hidden { display: none; }') !== -1, 'hidden state pinned at id specificity');
+  [html, css].forEach((src, i) => assert.ok(src.indexOf('art-direction') === -1, (i ? 'css/style.css' : 'index.html') + ' must not reference art-direction/'));
+});
+
+test('Step 21b-3 title wiring pins in js/main.js', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'main.js'), 'utf8');
+  assert.ok(src.indexOf("'title-overlay', 'title-buttons', 'btn-title-new', 'btn-title-how', 'title-how', 'btn-title-back'") !== -1, 'element ids registered');
+  assert.ok(src.indexOf("!el.titleOverlay.classList.contains('hidden');\n  }") !== -1, 'overlayOpen counts the title');
+  const ng = src.slice(src.indexOf('function newGame() {'), src.indexOf('// ---------- Save and load'));
+  assert.ok(ng.indexOf("el.titleOverlay.classList.add('hidden');") !== -1, 'newGame hides the title');
+  assert.ok(ng.indexOf("el.titleHow.classList.add('hidden');") !== -1 && ng.indexOf("el.titleButtons.classList.remove('hidden');") !== -1, 'newGame resets the how-to state');
+  assert.ok(src.indexOf("el.btnTitleNew.addEventListener('click', function () {") !== -1, 'New game handler');
+  assert.ok(src.indexOf("urlSeed = titleSeed;\n    titleSeed = null;\n    newGame();") !== -1, 'New game keeps the ?seed=N campaign and starts it');
+  assert.ok(src.indexOf("el.btnTitleHow.addEventListener('click', function () {\n    el.titleButtons.classList.add('hidden');\n    el.titleHow.classList.remove('hidden');") !== -1, 'How to play handler');
+  assert.ok(src.indexOf("el.btnTitleBack.addEventListener('click', function () {\n    el.titleHow.classList.add('hidden');\n    el.titleButtons.classList.remove('hidden');") !== -1, 'Back handler');
+  const init = src.slice(src.lastIndexOf('  newGame();\n  updateSlotMeta();'));
+  assert.ok(init.indexOf("el.titleOverlay.classList.remove('hidden');\n  setPaused(true);\n  el.btnTitleNew.focus();") !== -1, 'init shows the title, pauses, focuses New game');
+});

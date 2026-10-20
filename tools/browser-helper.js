@@ -64,4 +64,23 @@ async function untilText(page, fn, ms) {
   return false;
 }
 
-module.exports = { POLL_MS, tryWait, waitUntil, waitFor, ensurePaused, dismissBurst, clickWhenClear, untilText };
+// Cycle 23 Step 21b-3: the F01 title overlay covers the page at load and
+// holds the war paused. Playwright checks call dismissTitle(page); raw CDP
+// checks evaluate TITLE_DISMISS_EXPR, which clicks New game when the title
+// is visible and returns whether it dismissed.
+async function dismissTitle(page) {
+  if (!(await page.isVisible('#title-overlay'))) return;
+  await page.click('#btn-title-new');
+  const hidden = await tryWait(async () => !(await page.isVisible('#title-overlay')), 5000);
+  if (!hidden) throw new Error('dismissTitle: title overlay still visible');
+}
+
+const TITLE_DISMISS_EXPR = `(function () {
+  var t = document.getElementById('title-overlay');
+  if (!t || t.classList.contains('hidden') || getComputedStyle(t).display === 'none') return false;
+  var b = document.getElementById('btn-title-new');
+  if (b) b.click();
+  return !!b;
+})()`;
+
+module.exports = { POLL_MS, tryWait, waitUntil, waitFor, ensurePaused, dismissBurst, clickWhenClear, untilText, dismissTitle, TITLE_DISMISS_EXPR };
