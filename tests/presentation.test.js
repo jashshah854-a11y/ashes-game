@@ -3759,3 +3759,58 @@ test('Step 22a asset log admits BL00 at the golden location, and the new files c
     assert.ok(s.indexOf('\u2014') === -1 && s.indexOf('\u2013') === -1, f + ' has no em or en dash');
   });
 });
+
+// Cycle 23 Step 22b: silhouette battery tool (VISUAL_STRATEGY 4.6, gate A2, gate R-d).
+const SILHOUETTE_BATTERY = path.join(REPO_ROOT, 'tools', 'silhouette-battery.py');
+const SILHOUETTE_CHECK = path.join(REPO_ROOT, 'tools', 'silhouette-check.py');
+
+test('Step 22b silhouette battery and its check tool exist', () => {
+  assert.ok(fs.existsSync(SILHOUETTE_BATTERY), 'tools/silhouette-battery.py exists');
+  assert.ok(fs.existsSync(SILHOUETTE_CHECK), 'tools/silhouette-check.py exists');
+});
+
+test('Step 22b battery names all seven family IDs, the plain names, and terrain for T- pieces', () => {
+  const src = fs.readFileSync(SILHOUETTE_BATTERY, 'utf8');
+  ['U-INF', 'U-DRN', 'U-FLT', 'S-CTY', 'S-CAP', 'S-FAC', 'S-FRT'].forEach(id =>
+    assert.ok(src.indexOf('"' + id + '"') !== -1, 'battery names family ' + id));
+  ['infantry', 'drone', 'flotilla', 'city', 'capital', 'factory', 'fort', 'terrain'].forEach(n =>
+    assert.ok(src.indexOf('"' + n + '"') !== -1, 'battery names plain name ' + n));
+  assert.ok(src.indexOf('TERRAIN_NAME = "terrain"') !== -1);
+  assert.ok(src.indexOf('fid.startswith("T-")') !== -1, 'every T- piece answers terrain');
+});
+
+test('Step 22b battery pins the gate A2 scoring rule, the alpha above 0.5 mask, and the display sizes', () => {
+  const src = fs.readFileSync(SILHOUETTE_BATTERY, 'utf8');
+  [
+    'MIN_JUDGES = 3',
+    'PASS_PERCENT = 100',
+    'ALPHA_THRESHOLD = 128',
+    'COPIES = 2',
+    'DISPLAY = {"S-CAP": 64}',
+    'DISPLAY_DEFAULT = 56',
+    'LEGEND_SCALE = 4',
+    'enough = len(judges) >= MIN_JUDGES',
+    'a >= ALPHA_THRESHOLD'
+  ].forEach(s => assert.ok(src.indexOf(s) !== -1, 'battery carries: ' + s));
+});
+
+test('Step 22b battery uses the fixed Ink and Paper hex values', () => {
+  const src = fs.readFileSync(SILHOUETTE_BATTERY, 'utf8');
+  assert.ok(src.indexOf('PAPER_HEX = "#E6D8B5"') !== -1);
+  assert.ok(src.indexOf('INK_HEX = "#2B2620"') !== -1);
+  assert.ok(src.indexOf('PAPER = (0xE6, 0xD8, 0xB5)') !== -1);
+  assert.ok(src.indexOf('INK = (0x2B, 0x26, 0x20)') !== -1);
+});
+
+test('Step 22b battery header serves VISUAL_STRATEGY 4.6, gate A2 and gate R-d, and states its honest limits; no em or en dash', () => {
+  const src = fs.readFileSync(SILHOUETTE_BATTERY, 'utf8');
+  const header = src.slice(0, src.indexOf('"""', 3));
+  ['4.6', 'gate A2', 'gate R-d', 'at least 3 independent fresh-eyes', 'does not create models'].forEach(s =>
+    assert.ok(header.indexOf(s) !== -1, 'battery header mentions ' + s));
+  const check = fs.readFileSync(SILHOUETTE_CHECK, 'utf8');
+  assert.ok(check.indexOf('NOT GAME ART') !== -1, 'check header marks fixtures as tool fixtures');
+  [SILHOUETTE_BATTERY, SILHOUETTE_CHECK].forEach(f => {
+    const s = fs.readFileSync(f, 'utf8');
+    assert.ok(s.indexOf('\u2014') === -1 && s.indexOf('\u2013') === -1, f + ' has no em or en dash');
+  });
+});
