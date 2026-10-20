@@ -6280,3 +6280,6 @@ Claimed this run: MAP_TREATMENT Step 16's build half only (K-BEAT: the state lig
 
 ### Mission status
 MAP_TREATMENT Step 16a is complete: attack beats are live on the real board, derived exactly from records the UI holds, fog gated, and gone in one day tick. Next run claims Step 16b (the checkpoint 1 package: F05 beat 0, 1, 2 captures at zoom 2 of the staged attack, gray copies, contact sheet, and a README in art-direction/storyboard/step-16, with the acceptance sentence judged on the close-up). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 Step 16a sync note
+- Sync out after commits 231393b and 1b4645e: the import script completed with exit 0 and sent both Step 16a commits to GitHub (jashshah854-a11y/ashes-game). The remote head sha was not captured in this run's output, so none is recorded here rather than guessed (the Step 14 correction lesson); the script's exit 0 and the clean local tree are the recorded evidence. Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
