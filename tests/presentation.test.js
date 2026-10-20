@@ -3229,3 +3229,56 @@ test('RX structural pin: RX01 in drawRelief after TX-LAND and before the contour
   assert.ok(bodyOf('drawRxBeyondLand').indexOf('ctx.globalAlpha = RX_ALPHA_BEYOND;') !== -1, 'RX02 uses the flat beyond alpha');
   assert.ok(bodyOf('drawRxBeyondLand').indexOf("clip('evenodd')") !== -1, 'RX02 clips evenodd');
 });
+
+// Cycle 23 Step 20a: TX-PNL, the UI panel grain, a Blender route bake
+// (Candidate B) wired onto the DOM panel surfaces as a soft-light background.
+test('TX-PNL data: js/tx-pnl-data.js decodes to the committed candidate-b.webp bytes and matches its header', () => {
+  txDataHeaderCheck('tx-pnl-data.js', 'TX-PNL');
+  const bytes = Buffer.from(require('../js/tx-pnl-data.js'), 'base64');
+  // RIFF size field covers the file after the first 8 bytes; first chunk is a WebP bitstream.
+  assert.strictEqual(bytes.readUInt32LE(4), bytes.length - 8);
+  assert.ok(['VP8 ', 'VP8L', 'VP8X'].indexOf(bytes.toString('ascii', 12, 16)) !== -1, 'first chunk is a WebP chunk');
+});
+
+test('TX-PNL wiring: index.html loads the data module once before js/main.js', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const tag = '<script src="js/tx-pnl-data.js"></script>';
+  assert.strictEqual(html.split(tag).length - 1, 1);
+  assert.ok(html.indexOf(tag) < html.indexOf('<script src="js/main.js"></script>'));
+});
+
+// Structural pins on the source text: every panel surface rule keeps its
+// background colour and adds the var image with a none fallback and soft-light.
+test('TX-PNL CSS pin: panel surfaces blend var(--tx-pnl-image, none) soft-light over their unchanged colour', () => {
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  function ruleOf(selector) {
+    const start = css.indexOf('\n' + selector + ' {');
+    assert.ok(start !== -1, selector + ' rule exists');
+    return css.slice(start, css.indexOf('}', start));
+  }
+  const colours = { '.card': '#22252a', '.progression-nation': '#1c1f23', '.event-card': '#22252a', '.codex': '#191b1e' };
+  Object.keys(colours).forEach(sel => {
+    const rule = ruleOf(sel);
+    assert.ok(rule.indexOf('background: ' + colours[sel] + ';') !== -1, sel + ' keeps its colour');
+    assert.ok(rule.indexOf('background-image: var(--tx-pnl-image, none);') !== -1, sel + ' uses the var image');
+    assert.ok(rule.indexOf('background-blend-mode: soft-light;') !== -1, sel + ' blends soft-light');
+    assert.ok(rule.indexOf('background-image') > rule.indexOf('background: '), sel + ' image follows the shorthand');
+  });
+  assert.strictEqual(css.split('var(--tx-pnl-image, none)').length - 1, 4, 'exactly the four panel surfaces');
+});
+
+test('TX-PNL main.js pin: --tx-pnl-image is set only in the onload of the TX-PNL Image', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'main.js'), 'utf8');
+  const start = src.indexOf('(function startPanelTexture() {');
+  assert.ok(start !== -1, 'startPanelTexture exists');
+  const body = src.slice(start, src.indexOf('\n  })();\n', start));
+  assert.strictEqual(src.split("'--tx-pnl-image'").length - 1, 1, 'one place sets the var');
+  assert.ok(body.indexOf('window.AshesTxPnlData') !== -1);
+  assert.ok(body.indexOf("'data:image/webp;base64,' + data") !== -1);
+  const onload = body.indexOf('img.onload = function () {');
+  const set = body.indexOf("setProperty('--tx-pnl-image', 'url(\"' + uri + '\")')");
+  const onerror = body.indexOf('img.onerror');
+  assert.ok(onload !== -1 && set > onload && set < onerror, 'the var is set inside onload');
+  assert.ok(body.indexOf('img.src = uri;') > onerror, 'src is assigned after both handlers');
+  assert.ok(src.indexOf('(function startPanelTexture() {') < src.lastIndexOf('newGame();'), 'loader starts before the first newGame');
+});

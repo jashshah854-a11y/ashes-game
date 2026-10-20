@@ -70,6 +70,7 @@ PAYLOADS = (
     ("TX-FOG-UK", "art-direction/textures/TX-FOG-UK/candidate-b.webp", "js/tx-foguk-data.js"),
     ("TX-FOG-LS", "art-direction/textures/TX-FOG-LS/candidate-b.webp", "js/tx-fogls-data.js"),
     ("RX01/RX02", "art-direction/textures/RX01/candidate-b.webp", "js/rx-data.js"),
+    ("TX-PNL", "art-direction/textures/TX-PNL/candidate-b.webp", "js/tx-pnl-data.js"),
 )
 
 # The data modules assign one single quoted base64 literal:

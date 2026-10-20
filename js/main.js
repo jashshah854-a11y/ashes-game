@@ -2387,6 +2387,25 @@
   window.addEventListener('ashes-foguk-texture-ready', function () { fogFingerprint = null; renderFogCanvasNow(); });
   window.addEventListener('ashes-fogls-texture-ready', function () { fogFingerprint = null; renderFogCanvasNow(); });
 
+  // Cycle 23 Step 20a: TX-PNL, the panel grain. CSS cannot read the data
+  // module, so load it as an Image (as js/map-canvas.js loads its textures)
+  // and only after a successful load set --tx-pnl-image, which the panel
+  // rules in css/style.css blend soft-light over their colour. Until then,
+  // or on any failure, the var stays unset and panels stay flat.
+  (function startPanelTexture() {
+    var data = window.AshesTxPnlData;
+    if (typeof data !== 'string' || !data || typeof Image === 'undefined') return;
+    try {
+      var uri = 'data:image/webp;base64,' + data;
+      var img = new Image();
+      img.onload = function () {
+        try { document.documentElement.style.setProperty('--tx-pnl-image', 'url("' + uri + '")'); } catch (e) { /* panels stay flat */ }
+      };
+      img.onerror = function () { /* panels stay flat */ };
+      img.src = uri;
+    } catch (e) { /* panels stay flat */ }
+  })();
+
   newGame();
   updateSlotMeta();
 })();
