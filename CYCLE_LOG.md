@@ -6316,3 +6316,6 @@ Claimed this run: Step 16b only, the package half homed by Step 16a (F05 beat 0,
 
 ### Mission status
 MAP_TREATMENT Step 16 is complete in both halves: attack beats are live (16a) and the checkpoint 1 package sits in art-direction/storyboard/step-16 with two verdicts awaiting Jash under DECISIONS item 33 (the checkpoint itself, and whether a zoom pan step joins the sequence ahead of Step 17). Next run claims MAP_TREATMENT Step 17 (atmosphere and palette harness: vignette on the border strip and sea margin first, band report including sea sectors), unless Jash's pan ruling lands first. The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 Step 16b sync note
+- Sync out after commits defed91 and 3bf47e5: the import script completed with exit 0 and sent 3 commits to GitHub (the pending Step 16a sync note correction c46d691 at remote a78ed84, defed91 at remote 694cc7f, and 3bf47e5 at remote 65e2d9f; remote head 65e2d9f, local head 3bf47e5; the script notes the commit shas differ while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
