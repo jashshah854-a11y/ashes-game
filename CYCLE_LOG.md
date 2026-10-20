@@ -6968,3 +6968,6 @@ Split recorded at claim time, per Run Window Discipline: Step 21b (interim title
 
 ### State and next claim
 - Step 21b-1 is complete. Next run claims Step 21b-2 (the TF half of R5: 2 candidates under the same brief, gates R-a, R-f, R-g, selection logged reference only, never wired), then Step 21b-3 builds the interim title from R5-SC-TTL-c2. The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure.
+
+### Cycle 23 Step 21b-1 sync note
+- Sync out after commits 67f76cb and 9825e9b: the import script completed with exit 0 and sent 2 commits to GitHub (67f76cb at remote 750d13c and 9825e9b at remote d2bfa53; remote head d2bfa53, local head 9825e9b; the script notes the commit shas differ while the trees match, as in prior syncs). All figures read from the sync log file (/tmp/ashes-21b1-sync.log) directly, in a separate step after the sync completed. Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
