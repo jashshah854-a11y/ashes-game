@@ -1626,3 +1626,10 @@ The MAP_TREATMENT Step 14 map review package is built and committed at art-direc
 3. P-MT1 (from Step 12c): the ownership wash stays at FILL_ALPHA 0.06 until Jash rules on the 0.14 captures in art-direction/storyboard/step-12c.
 
 Also recorded in the package README: the MAP-TGT side by side the treatment names for this review cannot be produced yet, because MAP-TGT (the R0 rendition) does not exist in this repo and R0 remains queued through the browser lane. The review compares the board against the treatment's acceptance sentences and band numbers instead, and the drift check becomes a small follow-up when R0 lands.
+
+## Item 33: Step 16 checkpoint 1 package, and the zoom pan gap (presented 2026-10-19)
+
+The MAP_TREATMENT Step 16 checkpoint 1 package is built and committed at art-direction/storyboard/step-16 (F05 beat 0, 1, and 2 close-ups at zoom 2, gray copies, a contact sheet, and a README judging the acceptance sentence on the close-up). Two verdicts sit with Jash. Neither is settled by the loop: checkpoint 1 is the owner's checkpoint in the governing sequence, and the pan question changes the build sequence itself. Nothing builds on silence; the shipped game and the Step 17 sequence stay in force until he rules.
+
+1. Checkpoint 1 verdict (old VISUAL_STRATEGY Step 10): do the F05 frames read the way the bible wants a fight to read (who attacked whom, across which border, what the result was, inside one 900 ms beat)? The loop's own reading, recorded in the package README, is that the sentence holds: in beat 1 the state light lies only on the attacked edge (Torford to Kharmund, across the river), and the plaques carry the result (the Vessari attacker destroyed, the Khessite defender at 1x2).
+2. Zoom pan gap (found by Step 16b's captures): at zoom above 1 the map viewport clips the board and the game offers no pan or scroll control, so a player at 200 percent cannot bring the eastern half of the board into view. Zoom 1 is unaffected. Jash rules whether a pan step joins the sequence ahead of Step 17 (atmosphere and palette harness), or the gap waits for a later cycle. Until he rules, Step 17 proceeds as sequenced.
