@@ -1197,39 +1197,29 @@
     };
   }
 
-  // Fog layer constants (Cycle 23 Step 8). Fog is texture and value, never
-  // darkness: the Unknown fill is the lightest state (luma band D, 185 to
-  // 225), the remembered gray sits in band C (120 to 175). The mist color
-  // is itself under 225 luma, so any mist over the Unknown fill stays in
-  // band D however many wisps and puffs overlap.
+  // Fog layer constants (Cycle 23 Step 8, chart fog Step 14, MAP_TREATMENT 6).
+  // Fog is texture and value, never darkness: Unknown is uncharted paper,
+  // the lightest ground on the board (luma band D, 185 to 225); last seen is
+  // a translucent faded chart wash (CHART_FADED at 0.65) that lands in band
+  // C (120 to 175) over both sea and land.
   var FOG_UNKNOWN_FILL = '#DCCDA8';
-  var FOG_REMEMBERED_FILL = '#9E9E97';
-  var FOG_MIST = '#EFE7D3';
-  var FOG_WISP_ALPHA = 0.3;
-  var FOG_PUFF_ALPHA = 0.25;
-  var FOG_HATCH_INK = '#1e1a12';
-  var FOG_HATCH_ALPHA = 0.35;
+  var FOG_REMEMBERED_FILL = '#C2AE86';
+  var FOG_REMEMBERED_ALPHA = 0.65;
+  var FOG_HATCH_INK = '#2B2620';
+  var FOG_HATCH_ALPHA = 0.30;
   var FOG_HATCH_SPACING = 0.12;
   var FOG_HATCH_W = 1.5;
   var FOG_BAND_GRAY = '#6E6E66';
   var FOG_BAND_ALPHA = 0.5;
-  var FOG_WISPS = 3;
-  var FOG_PUFFS = 4;
-
-  // mulberry32 PRNG, seeded by a 32-bit unsigned integer (same as map-geometry.js).
-  function mulberry32(seed) {
-    var t = seed >>> 0;
-    return function () {
-      t = (t + 0x6d2b79f5) >>> 0;
-      var z = Math.imul(t ^ (t >>> 15), 1 | t);
-      z = Math.imul(z ^ (z >>> 7), 61 | t);
-      return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
-  function clampTo(v, lo, hi) {
-    return v < lo ? lo : (v > hi ? hi : v);
-  }
+  // Unknown ink redraw (MAP_TREATMENT 6.3). Widths in cells unless noted.
+  var FOG_COAST_W = 0.008;
+  var FOG_COAST_ALPHA = 0.70;
+  var FOG_WATER_OFFSETS = [0.07, 0.15, 0.26];
+  var FOG_WATER_W_PX = 1;
+  var FOG_WATER_ALPHA = 0.25;
+  var FOG_RIVER_W = 0.006;
+  var FOG_RIVER_ALPHA = 0.60;
+  var FOG_BORDER_ALPHA = 0.35;
 
   // Trace a flat polygon as the current path.
   function tracePolygon(ctx, poly, scaleX, scaleY) {
@@ -1241,38 +1231,168 @@
     ctx.closePath();
   }
 
+  // Trace every flat polygon as one path of closed subpaths. The hit polygon
+  // and its sea sectors never overlap, so the path is their union.
+  function tracePolygons(ctx, polys, scaleX, scaleY) {
+    ctx.beginPath();
+    polys.forEach(function (poly) {
+      if (!poly || poly.length < 6) return;
+      ctx.moveTo(poly[0] * scaleX, poly[1] * scaleY);
+      for (var i = 2; i < poly.length; i += 2) {
+        ctx.lineTo(poly[i] * scaleX, poly[i + 1] * scaleY);
+      }
+      ctx.closePath();
+    });
+  }
+
+  // Stroke flat polylines as one path.
+  function strokePolylines(ctx, lines, scaleX, scaleY) {
+    ctx.beginPath();
+    lines.forEach(function (ln) {
+      if (!ln || ln.length < 4) return;
+      ctx.moveTo(ln[0] * scaleX, ln[1] * scaleY);
+      for (var i = 2; i < ln.length; i += 2) {
+        ctx.lineTo(ln[i] * scaleX, ln[i + 1] * scaleY);
+      }
+    });
+    ctx.stroke();
+  }
+
+  // Even odd point in polygon test on a flat [x, y, ...] polygon.
+  function pointInFlat(x, y, flat) {
+    var inside = false;
+    var n = flat.length / 2;
+    for (var i = 0, j = n - 1; i < n; j = i++) {
+      var xi = flat[2 * i], yi = flat[2 * i + 1];
+      var xj = flat[2 * j], yj = flat[2 * j + 1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  // Area centroid of a flat polygon; the vertex mean when the area vanishes.
+  function flatCentroid(flat) {
+    var n = flat.length / 2;
+    var a = 0, cx = 0, cy = 0, mx = 0, my = 0;
+    for (var i = 0; i < n; i++) {
+      var x0 = flat[2 * i], y0 = flat[2 * i + 1];
+      var j = (i + 1) % n;
+      var x1 = flat[2 * j], y1 = flat[2 * j + 1];
+      var cross = x0 * y1 - x1 * y0;
+      a += cross;
+      cx += (x0 + x1) * cross;
+      cy += (y0 + y1) * cross;
+      mx += x0;
+      my += y0;
+    }
+    if (Math.abs(a) < 1e-12) return { x: mx / n, y: my / n };
+    return { x: cx / (3 * a), y: cy / (3 * a) };
+  }
+
+  // Sea sectors of one province with their coastline chains, ordered along
+  // the coastline so consecutive chains join end to start (a corner province
+  // whose sectors wrap the coastline start comes out in walk order). Each
+  // entry: { seaPart: flat polygon, chain: [{x, y}], first, last } where
+  // first and last are coastline indices of the chain ends.
+  function fogSeaSectors(chart, provinceId) {
+    var coastIndex = {};
+    chart.coastline.forEach(function (q, i) { coastIndex[q.x + ',' + q.y] = i; });
+    var out = [];
+    chart.sectors.forEach(function (sec) {
+      if (!sec.sea || sec.provinceId !== provinceId) return;
+      var chainPts = [];
+      var first = -1, last = -1;
+      sec.seaPart.forEach(function (q) {
+        var idx = coastIndex[q.x + ',' + q.y];
+        if (idx === undefined) return;
+        chainPts.push({ x: q.x, y: q.y });
+        if (first < 0) first = idx;
+        last = idx;
+      });
+      out.push({ seaPart: flatPoints(sec.seaPart), chain: chainPts, first: first, last: last });
+    });
+    if (out.length < 2) return out;
+    var n = chart.coastline.length;
+    var start = 0;
+    for (var s = 0; s < out.length; s++) {
+      var prevIdx = (out[s].first - 1 + n) % n;
+      var hasPrev = out.some(function (o) { return o.last === prevIdx; });
+      if (!hasPrev) { start = s; break; }
+    }
+    return out.slice(start).concat(out.slice(0, start));
+  }
+
+  // Water lines (MAP_TREATMENT 6.3, the 1.6 offsets): one flat polyline per
+  // offset, running through every sea sector of the province in coastline
+  // order. Each chain point moves toward the centroid of its sector sea
+  // part; points that leave the sector are dropped.
+  function fogWaterLines(seaSectors) {
+    var lines = FOG_WATER_OFFSETS.map(function () { return []; });
+    seaSectors.forEach(function (sec) {
+      var c = flatCentroid(sec.seaPart);
+      sec.chain.forEach(function (q) {
+        var dx = c.x - q.x;
+        var dy = c.y - q.y;
+        var len = Math.hypot(dx, dy);
+        if (len < 1e-9) return;
+        FOG_WATER_OFFSETS.forEach(function (d, k) {
+          var x = q.x + dx / len * d;
+          var y = q.y + dy / len * d;
+          if (pointInFlat(x, y, sec.seaPart)) lines[k].push(x, y);
+        });
+      });
+    });
+    return lines;
+  }
+
+  // River centre lines inside a province: the maximal runs of consecutive
+  // river samples inside the hit polygon, two points or more.
+  function fogRiverPaths(chart, hitFlat) {
+    var paths = [];
+    chart.rivers.edges.forEach(function (e) {
+      var run = [];
+      e.samples.forEach(function (q) {
+        if (pointInFlat(q.x, q.y, hitFlat)) {
+          run.push(q.x, q.y);
+        } else {
+          if (run.length >= 4) paths.push(run);
+          run = [];
+        }
+      });
+      if (run.length >= 4) paths.push(run);
+    });
+    return paths;
+  }
+
   // Build fog operations from geometry and view.
-  // Reads ONLY geom polygons and view.provinces (id, intel, snapshot).
-  // Dark provinces emit an 'unknown' op with deterministic mist wisps and
-  // border puffs; remembered provinces emit a 'remembered' op carrying the
-  // snapshot owner; live provinces emit nothing. Sorted by province id.
+  // Reads ONLY geom polygons and view.provinces (id, intel, snapshot), plus
+  // the chart built from geom. Each op covers the province hit polygon plus
+  // its sea sectors (MAP_TREATMENT 6): polygons[0] is the hit polygon and
+  // each sea sector sea part follows. Dark provinces emit an 'unknown' op
+  // carrying the ink redraw paths of 6.3; remembered provinces emit a
+  // 'remembered' op carrying the snapshot owner; live provinces emit
+  // nothing. Sorted by province id. Without the chart module the original
+  // polygon is the only clip polygon and the redraw lists are empty.
   function buildFogOps(geom, view) {
     var ops = [];
     var geomById = {};
     geom.provinces.forEach(function (p) { geomById[p.id] = p; });
-    var mapW = geom.mapW;
-    var mapH = geom.mapH;
+    var chart = AshesChart ? AshesChart.buildChart(geom) : null;
 
     view.provinces.forEach(function (vp) {
       if (vp.intel !== 'dark' && vp.intel !== 'remembered') return;
       var gp = geomById[vp.id];
       if (!gp) return;
-      var poly = gp.polygon;
-      var flat = [];
-      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (var i = 0; i < poly.length; i++) {
-        flat.push(poly[i].x, poly[i].y);
-        if (poly[i].x < minX) minX = poly[i].x;
-        if (poly[i].y < minY) minY = poly[i].y;
-        if (poly[i].x > maxX) maxX = poly[i].x;
-        if (poly[i].y > maxY) maxY = poly[i].y;
-      }
+      var hit = flatPoints(chart && chart.hitPolygons[vp.id] ? chart.hitPolygons[vp.id] : gp.polygon);
+      var seaSectors = chart ? fogSeaSectors(chart, vp.id) : [];
+      var polygons = [hit].concat(seaSectors.map(function (sec) { return sec.seaPart; }));
 
       if (vp.intel === 'remembered') {
         ops.push({
           kind: 'remembered',
           id: vp.id,
-          polygon: flat,
+          polygon: hit,
+          polygons: polygons,
           snapshotOwner: vp.snapshot ? vp.snapshot.owner : null,
           hatch: true,
           hatchAnchor: [gp.x + 0.5, gp.y + 0.5]
@@ -1280,37 +1400,25 @@
         return;
       }
 
-      var rng = mulberry32(fnv1a('fog:' + vp.id));
-      // Wisps: inside the polygon bbox shrunk 15 percent on each side,
-      // clamped to the board.
-      var bw = maxX - minX;
-      var bh = maxY - minY;
-      var sx0 = minX + bw * 0.15, sx1 = maxX - bw * 0.15;
-      var sy0 = minY + bh * 0.15, sy1 = maxY - bh * 0.15;
-      var wisps = [];
-      for (var w = 0; w < FOG_WISPS; w++) {
-        wisps.push({
-          x: clampTo(sx0 + rng() * (sx1 - sx0), 0, mapW),
-          y: clampTo(sy0 + rng() * (sy1 - sy0), 0, mapH),
-          rx: 0.14 + rng() * 0.10,
-          ry: 0.05 + rng() * 0.05
+      var coastPaths = seaSectors.map(function (sec) { return flatPoints(sec.chain); });
+      var waterLines = coastPaths.length ? fogWaterLines(seaSectors) : [];
+      var riverPaths = chart ? fogRiverPaths(chart, hit) : [];
+      var borderPaths = [];
+      if (chart) {
+        chart.chartEdges.forEach(function (e) {
+          if (e.a === vp.id || e.b === vp.id) borderPaths.push(flatPoints(e.path));
         });
       }
-      // Puffs: points along the polygon perimeter, clamped to the board.
-      var puffs = [];
-      var n = poly.length;
-      for (var k = 0; k < FOG_PUFFS; k++) {
-        var seg = Math.floor(rng() * n) % n;
-        var t = rng();
-        var a = poly[seg];
-        var b = poly[(seg + 1) % n];
-        puffs.push({
-          x: clampTo(a.x + (b.x - a.x) * t, 0, mapW),
-          y: clampTo(a.y + (b.y - a.y) * t, 0, mapH),
-          r: 0.05 + rng() * 0.04
-        });
-      }
-      ops.push({ kind: 'unknown', id: vp.id, polygon: flat, wisps: wisps, puffs: puffs });
+      ops.push({
+        kind: 'unknown',
+        id: vp.id,
+        polygon: hit,
+        polygons: polygons,
+        coastPaths: coastPaths,
+        waterLines: waterLines,
+        riverPaths: riverPaths,
+        borderPaths: borderPaths
+      });
     });
 
     ops.sort(function (a, b) { return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0); });
@@ -1331,50 +1439,71 @@
       }
       var poly = op.polygon;
       if (!poly || poly.length < 6) return;
+      var polys = op.polygons && op.polygons.length ? op.polygons : [poly];
+      var hit = polys[0];
 
       if (op.kind === 'unknown') {
+        // 6.3: uncharted paper over the hit polygon plus the sea sectors,
+        // then the Ink any chart of the region would show, inside that clip.
         ctx.save();
-        tracePolygon(ctx, poly, scaleX, scaleY);
+        tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.clip();
         ctx.globalAlpha = 1;
         ctx.fillStyle = FOG_UNKNOWN_FILL;
-        tracePolygon(ctx, poly, scaleX, scaleY);
+        tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.fill();
 
-        ctx.fillStyle = FOG_MIST;
-        ctx.globalAlpha = FOG_WISP_ALPHA;
-        op.wisps.forEach(function (w) {
-          ctx.beginPath();
-          ctx.ellipse(w.x * scaleX, w.y * scaleY, w.rx * scaleX, w.ry * scaleY, 0, 0, Math.PI * 2);
-          ctx.fill();
-        });
-        ctx.globalAlpha = FOG_PUFF_ALPHA;
-        op.puffs.forEach(function (p) {
-          ctx.beginPath();
-          ctx.arc(p.x * scaleX, p.y * scaleY, p.r * scaleX, 0, Math.PI * 2);
-          ctx.fill();
-        });
+        ctx.strokeStyle = CHART_INK;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        if (op.coastPaths && op.coastPaths.length) {
+          ctx.globalAlpha = FOG_COAST_ALPHA;
+          ctx.lineWidth = FOG_COAST_W * scaleX;
+          strokePolylines(ctx, op.coastPaths, scaleX, scaleY);
+        }
+        if (op.waterLines && op.waterLines.length) {
+          ctx.globalAlpha = FOG_WATER_ALPHA;
+          ctx.lineWidth = FOG_WATER_W_PX;
+          strokePolylines(ctx, op.waterLines, scaleX, scaleY);
+        }
+        if (op.riverPaths && op.riverPaths.length) {
+          ctx.globalAlpha = FOG_RIVER_ALPHA;
+          ctx.lineWidth = FOG_RIVER_W * scaleX;
+          strokePolylines(ctx, op.riverPaths, scaleX, scaleY);
+        }
+        if (op.borderPaths && op.borderPaths.length) {
+          ctx.globalAlpha = FOG_BORDER_ALPHA;
+          ctx.lineWidth = BORDER_LINE_W * scaleX;
+          ctx.setLineDash([BORDER_DASH * scaleX, BORDER_GAP * scaleX]);
+          strokePolylines(ctx, op.borderPaths, scaleX, scaleY);
+          ctx.setLineDash([]);
+        }
         ctx.restore();
       } else if (op.kind === 'remembered') {
-        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (var i = 0; i < poly.length; i += 2) {
-          if (poly[i] < minX) minX = poly[i];
-          if (poly[i] > maxX) maxX = poly[i];
-          if (poly[i + 1] < minY) minY = poly[i + 1];
-          if (poly[i + 1] > maxY) maxY = poly[i + 1];
-        }
-
+        // 6.2: a faded chart wash over the hit polygon plus the sea sectors.
         ctx.save();
-        tracePolygon(ctx, poly, scaleX, scaleY);
+        tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.clip();
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = FOG_REMEMBERED_ALPHA;
         ctx.fillStyle = FOG_REMEMBERED_FILL;
-        tracePolygon(ctx, poly, scaleX, scaleY);
+        tracePolygons(ctx, polys, scaleX, scaleY);
         ctx.fill();
+        ctx.restore();
 
         if (op.hatch) {
-          // Diagonal hatch lines x - y = c, phased so the province cell
-          // centre falls midway between two lines and reads the flat fill.
+          var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (var i = 0; i < hit.length; i += 2) {
+            if (hit[i] < minX) minX = hit[i];
+            if (hit[i] > maxX) maxX = hit[i];
+            if (hit[i + 1] < minY) minY = hit[i + 1];
+            if (hit[i + 1] > maxY) maxY = hit[i + 1];
+          }
+          // Diagonal hatch lines x - y = c inside the hit polygon, phased so
+          // the province cell centre falls midway between two lines and
+          // reads the flat wash.
+          ctx.save();
+          tracePolygon(ctx, hit, scaleX, scaleY);
+          ctx.clip();
           var s = FOG_HATCH_SPACING;
           var anchor = op.hatchAnchor || [(minX + maxX) / 2, (minY + maxY) / 2];
           var c0 = (anchor[0] - anchor[1]) + s / 2;
@@ -1386,16 +1515,17 @@
             ctx.moveTo((c + minY) * scaleX, minY * scaleY);
             ctx.lineTo((c + maxY) * scaleX, maxY * scaleY);
           }
-          ctx.strokeStyle = FOG_HATCH_INK;
+          ctx.strokeStyle = CHART_INK || FOG_HATCH_INK;
           ctx.globalAlpha = FOG_HATCH_ALPHA;
           ctx.lineWidth = FOG_HATCH_W;
           ctx.stroke();
+          ctx.restore();
         }
-        ctx.restore();
 
-        // Gray band standing in for the last known owner band.
+        // Gray band standing in for the last known owner band, along the
+        // hit polygon perimeter (coastline chain and chart edge paths).
         ctx.save();
-        tracePolygon(ctx, poly, scaleX, scaleY);
+        tracePolygon(ctx, hit, scaleX, scaleY);
         ctx.strokeStyle = FOG_BAND_GRAY;
         ctx.globalAlpha = FOG_BAND_ALPHA;
         ctx.lineWidth = bandW;
@@ -1439,6 +1569,13 @@
   function fogOpsHash(ops) {
     var parts = [];
     function pushNum(v) { parts.push(v.toFixed(4)); }
+    function pushLists(tag, lists) {
+      parts.push(tag + lists.length);
+      lists.forEach(function (ln) {
+        parts.push('#' + ln.length);
+        ln.forEach(pushNum);
+      });
+    }
     ops.forEach(function (op) {
       parts.push(op.kind);
       // Graticule furniture (Step 13) carries only its line, no id or polygon.
@@ -1452,12 +1589,12 @@
         parts.push(op.hatch ? '1' : '0');
         if (op.hatchAnchor) { pushNum(op.hatchAnchor[0]); pushNum(op.hatchAnchor[1]); }
       }
-      for (var i = 0; i < op.polygon.length; i++) pushNum(op.polygon[i]);
-      if (op.wisps) {
-        op.wisps.forEach(function (w) { pushNum(w.x); pushNum(w.y); pushNum(w.rx); pushNum(w.ry); });
-      }
-      if (op.puffs) {
-        op.puffs.forEach(function (p) { pushNum(p.x); pushNum(p.y); pushNum(p.r); });
+      pushLists('P', op.polygons || [op.polygon]);
+      if (op.kind === 'unknown') {
+        pushLists('C', op.coastPaths || []);
+        pushLists('W', op.waterLines || []);
+        pushLists('R', op.riverPaths || []);
+        pushLists('B', op.borderPaths || []);
       }
     });
     var canonical = parts.join('|');
@@ -1544,9 +1681,7 @@
     // Fog layer exports
     FOG_UNKNOWN_FILL: FOG_UNKNOWN_FILL,
     FOG_REMEMBERED_FILL: FOG_REMEMBERED_FILL,
-    FOG_MIST: FOG_MIST,
-    FOG_WISP_ALPHA: FOG_WISP_ALPHA,
-    FOG_PUFF_ALPHA: FOG_PUFF_ALPHA,
+    FOG_REMEMBERED_ALPHA: FOG_REMEMBERED_ALPHA,
     buildFogOps: buildFogOps,
     drawFogOps: drawFogOps,
     fogOpsHash: fogOpsHash,

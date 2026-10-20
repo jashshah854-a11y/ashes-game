@@ -69,11 +69,35 @@ function expectedCounts(state) {
 
 async function importSave(page, savePath) {
   await H.dismissBurst(page);
+  // loadFromText restarts the timer unpaused at speed 1, so the first tick
+  // lands about 900 ms after the load. Pausing from outside (notice poll, then
+  // a Playwright click) costs CDP round trips that can cross that tick and
+  // move the fixture off its committed counts. So a one-shot observer pauses
+  // in page: its callback runs as a microtask right after the load handler
+  // writes the Loaded notice, before any queued tick task. Error notices never
+  // click.
+  await page.evaluate(function () {
+    var notice = document.getElementById('save-notice');
+    var observer = new MutationObserver(function () {
+      if (notice.textContent.trim().indexOf('Loaded') !== 0) return;
+      observer.disconnect();
+      var btn = document.getElementById('btn-pause');
+      if (btn.textContent.trim() === 'Pause') btn.click();
+    });
+    observer.observe(notice, { childList: true, characterData: true, subtree: true });
+  });
   const [chooser] = await Promise.all([ page.waitForEvent('filechooser'), page.click('#btn-import') ]);
   await chooser.setFiles(savePath);
   await H.waitFor(page, async () => { const notice = (await page.textContent('#save-notice')).trim(); return notice.indexOf('Loaded') === 0 || notice.indexOf('Error') !== -1 || notice.indexOf('could not') !== -1; }, 5000);
+  // Confirms the button reads Resume; returns at once when the observer
+  // already paused, so it adds no click in the normal path.
   await H.ensurePaused(page);
   await H.dismissBurst(page);
+  // Clicking #btn-import scrolls the low Import button into view. The old
+  // outside pause click on the top bar scrolled back up as a side effect; the
+  // in-page pause does not, so restore the scroll explicitly, because later
+  // screenshot geometry must not depend on an outside click scrolling back.
+  await page.evaluate(function () { window.scrollTo(0, 0); });
 }
 
 // Paused page state through the browser slot: save, read the slot text, and

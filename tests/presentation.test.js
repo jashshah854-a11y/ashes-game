@@ -1044,33 +1044,70 @@ test('fog ops: deterministic, and flipping one province intel changes the hash',
   assert.strictEqual(flipped.length, a.length - 1);
 });
 
-test('fog palette: Unknown fill luma in band D (185 to 225), remembered fill in band C (120 to 175), at least 25 apart, mist cannot leave band D', () => {
+test('fog palette: chart fog (MAP_TREATMENT 6, C6): Unknown fill in band D, CHART_FADED wash at 0.65 lands in band C over sea and land and stays translucent', () => {
+  const C = require('../js/map-chart.js').CHART_CONSTANTS;
   const unknownLuma = hexLuma(AshesMapCanvas.FOG_UNKNOWN_FILL);
-  const rememberedLuma = hexLuma(AshesMapCanvas.FOG_REMEMBERED_FILL);
-  const mistLuma = hexLuma(AshesMapCanvas.FOG_MIST);
+  assert.strictEqual(AshesMapCanvas.FOG_UNKNOWN_FILL, '#DCCDA8', 'Unknown fill keeps its value');
   assert.ok(unknownLuma >= 185 && unknownLuma <= 225, 'unknown luma ' + unknownLuma.toFixed(1));
-  assert.ok(rememberedLuma >= 120 && rememberedLuma <= 175, 'remembered luma ' + rememberedLuma.toFixed(1));
-  assert.ok(unknownLuma - rememberedLuma >= 25, 'difference ' + (unknownLuma - rememberedLuma).toFixed(1));
-  // Worst case: all 3 wisps and 1 puff stacked over one pixel of Unknown fill.
-  assert.ok(mistLuma > unknownLuma, 'mist reads lighter than the fill');
-  let worst = unknownLuma;
-  for (let i = 0; i < 3; i++) worst += (mistLuma - worst) * AshesMapCanvas.FOG_WISP_ALPHA;
-  worst += (mistLuma - worst) * AshesMapCanvas.FOG_PUFF_ALPHA;
-  assert.ok(worst <= 225, 'worst case stacked mist luma ' + worst.toFixed(1));
-  assert.ok(AshesMapCanvas.FOG_WISP_ALPHA <= 0.35 && AshesMapCanvas.FOG_PUFF_ALPHA <= 0.3);
+  assert.strictEqual(AshesMapCanvas.FOG_REMEMBERED_FILL, '#C2AE86', 'remembered fill is CHART_FADED');
+  const fadedLuma = hexLuma(AshesMapCanvas.FOG_REMEMBERED_FILL);
+  assert.ok(Math.abs(fadedLuma - 175.3) < 0.1, 'CHART_FADED luma ' + fadedLuma.toFixed(2));
+  assert.strictEqual(AshesMapCanvas.FOG_REMEMBERED_ALPHA, 0.65);
+  assert.ok(Math.abs(hexLuma(C.SEA_DEEP) - 85.0) < 0.1, 'SEA_DEEP luma ' + hexLuma(C.SEA_DEEP).toFixed(2));
+  assert.ok(Math.abs(hexLuma(C.LAND_LOW) - 125.5) < 0.1, 'LAND_LOW luma ' + hexLuma(C.LAND_LOW).toFixed(2));
+  const a = AshesMapCanvas.FOG_REMEMBERED_ALPHA;
+  const overSea = a * fadedLuma + (1 - a) * hexLuma(C.SEA_DEEP);
+  const overLand = a * fadedLuma + (1 - a) * hexLuma(C.LAND_LOW);
+  assert.ok(overSea >= 120 && overSea <= 175, 'wash over SEA_DEEP ' + overSea.toFixed(1));
+  assert.ok(Math.abs(overSea - 144) < 1, 'about 144 over open sea, got ' + overSea.toFixed(1));
+  assert.ok(overLand >= 120 && overLand <= 175, 'wash over LAND_LOW ' + overLand.toFixed(1));
+  assert.ok(overLand - overSea > 10, 'the composite follows the ground, so the wash is translucent, not opaque gray');
+  assert.ok(unknownLuma - overLand >= 25 && unknownLuma - overSea >= 25, 'Unknown stays the lightest state by at least 25');
 });
 
-test('fog ops: every unknown op has exactly 3 wisps and 4 puffs, all inside the board bounds (seed 42 and fixture)', () => {
-  [playerView(Sim.createGame(42)), fogFixtureView()].forEach(function (view) {
+test('fog ops: unknown ops carry the 6.3 ink redraw, no wisps or puffs; coastal provinces get 3 water lines in their sea sectors (seed 42 and fixture)', () => {
+  const AC = require('../js/map-chart.js');
+  [playerView(Sim.createGame(42)), fogFixtureView()].forEach(function (view, vi) {
     const geom = AshesMapGeometry.buildGeometry(view);
+    const chart = AC.buildChart(geom);
+    const ext = chart.extent;
     const ops = AshesMapCanvas.buildFogOps(geom, view);
+    let coastal = 0;
     ops.filter(function (op) { return op.kind === 'unknown'; }).forEach(function (op) {
-      assert.strictEqual(op.wisps.length, 3, 'wisps for ' + op.id);
-      assert.strictEqual(op.puffs.length, 4, 'puffs for ' + op.id);
-      op.wisps.concat(op.puffs).forEach(function (pt) {
-        assert.ok(pt.x >= 0 && pt.x <= geom.mapW && pt.y >= 0 && pt.y <= geom.mapH, op.id + ' point ' + pt.x + ',' + pt.y);
+      assert.ok(!('wisps' in op) && !('puffs' in op), 'no wisps or puffs on ' + op.id);
+      const sectors = chart.sectors.filter(function (s) { return s.sea && s.provinceId === op.id; });
+      if (sectors.length) {
+        coastal++;
+        assert.ok(op.coastPaths.length > 0, 'coast paths for coastal ' + op.id);
+        assert.strictEqual(op.waterLines.length, 3, 'three water lines for ' + op.id);
+        const chains = op.coastPaths.map(function (c) {
+          const pts = [];
+          for (let i = 0; i < c.length; i += 2) pts.push({ x: c[i], y: c[i + 1] });
+          return pts;
+        });
+        op.waterLines.forEach(function (w, k) {
+          assert.ok(w.length >= 4, op.id + ' water line ' + k + ' has points');
+          for (let i = 0; i < w.length; i += 2) {
+            const p = { x: w[i], y: w[i + 1] };
+            assert.ok(sectors.some(function (s) { return AC.pointInPolygon(p, s.seaPart); }), op.id + ' water point inside a sea sector');
+            let best = Infinity;
+            chains.forEach(function (ch) {
+              for (let j = 0; j + 1 < ch.length; j++) best = Math.min(best, step9DistToSeg(p, ch[j], ch[j + 1]));
+            });
+            assert.ok(best <= 0.30, op.id + ' water point within 0.30 of the coast, got ' + best.toFixed(3));
+          }
+        });
+      } else {
+        assert.deepStrictEqual(op.coastPaths, [], 'inland ' + op.id + ' has no coast');
+        assert.deepStrictEqual(op.waterLines, [], 'inland ' + op.id + ' has no water lines');
+      }
+      op.riverPaths.concat(op.borderPaths).forEach(function (ln) {
+        for (let i = 0; i < ln.length; i += 2) {
+          assert.ok(ln[i] >= ext.x0 && ln[i] <= ext.x1 && ln[i + 1] >= ext.y0 && ln[i + 1] <= ext.y1, op.id + ' path point inside the chart extent');
+        }
       });
     });
+    if (vi === 0) assert.ok(coastal > 0, 'seed 42 has a dark coastal province');
   });
 });
 
@@ -2200,4 +2237,159 @@ test('chart label wiring: #map-chart-labels in index.html, registered in main.js
   });
   assert.ok(main.indexOf('furnitureOps') !== -1, 'AshesFogDebug reports furnitureOps');
   assert.ok(/#map-chart-labels\s*\{[^}]*z-index:\s*5/.test(css), 'style.css has the #map-chart-labels layer at z-index 5');
+});
+
+// Cycle 23 Step 14: fog on the chart (MAP_TREATMENT 6.2 to 6.4).
+
+// Seed 42 view with p5_0 flipped to dark. Neither seed 42 nor the worst case
+// fixture has a dark province holding river samples (the rivers run down the
+// p5 column, live in both), so the river redraw is pinned on this view built
+// from the real modules. p5_0 is also coastal, so it carries every redraw list.
+function step14RiverView() {
+  const view = playerView(Sim.createGame(42));
+  const target = view.provinces.find(function (p) { return p.id === 'p5_0'; });
+  assert.strictEqual(target.intel, 'live', 'p5_0 starts live on seed 42');
+  target.intel = 'dark';
+  return view;
+}
+
+function step14Recorder() {
+  const rec = { fills: [], strokes: [], clips: 0, ellipses: 0, arcs: 0, dash: [] };
+  const ctx = {
+    strokeStyle: '', fillStyle: '', lineWidth: 1, globalAlpha: 1, lineJoin: 'miter', lineCap: 'butt',
+    beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, save() {}, restore() {},
+    clip() { rec.clips++; },
+    ellipse() { rec.ellipses++; },
+    arc() { rec.arcs++; },
+    setLineDash(d) { rec.dash = d.slice(); },
+    fill() { rec.fills.push({ style: this.fillStyle, alpha: this.globalAlpha }); },
+    stroke() { rec.strokes.push({ style: this.strokeStyle, alpha: this.globalAlpha, width: this.lineWidth, cap: this.lineCap, dash: rec.dash.slice() }); }
+  };
+  return { ctx: ctx, rec: rec };
+}
+
+test('fog clip coverage: polygons[0] is the chart hit polygon and each further polygon is one of the province sea sector sea parts (seed 42 and fixture)', () => {
+  [playerView(Sim.createGame(42)), fogFixtureView()].forEach(function (view) {
+    const geom = AshesMapGeometry.buildGeometry(view);
+    const chart = AshesChart.buildChart(geom);
+    const ops = AshesMapCanvas.buildFogOps(geom, view);
+    assert.ok(ops.length > 0);
+    ops.forEach(function (op) {
+      const hit = flatOf(chart.hitPolygons[op.id]);
+      assert.deepStrictEqual(op.polygons[0], hit, 'polygons[0] is the hit polygon for ' + op.id);
+      assert.deepStrictEqual(op.polygon, hit, 'polygon stays the hit polygon for ' + op.id);
+      const seaParts = chart.sectors.filter(function (s) { return s.sea && s.provinceId === op.id; })
+        .map(function (s) { return flatOf(s.seaPart); });
+      assert.strictEqual(op.polygons.length, 1 + seaParts.length, 'one polygon plus one per sea sector for ' + op.id);
+      const used = {};
+      op.polygons.slice(1).forEach(function (poly) {
+        const k = seaParts.findIndex(function (sp, i) { return !used[i] && JSON.stringify(sp) === JSON.stringify(poly); });
+        assert.ok(k >= 0, op.id + ' sea polygon equals a chart sector sea part exactly');
+        used[k] = true;
+      });
+    });
+  });
+});
+
+test('fog ink redraw truth: river runs follow the chart river samples inside the hit polygon; border paths are the incident chart edge paths', () => {
+  const views = [playerView(Sim.createGame(42)), fogFixtureView(), step14RiverView()];
+  let riverOps = 0;
+  views.forEach(function (view, vi) {
+    const geom = AshesMapGeometry.buildGeometry(view);
+    const chart = AshesChart.buildChart(geom);
+    const ops = AshesMapCanvas.buildFogOps(geom, view);
+    ops.filter(function (op) { return op.kind === 'unknown'; }).forEach(function (op) {
+      const hitPts = chart.hitPolygons[op.id];
+      const expectBorders = chart.chartEdges.filter(function (e) { return e.a === op.id || e.b === op.id; })
+        .map(function (e) { return flatOf(e.path); });
+      assert.deepStrictEqual(op.borderPaths, expectBorders, 'border paths for ' + op.id);
+      let samplesInside = 0;
+      chart.rivers.edges.forEach(function (e) {
+        e.samples.forEach(function (q) { if (AshesChart.pointInPolygon(q, hitPts)) samplesInside++; });
+      });
+      if (vi < 2) assert.strictEqual(samplesInside, 0, 'no river sample in dark ' + op.id + ' on seed 42 or the fixture');
+      assert.strictEqual(op.riverPaths.length > 0, samplesInside > 1, 'river paths exist where river samples do for ' + op.id);
+      op.riverPaths.forEach(function (rp) {
+        assert.ok(rp.length >= 4, 'a river run has at least 2 points');
+        for (let i = 0; i < rp.length; i += 2) {
+          assert.ok(AshesChart.pointInPolygon({ x: rp[i], y: rp[i + 1] }, hitPts), op.id + ' river point inside the hit polygon');
+        }
+        const run = JSON.stringify(rp).slice(1, -1);
+        assert.ok(chart.rivers.edges.some(function (e) {
+          return JSON.stringify(flatOf(e.samples)).indexOf(run) !== -1;
+        }), op.id + ' river run is consecutive samples of one river edge');
+      });
+      if (op.riverPaths.length) riverOps++;
+    });
+    if (vi === 2) {
+      const p50 = ops.find(function (op) { return op.id === 'p5_0'; });
+      assert.ok(p50 && p50.kind === 'unknown', 'p5_0 is dark on the river view');
+      assert.ok(p50.coastPaths.length > 0 && p50.waterLines.length === 3, 'p5_0 is coastal');
+      assert.ok(p50.riverPaths.length > 0, 'p5_0 carries a river path');
+    }
+  });
+  assert.ok(riverOps > 0, 'at least one dark coastal province draws a river');
+});
+
+test('fog draw rule: remembered fills #C2AE86 at 0.65 and hatches Ink at 0.30; unknown fills #DCCDA8 at 1 then coast 0.70, water 0.25, river 0.60, dashed borders 0.35; no ellipse or arc', () => {
+  const scaleX = 160;
+  const fixture = fogFixtureView();
+  const fGeom = AshesMapGeometry.buildGeometry(fixture);
+  const remembered = AshesMapCanvas.buildFogOps(fGeom, fixture).find(function (op) { return op.kind === 'remembered'; });
+  const r = step14Recorder();
+  AshesMapCanvas.drawFogOps(r.ctx, [remembered], scaleX, scaleX);
+  assert.strictEqual(r.rec.fills.length, 1, 'one wash fill over the union clip');
+  assert.deepStrictEqual(r.rec.fills[0], { style: '#C2AE86', alpha: 0.65 });
+  const hatch = r.rec.strokes.filter(function (s) { return s.style === '#2B2620'; });
+  assert.strictEqual(hatch.length, 1, 'one hatch stroke');
+  assert.strictEqual(hatch[0].alpha, 0.30);
+  assert.strictEqual(hatch[0].width, 1.5);
+  const band = r.rec.strokes.filter(function (s) { return s.style === '#6E6E66'; });
+  assert.strictEqual(band.length, 1, 'one gray owner band');
+  assert.strictEqual(band[0].alpha, 0.5);
+
+  const view = step14RiverView();
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const unknown = AshesMapCanvas.buildFogOps(geom, view).find(function (op) { return op.id === 'p5_0'; });
+  const u = step14Recorder();
+  AshesMapCanvas.drawFogOps(u.ctx, [unknown], scaleX, scaleX);
+  assert.deepStrictEqual(u.rec.fills, [{ style: '#DCCDA8', alpha: 1 }], 'one opaque Unknown fill');
+  assert.ok(u.rec.clips >= 1, 'the redraw is clipped');
+  assert.strictEqual(u.rec.ellipses, 0, 'no wisps');
+  assert.strictEqual(u.rec.arcs, 0, 'no puffs');
+  assert.strictEqual(u.rec.strokes.length, 4, 'coast, water, river, border passes');
+  u.rec.strokes.forEach(function (s) { assert.strictEqual(s.style, '#2B2620', 'redraw in chart Ink'); });
+  const [coast, water, river, border] = u.rec.strokes;
+  assert.strictEqual(coast.alpha, 0.70);
+  assert.strictEqual(coast.width, 0.008 * scaleX);
+  assert.deepStrictEqual(coast.dash, []);
+  assert.strictEqual(water.alpha, 0.25);
+  assert.strictEqual(water.width, 1);
+  assert.strictEqual(river.alpha, 0.60);
+  assert.strictEqual(river.width, 0.006 * scaleX);
+  assert.deepStrictEqual(river.dash, []);
+  assert.strictEqual(border.alpha, 0.35);
+  assert.strictEqual(border.cap, 'round');
+  assert.deepStrictEqual(border.dash, [0.040 * scaleX, 0.025 * scaleX], 'province border dash');
+  assert.deepStrictEqual(u.rec.dash, [], 'dash reset after the border pass');
+});
+
+test('fog hash: covers the chart fog op shape, deterministic on the fixture, graticule furniture hash unchanged', () => {
+  const view = fogFixtureView();
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const ops = AshesMapCanvas.buildFogOps(geom, view);
+  const base = AshesMapCanvas.fogOpsHash(ops);
+  assert.strictEqual(AshesMapCanvas.fogOpsHash(AshesMapCanvas.buildFogOps(geom, view)), base, 'deterministic');
+  const idx = ops.findIndex(function (op) { return op.kind === 'unknown' && op.waterLines.length === 3; });
+  assert.ok(idx >= 0, 'fixture has a dark coastal op');
+  ['waterLines', 'coastPaths', 'borderPaths'].forEach(function (field) {
+    const cloned = JSON.parse(JSON.stringify(ops));
+    cloned[idx][field][0][0] += 0.01;
+    assert.notStrictEqual(AshesMapCanvas.fogOpsHash(cloned), base, 'editing ' + field + ' changes the hash');
+  });
+  const dropped = JSON.parse(JSON.stringify(ops));
+  dropped[idx].polygons.pop();
+  assert.notStrictEqual(AshesMapCanvas.fogOpsHash(dropped), base, 'dropping a sea sector polygon changes the hash');
+  // Measured before Step 14 on the Step 13 module: furniture alone hashed 7077c178.
+  assert.strictEqual(AshesMapCanvas.fogOpsHash(AshesMapCanvas.buildFurnitureOps(geom)), '7077c178');
 });
