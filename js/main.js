@@ -2374,6 +2374,10 @@
   // Cycle 23 Step 19a: the TX-LAND pattern loads asynchronously after the
   // first base render, so rebake the base once when it becomes ready.
   window.addEventListener('ashes-land-texture-ready', function () { renderBaseCanvasNow(); });
+  // Cycle 23 Step 19b: TX-SEA and TX-PAPER load the same way; rebake once
+  // when each becomes ready.
+  window.addEventListener('ashes-sea-texture-ready', function () { renderBaseCanvasNow(); });
+  window.addEventListener('ashes-paper-texture-ready', function () { renderBaseCanvasNow(); });
 
   newGame();
   updateSlotMeta();

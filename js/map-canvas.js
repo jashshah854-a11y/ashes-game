@@ -29,6 +29,15 @@
     ? require('./tx-land-data.js')
     : global.AshesTxLandData;
 
+  // TX-SEA and TX-PAPER texture data (Cycle 23 Step 19b): node require,
+  // browser global.
+  var AshesTxSeaData = (typeof module !== 'undefined' && module.exports)
+    ? require('./tx-sea-data.js')
+    : global.AshesTxSeaData;
+  var AshesTxPaperData = (typeof module !== 'undefined' && module.exports)
+    ? require('./tx-paper-data.js')
+    : global.AshesTxPaperData;
+
   // Rail restyle (Cycle 23 Step 10, MAP_TREATMENT 2.6), in cell units.
   var RAIL_LINE_W = 0.008;
   var RAIL_TIE_STEP = 0.06;
@@ -936,11 +945,34 @@
   var TX_LAND_SIZE = 1024;
   var TX_LAND_VALUE_SCALE = 0.25;
 
+  // TX-SEA sea texture (Cycle 23 Step 19b, MAP_TREATMENT 7.3): the Blender
+  // route bake (tools/bake-tx-sea.py) as a pattern over the sea only,
+  // soft-light at alpha 0.30. TX_SEA_VALUE_SCALE compresses the texture
+  // around mid gray (128) before it becomes a pattern, as TX_LAND_VALUE_SCALE
+  // does; 1 is the image as baked.
+  var TX_SEA_ALPHA = 0.30;
+  var TX_SEA_SIZE = 1024;
+  var TX_SEA_VALUE_SCALE = 1;
+
+  // TX-PAPER border paper (Cycle 23 Step 19b, MAP_TREATMENT 7.3): the Blender
+  // route bake (tools/bake-tx-paper.py) as an opaque fill of the border
+  // strip. It is a fill, not an overlay, so it has no alpha or value scale.
+  var TX_PAPER_SIZE = 1024;
+
+  // Shared texture debug object (exported as textureDebug and as the global
+  // AshesTextureDebug). The land field names predate Step 19b and keep their
+  // meaning; tools/band-report.js reads them.
   var txLandDebug = {
     landState: 'unavailable',
     landAlpha: TX_LAND_ALPHA,
     landSize: TX_LAND_SIZE,
-    landValueScale: TX_LAND_VALUE_SCALE
+    landValueScale: TX_LAND_VALUE_SCALE,
+    seaState: 'unavailable',
+    seaAlpha: TX_SEA_ALPHA,
+    seaSize: TX_SEA_SIZE,
+    seaValueScale: TX_SEA_VALUE_SCALE,
+    paperState: 'unavailable',
+    paperSize: TX_PAPER_SIZE
   };
   var txLandSource = null;
 
@@ -1010,6 +1042,137 @@
     return true;
   }
 
+  var txSeaSource = null;
+  var txPaperSource = null;
+
+  // Browser-only loader for TX-SEA, started lazily by the first
+  // renderBaseCanvas call. Never throws into rendering: a decode or canvas
+  // failure records 'error'.
+  function startSeaTexture() {
+    if (txLandDebug.seaState !== 'unavailable') return;
+    if (typeof document === 'undefined' || typeof Image === 'undefined' || !AshesTxSeaData) return;
+    txLandDebug.seaState = 'loading';
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var sc = document.createElement('canvas');
+          sc.width = TX_SEA_SIZE;
+          sc.height = TX_SEA_SIZE;
+          var sctx = sc.getContext('2d');
+          // Value remap out = 128 + (in - 128) * TX_SEA_VALUE_SCALE, the same
+          // mid gray trick as TX-LAND: source-over of the image at alpha
+          // TX_SEA_VALUE_SCALE on mid gray (k * in + (1 - k) * 128 is the
+          // same line), because game code never reads pixels back.
+          if (TX_SEA_VALUE_SCALE !== 1) {
+            sctx.fillStyle = 'rgb(128, 128, 128)';
+            sctx.fillRect(0, 0, TX_SEA_SIZE, TX_SEA_SIZE);
+            sctx.globalAlpha = TX_SEA_VALUE_SCALE;
+          }
+          sctx.drawImage(img, 0, 0, TX_SEA_SIZE, TX_SEA_SIZE);
+          sctx.globalAlpha = 1;
+          txSeaSource = sc;
+          txLandDebug.seaState = 'ready';
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new Event('ashes-sea-texture-ready'));
+          }
+        } catch (e) {
+          txSeaSource = null;
+          txLandDebug.seaState = 'error';
+        }
+      };
+      img.onerror = function () {
+        txSeaSource = null;
+        txLandDebug.seaState = 'error';
+      };
+      img.src = 'data:image/webp;base64,' + AshesTxSeaData;
+    } catch (e) {
+      txLandDebug.seaState = 'error';
+    }
+  }
+
+  // Browser-only loader for TX-PAPER, started lazily by the first
+  // renderBaseCanvas call. Never throws into rendering. No value remap: the
+  // paper is a fill and is used as baked.
+  function startPaperTexture() {
+    if (txLandDebug.paperState !== 'unavailable') return;
+    if (typeof document === 'undefined' || typeof Image === 'undefined' || !AshesTxPaperData) return;
+    txLandDebug.paperState = 'loading';
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var sc = document.createElement('canvas');
+          sc.width = TX_PAPER_SIZE;
+          sc.height = TX_PAPER_SIZE;
+          sc.getContext('2d').drawImage(img, 0, 0, TX_PAPER_SIZE, TX_PAPER_SIZE);
+          txPaperSource = sc;
+          txLandDebug.paperState = 'ready';
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new Event('ashes-paper-texture-ready'));
+          }
+        } catch (e) {
+          txPaperSource = null;
+          txLandDebug.paperState = 'error';
+        }
+      };
+      img.onerror = function () {
+        txPaperSource = null;
+        txLandDebug.paperState = 'error';
+      };
+      img.src = 'data:image/webp;base64,' + AshesTxPaperData;
+    } catch (e) {
+      txLandDebug.paperState = 'error';
+    }
+  }
+
+  // Draw the TX-SEA pattern clipped to the sea only: one path of the
+  // neatline rect plus the coastline, clipped with the evenodd rule, so the
+  // land inside the coast is excluded. Returns false, drawing nothing, until
+  // the pattern source is ready. As with TX-LAND, the context is translated
+  // only, so pattern space is device px and one tile is 1024 device px; no
+  // pattern transform is set.
+  function drawSeaTexture(ctx, chart, scaleX, scaleY) {
+    if (!txSeaSource) return false;
+    var neat = chart.neatline;
+    var x0 = neat.x0 * scaleX;
+    var y0 = neat.y0 * scaleY;
+    var w = (neat.x1 - neat.x0) * scaleX;
+    var h = (neat.y1 - neat.y0) * scaleY;
+    ctx.save();
+    traceClosed(ctx, coastFlat(chart), scaleX, scaleY);
+    ctx.rect(x0, y0, w, h);
+    ctx.clip('evenodd');
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = TX_SEA_ALPHA;
+    ctx.fillStyle = ctx.createPattern(txSeaSource, 'repeat');
+    ctx.fillRect(x0, y0, w, h);
+    ctx.restore();
+    return true;
+  }
+
+  // Draw the TX-PAPER pattern as an opaque fill (source-over, alpha 1) of the
+  // border strip only: one path of the chart extent rect plus the neatline
+  // rect, clipped with the evenodd rule. Returns false until the pattern
+  // source is ready. Pattern space is device px, one tile 1024 device px, no
+  // pattern transform (same reasoning as TX-LAND).
+  function drawPaperTexture(ctx, chart, scaleX, scaleY) {
+    if (!txPaperSource) return false;
+    var ext = chart.extent;
+    var neat = chart.neatline;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ext.x0 * scaleX, ext.y0 * scaleY, (ext.x1 - ext.x0) * scaleX, (ext.y1 - ext.y0) * scaleY);
+    ctx.rect(neat.x0 * scaleX, neat.y0 * scaleY, (neat.x1 - neat.x0) * scaleX, (neat.y1 - neat.y0) * scaleY);
+    ctx.clip('evenodd');
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = ctx.createPattern(txPaperSource, 'repeat');
+    ctx.fillRect(ext.x0 * scaleX, ext.y0 * scaleY, (ext.x1 - ext.x0) * scaleX, (ext.y1 - ext.y0) * scaleY);
+    ctx.restore();
+    return true;
+  }
+
   // Render the base offscreen canvas. Browser only (needs document).
   // Returns {canvas, width, height, hash, ops} or null if not in browser.
   function renderBaseCanvas(geom, view, widthPx, heightPx) {
@@ -1018,6 +1181,8 @@
     }
 
     startLandTexture();
+    startSeaTexture();
+    startPaperTexture();
 
     var canvas = document.createElement('canvas');
     var fitted = fitPixels(widthPx, heightPx);
@@ -1057,7 +1222,18 @@
     // a position after those fills sits under the opaque relief raster.
     drawRelief(ctx, chart, scaleX, scaleY);
     drawOps(ctx, opsOfKind(['river', 'river-mouths']).concat(opsOfKind(['border']), opsOfKind(['rail'])), scaleX, scaleY);
+    // TX-SEA (Step 19b) draws here, where the sea is final and no land work
+    // can bury it: after the second drawOps pass and before the chart over
+    // ops, so the beach strip and coastline stroke stay crisp above it, and
+    // before the vignette and the furniture.
+    drawSeaTexture(ctx, chart, scaleX, scaleY);
     drawChartOps(ctx, chartOps.over, scaleX, scaleY);
+    // TX-PAPER (Step 19b) fills the border strip here, after the chart over
+    // ops and before the vignette, so the vignette darkens its corners as it
+    // darkened the flat paper and the furniture stays crisp on top. The flat
+    // chart-paper fill from the under ops remains underneath as the fallback
+    // until the pattern is ready.
+    drawPaperTexture(ctx, chart, scaleX, scaleY);
     drawVignette(ctx, chart, scaleX, scaleY);
     drawChartFurniture(ctx, chartOps.furniture, scaleX, scaleY);
     ctx.restore();
@@ -2003,7 +2179,13 @@
     TX_LAND_SIZE: TX_LAND_SIZE,
     TX_LAND_VALUE_SCALE: TX_LAND_VALUE_SCALE,
     textureDebug: txLandDebug,
-    drawLandTexture: drawLandTexture
+    drawLandTexture: drawLandTexture,
+    TX_SEA_ALPHA: TX_SEA_ALPHA,
+    TX_SEA_SIZE: TX_SEA_SIZE,
+    TX_SEA_VALUE_SCALE: TX_SEA_VALUE_SCALE,
+    TX_PAPER_SIZE: TX_PAPER_SIZE,
+    drawSeaTexture: drawSeaTexture,
+    drawPaperTexture: drawPaperTexture
   };
 
   if (typeof module !== 'undefined' && module.exports) {

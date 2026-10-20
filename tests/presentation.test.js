@@ -2949,3 +2949,95 @@ test('TX-LAND structural pin: soft-light pattern, drawn inside drawRelief after 
   assert.strictEqual(defs, 1);
   assert.strictEqual(mentions - defs, 1, 'drawLandTexture has exactly one call site');
 });
+
+// Cycle 23 Step 19b: TX-SEA and TX-PAPER, Blender route bakes (Candidate B),
+// wired into the live board.
+function txDataCheck(file, family, length) {
+  const data = require('../js/' + file);
+  assert.strictEqual(typeof data, 'string');
+  const bytes = Buffer.from(data, 'base64');
+  const webp = fs.readFileSync(path.join(REPO_ROOT, 'art-direction', 'textures', family, 'candidate-b.webp'));
+  const sha = b => crypto.createHash('sha256').update(b).digest('hex');
+  assert.strictEqual(bytes.length, length);
+  assert.strictEqual(bytes.length, webp.length);
+  assert.strictEqual(sha(bytes), sha(webp));
+  assert.strictEqual(bytes.toString('ascii', 0, 4), 'RIFF');
+  assert.strictEqual(bytes.toString('ascii', 8, 12), 'WEBP');
+}
+
+test('TX-SEA data: js/tx-sea-data.js decodes to the committed candidate-b.webp bytes', () => {
+  txDataCheck('tx-sea-data.js', 'TX-SEA', 79032);
+});
+
+test('TX-PAPER data: js/tx-paper-data.js decodes to the committed candidate-b.webp bytes', () => {
+  txDataCheck('tx-paper-data.js', 'TX-PAPER', 26298);
+});
+
+test('TX-SEA and TX-PAPER constants: sea alpha 0.30, sizes 1024, sea value scale matching the source, node states unavailable', () => {
+  assert.strictEqual(AshesMapCanvas.TX_SEA_ALPHA, 0.30);
+  assert.strictEqual(AshesMapCanvas.TX_SEA_SIZE, 1024);
+  assert.strictEqual(AshesMapCanvas.TX_PAPER_SIZE, 1024);
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  const m = src.match(/var TX_SEA_VALUE_SCALE = ([0-9.]+);/);
+  assert.ok(m, 'TX_SEA_VALUE_SCALE is a named constant in js/map-canvas.js');
+  assert.strictEqual(Number(m[1]), AshesMapCanvas.TX_SEA_VALUE_SCALE);
+  const dbg = AshesMapCanvas.textureDebug;
+  assert.strictEqual(dbg.seaState, 'unavailable');
+  assert.strictEqual(dbg.seaAlpha, 0.30);
+  assert.strictEqual(dbg.seaSize, 1024);
+  assert.strictEqual(dbg.seaValueScale, AshesMapCanvas.TX_SEA_VALUE_SCALE);
+  assert.strictEqual(dbg.paperState, 'unavailable');
+  assert.strictEqual(dbg.paperSize, 1024);
+  // The land fields keep their names and meaning (tools/band-report.js reads landState).
+  assert.strictEqual(dbg.landState, 'unavailable');
+  assert.strictEqual(dbg.landAlpha, AshesMapCanvas.TX_LAND_ALPHA);
+  // The sea is a soft-light overlay; the paper is a plain fill with no soft-light.
+  function bodyOf(name) {
+    const start = src.indexOf('function ' + name + '(');
+    assert.ok(start !== -1, name + ' is defined');
+    return src.slice(start, src.indexOf('\n  }\n', start));
+  }
+  assert.ok(bodyOf('drawSeaTexture').indexOf("'soft-light'") !== -1, 'drawSeaTexture uses soft-light');
+  assert.ok(bodyOf('drawSeaTexture').indexOf("clip('evenodd')") !== -1, 'drawSeaTexture clips evenodd');
+  assert.strictEqual(bodyOf('drawPaperTexture').indexOf('soft-light'), -1, 'drawPaperTexture has no soft-light');
+  assert.ok(bodyOf('drawPaperTexture').indexOf("clip('evenodd')") !== -1, 'drawPaperTexture clips evenodd');
+});
+
+// Structural pins, not render tests: they check the source text only. Index
+// ordering inside renderBaseCanvas pins that the sea texture follows the
+// second drawOps pass and precedes the chart over draw, and that the paper
+// texture follows the chart over draw and precedes the vignette.
+function renderBaseBody() {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  const start = src.indexOf('function renderBaseCanvas(');
+  assert.ok(start !== -1, 'renderBaseCanvas is defined');
+  return { src: src, body: src.slice(start, src.indexOf('\n  }\n', start)) };
+}
+
+test('TX-SEA structural pin: drawn in renderBaseCanvas after the second drawOps pass and before the chart over ops', () => {
+  const { src, body } = renderBaseBody();
+  const second = body.indexOf("drawOps(ctx, opsOfKind(['river', 'river-mouths'])");
+  const sea = body.indexOf('drawSeaTexture(ctx,');
+  const over = body.indexOf('drawChartOps(ctx, chartOps.over,');
+  assert.ok(second !== -1 && sea !== -1 && over !== -1);
+  assert.ok(second < sea, 'drawSeaTexture follows the second drawOps pass');
+  assert.ok(sea < over, 'drawSeaTexture precedes the chart over ops');
+  const mentions = src.split('drawSeaTexture(ctx,').length - 1;
+  const defs = src.split('function drawSeaTexture(ctx,').length - 1;
+  assert.strictEqual(defs, 1);
+  assert.strictEqual(mentions - defs, 1, 'drawSeaTexture has exactly one call site');
+});
+
+test('TX-PAPER structural pin: drawn in renderBaseCanvas after the chart over ops and before the vignette', () => {
+  const { src, body } = renderBaseBody();
+  const over = body.indexOf('drawChartOps(ctx, chartOps.over,');
+  const paper = body.indexOf('drawPaperTexture(ctx,');
+  const vignette = body.indexOf('drawVignette(ctx,');
+  assert.ok(over !== -1 && paper !== -1 && vignette !== -1);
+  assert.ok(over < paper, 'drawPaperTexture follows the chart over ops');
+  assert.ok(paper < vignette, 'drawPaperTexture precedes the vignette');
+  const mentions = src.split('drawPaperTexture(ctx,').length - 1;
+  const defs = src.split('function drawPaperTexture(ctx,').length - 1;
+  assert.strictEqual(defs, 1);
+  assert.strictEqual(mentions - defs, 1, 'drawPaperTexture has exactly one call site');
+});
