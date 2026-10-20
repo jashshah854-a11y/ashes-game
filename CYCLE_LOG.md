@@ -6632,3 +6632,6 @@ Claimed this run: the master sheet v2 assembly only, per the sub-split plan reco
 
 ### State and next claim
 - Step 18b is still NOT complete: what remains is R2 (the TX-LAND rendition session, 4 candidates attaching master sheet v2 plus the P6 crop, now unblocked), then Step 18c (the TX-LAND bake-off). Next run claims R2. The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure.
+
+### Cycle 23 Step 18b v2 assembly sync note
+- Sync out after commits bcfd627 and 985c039: the import script's run completed with process exit 0, and its completion delivery reported 3 commits sent (the pending R1 sub-split 4 sync note fb8d44e, plus both v2 assembly commits). The sync log file for that run (/tmp/ashes-18b-v2-sync.log) read back empty (0 bytes) when checked in a separate step, so no remote sha is recorded here rather than guessed from a delivery, per the file wins rule (the zoom pan and sub-split 2 sync lessons). The recorded evidence is the exit 0 and the clean local tree. This note rides the next run's sync, as prior sync notes have.
