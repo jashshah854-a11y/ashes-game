@@ -8,12 +8,12 @@ Staged rendition session brief, shaped by VISUAL_STRATEGY.md section 3.8.
 | Family | TX-LAND (TX01 read as TX-LAND, MAP_TREATMENT.md 7.4) |
 | Requests | 4 candidates (MAP_TREATMENT 8.2), each in a new temporary ChatGPT chat |
 | Needed by | MAP_TREATMENT Step 18, the TX-LAND bake-off |
-| Parent | master sheet v2 plus its P6 crop (MAP_TREATMENT 7.2) |
+| Parent | master sheet v2 (art-direction/master-sheet/v2/master-sheet-v2.png) plus its P6 crop (art-direction/master-sheet/v2/panels/P6.png, MAP_TREATMENT 7.2) |
 | Brief version | v1 (no regeneration changes) |
 
 ## Ordering (read before booking)
 
-This session cannot run yet. Its parent is master sheet v2, and v2's P6 panel is a 768 by 768 crop of the selected MAP-TGT rendition. So the order is:
+This session runs only after its parent exists. Its parent is master sheet v2, and v2's P6 panel is a 768 by 768 crop of the selected MAP-TGT rendition. So the order is:
 
 1. R0 (MAP-TGT) runs and a winner is selected and logged as MAP-TGT-R0-cN.
 2. Master sheet v2 is assembled with the P6 crop taken from that winner (art-direction/master-sheet/v2/manifest.json tracks the panels).
@@ -21,8 +21,8 @@ This session cannot run yet. Its parent is master sheet v2, and v2's P6 panel is
 
 ## Attachments (every request, in this order)
 
-1. The master sheet v2 image (path fixed when v2 is assembled in Step 18; not on disk yet).
-2. The P6 crop from that same master sheet v2 (768 by 768 MAP-TGT crop centred on the river and one coast).
+1. The master sheet v2 image: art-direction/master-sheet/v2/master-sheet-v2.png.
+2. The P6 crop from that same master sheet v2: art-direction/master-sheet/v2/panels/P6.png (768 by 768 MAP-TGT crop centred on the river and one coast).
 
 Nothing else (VISUAL_STRATEGY 2.3 rules 1 and 2).
 
@@ -80,4 +80,4 @@ Use the attached master sheet as the only style reference. A lamplit war table: 
 
 ## Session notes
 
-(none yet)
+- 2026-10-20: master sheet v2 is assembled (Step 18b) at art-direction/master-sheet/v2/master-sheet-v2.png, with the P6 crop of MAP-TGT-R0-c3 at art-direction/master-sheet/v2/panels/P6.png. R2 is unblocked.

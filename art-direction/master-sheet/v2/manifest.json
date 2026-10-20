@@ -3,8 +3,8 @@
   "panels": {
     "P1": {
       "status": "sourced",
-      "file": "art-direction/master-diorama-board.png",
-      "note": "the adopted diorama, scaled to fit, unedited (VISUAL_STRATEGY 2.2)"
+      "file": "art-direction/master-sheet/v2/panels/P1.png",
+      "note": "the adopted diorama art-direction/master-diorama-board.png, scaled to fit 768x512 centred on Paper, unedited (VISUAL_STRATEGY 2.2)"
     },
     "P2": {
       "status": "built",
@@ -12,44 +12,52 @@
       "note": "palette strip and 13-step luma ramp, drawn in code by tools/master-sheet.js"
     },
     "P3": {
-      "status": "pending",
+      "status": "built",
       "session": "R1",
-      "note": "material swatches: paper, ink, table wood, brass, board base, painted pewter"
+      "file": "art-direction/master-sheet/v2/panels/P3.png",
+      "note": "material swatches: winner R1-P3-c1 resized 1600x1600 to 768x768 LANCZOS"
     },
     "P4": {
-      "status": "pending",
+      "status": "built",
       "session": "R1",
-      "note": "unit lineup: infantry stack, drone wing, flotilla"
+      "file": "art-direction/master-sheet/v2/panels/P4.png",
+      "note": "unit lineup: winner R1-P4-c1 resized 1600x1600 to 768x768 LANCZOS"
     },
     "P5": {
-      "status": "pending",
+      "status": "built",
       "session": "R1",
-      "note": "structure lineup: city, capital, factory, fort"
+      "file": "art-direction/master-sheet/v2/panels/P5.png",
+      "note": "structure lineup: winner R1-P5-c1 resized 1600x1600 to 768x768 LANCZOS"
     },
     "P6": {
-      "status": "pending",
+      "status": "built",
       "session": "R0",
-      "note": "MAP_TREATMENT 7.2 replaces P6 with a 768 by 768 crop of MAP-TGT centred on the river and one coast; waits on the R0 winner"
+      "file": "art-direction/master-sheet/v2/panels/P6.png",
+      "note": "MAP_TREATMENT 7.2 MAP-TGT crop: winner MAP-TGT-R0-c3, crop box 512,0,1280,768 from 1792x1344, no resize, centred on the river with the north coast"
     },
     "P7": {
-      "status": "pending",
+      "status": "built",
       "session": "R1",
-      "note": "smoke and ember: smoke column, scorch, crater, ember glow"
+      "file": "art-direction/master-sheet/v2/panels/P7.png",
+      "note": "smoke and ember: winner R1-P7-c1 resized 1600x1600 to 768x768 LANCZOS"
     },
     "P8": {
-      "status": "pending",
+      "status": "built",
       "session": "R1",
-      "note": "fog papers: in sight, last seen, unknown"
+      "file": "art-direction/master-sheet/v2/panels/P8.png",
+      "note": "fog papers: winner R1-P8-c1 resized 1600x1600 to 768x768 LANCZOS"
     },
     "P9": {
-      "status": "pending",
+      "status": "built",
       "session": "R1",
-      "note": "the lamp at night: table, lamp at upper left, falloff across the board edge"
+      "file": "art-direction/master-sheet/v2/panels/P9.png",
+      "note": "the lamp at night: winner R1-P9-c2 resized 1600x1600 to 768x768 LANCZOS"
     },
     "P10": {
-      "status": "pending",
+      "status": "built",
       "session": "R1",
-      "note": "scene keys: title, victory, defeat thumbnails"
+      "file": "art-direction/master-sheet/v2/panels/P10.png",
+      "note": "scene keys: winner R1-P10-c1 resized 1600x1600 to 768x768 LANCZOS"
     }
   }
 }

@@ -1,0 +1,106 @@
+{
+  "version": "v2",
+  "cellSize": 768,
+  "columns": 4,
+  "rows": 3,
+  "width": 3072,
+  "height": 2304,
+  "cells": [
+    {
+      "panel": "P1",
+      "row": 1,
+      "column": 1,
+      "sourceLogId": "master-sheet-v1 diorama",
+      "sourceFile": "art-direction/master-diorama-board.png",
+      "transform": "scaled to fit 768x512 centred on Paper, unedited"
+    },
+    {
+      "panel": "P2",
+      "row": 1,
+      "column": 2,
+      "sourceLogId": "P2 code built",
+      "sourceFile": "art-direction/master-sheet/v2/panels/P2.png",
+      "transform": "existing code built panel, untouched"
+    },
+    {
+      "panel": "P3",
+      "row": 1,
+      "column": 3,
+      "sourceLogId": "R1-P3-c1",
+      "sourceFile": "art-direction/renditions/P3/R1-P3-c1.png",
+      "transform": "resized 1600x1600 to 768x768 LANCZOS"
+    },
+    {
+      "panel": "P4",
+      "row": 1,
+      "column": 4,
+      "sourceLogId": "R1-P4-c1",
+      "sourceFile": "art-direction/renditions/P4/R1-P4-c1.png",
+      "transform": "resized 1600x1600 to 768x768 LANCZOS"
+    },
+    {
+      "panel": "P5",
+      "row": 2,
+      "column": 1,
+      "sourceLogId": "R1-P5-c1",
+      "sourceFile": "art-direction/renditions/P5/R1-P5-c1.png",
+      "transform": "resized 1600x1600 to 768x768 LANCZOS"
+    },
+    {
+      "panel": "P6",
+      "row": 2,
+      "column": 2,
+      "sourceLogId": "MAP-TGT-R0-c3",
+      "sourceFile": "art-direction/renditions/MAP-TGT/R0-MAP-TGT-c3.png",
+      "transform": "crop box 512,0,1280,768 from 1792x1344, no resize"
+    },
+    {
+      "panel": "P7",
+      "row": 2,
+      "column": 3,
+      "sourceLogId": "R1-P7-c1",
+      "sourceFile": "art-direction/renditions/P7/R1-P7-c1.png",
+      "transform": "resized 1600x1600 to 768x768 LANCZOS"
+    },
+    {
+      "panel": "P8",
+      "row": 2,
+      "column": 4,
+      "sourceLogId": "R1-P8-c1",
+      "sourceFile": "art-direction/renditions/P8/R1-P8-c1.png",
+      "transform": "resized 1600x1600 to 768x768 LANCZOS"
+    },
+    {
+      "panel": "P9",
+      "row": 3,
+      "column": 1,
+      "sourceLogId": "R1-P9-c2",
+      "sourceFile": "art-direction/renditions/P9/R1-P9-c2.png",
+      "transform": "resized 1600x1600 to 768x768 LANCZOS"
+    },
+    {
+      "panel": "P10",
+      "row": 3,
+      "column": 2,
+      "sourceLogId": "R1-P10-c1",
+      "sourceFile": "art-direction/renditions/P10/R1-P10-c1.png",
+      "transform": "resized 1600x1600 to 768x768 LANCZOS"
+    },
+    {
+      "panel": "EMPTY",
+      "row": 3,
+      "column": 3,
+      "sourceLogId": null,
+      "sourceFile": null,
+      "transform": "Paper #E6D8B5 fill"
+    },
+    {
+      "panel": "EMPTY",
+      "row": 3,
+      "column": 4,
+      "sourceLogId": null,
+      "sourceFile": null,
+      "transform": "Paper #E6D8B5 fill"
+    }
+  ]
+}

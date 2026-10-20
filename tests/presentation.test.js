@@ -2856,8 +2856,12 @@ describe('master sheet tool (tools/master-sheet.js)', () => {
     assert.strictEqual(result.ok, true);
     assert.deepStrictEqual(result.panels.map(p => p.id), MasterSheet.REQUIRED_PANELS);
     assert.strictEqual(result.panels.find(p => p.id === 'P2').status, 'built');
-    assert.strictEqual(result.panels.find(p => p.id === 'P6').status, 'pending');
+    assert.strictEqual(result.panels.find(p => p.id === 'P6').status, 'built');
     assert.ok(fs.existsSync(path.join(REPO_ROOT, manifest.panels.P2.file)), 'P2 file exists on disk');
+    result.panels.forEach(p => {
+      assert.ok(p.status === 'built' || p.status === 'sourced', p.id + ' is built or sourced, not ' + p.status);
+      assert.ok(fs.existsSync(path.join(REPO_ROOT, p.file)), p.id + ' file exists on disk: ' + p.file);
+    });
   });
 
   test('master sheet manifest: a manifest missing P6 and a built panel naming no file are both rejected', () => {
@@ -2874,5 +2878,18 @@ describe('master sheet tool (tools/master-sheet.js)', () => {
     assert.ok(r2.errors.length > 0 && r2.errors.some(e => e.indexOf('P2') !== -1));
     assert.strictEqual(MasterSheet.validateManifest(null).ok, false);
     assert.strictEqual(MasterSheet.validateManifest({ version: 'v1', panels: manifest.panels }).ok, false);
+  });
+
+  test('master sheet v2 images: every panel PNG is 768 x 768 and the composite is 3072 x 2304 by IHDR', () => {
+    const v2 = path.join(REPO_ROOT, 'art-direction', 'master-sheet', 'v2');
+    const ihdr = file => {
+      const buf = fs.readFileSync(file);
+      assert.strictEqual(buf.toString('ascii', 12, 16), 'IHDR', file + ' starts with IHDR');
+      return [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+    };
+    MasterSheet.REQUIRED_PANELS.forEach(id => {
+      assert.deepStrictEqual(ihdr(path.join(v2, 'panels', id + '.png')), [768, 768], id + ' is 768 x 768');
+    });
+    assert.deepStrictEqual(ihdr(path.join(v2, 'master-sheet-v2.png')), [3072, 2304], 'composite is 3072 x 2304');
   });
 });
