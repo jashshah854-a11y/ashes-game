@@ -6218,3 +6218,6 @@ MAP_TREATMENT Step 14's build half is complete: fog covers the hit polygon plus 
 
 ### Cycle 23 Step 14 sync note
 - Sync out after commits 73648f4 and 926b546: the import script completed with exit 0 and sent 3 commits to GitHub (the pending Step 13 sync note bb8f154 plus both Step 14 commits; jashshah854-a11y/ashes-game, master now at remote 603a267 for local 926b546; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
+
+### Cycle 23 Step 14 sync note correction
+- The sync note above records the remote sha as 603a267. That number was written in error: the sync run's own output, delivered after the note was committed, reads "sent 926b546 Cycle 23 Step 14: log, backlog, and lessons entries", "remote commits visible: 100; remote head 278dae7; local head 926b546", with the usual note that the commit sha differs at 926b546 (remote 278dae7) while the trees match. The correct remote head for local 926b546 is 278dae7. The sync itself succeeded exactly as recorded (exit 0, 3 commits sent); only the sha in the note was wrong. This correction rides the next run's sync.
