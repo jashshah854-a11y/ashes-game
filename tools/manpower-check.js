@@ -24,6 +24,7 @@
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
 const fs = require('fs');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
@@ -65,6 +66,7 @@ async function prodRows(page) {
     // Run 1: the unmodified game at the start.
     let page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('nation card shows the pool from the readout',
       (await page.textContent('#stat-manpower')) === String(pool),
@@ -123,6 +125,7 @@ async function prodRows(page) {
       await r.fulfill({ contentType: 'application/javascript', body: src });
     });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     const queueBtns = page.locator('#production-lines .prod-line .prod-btns button:first-child');
     await queueBtns.nth(0).click();
@@ -150,6 +153,7 @@ async function prodRows(page) {
     // Run 3: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);

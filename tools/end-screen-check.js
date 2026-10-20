@@ -230,6 +230,7 @@ async function readEndScreen(page) {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => wideErrors.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
     const start = await page.evaluate(() => {
       const b = document.getElementById('banner');
       const cs = getComputedStyle(b);
@@ -341,6 +342,7 @@ async function readEndScreen(page) {
     const narrow = await browser.newPage({ viewport: { width: 390, height: 844 } });
     narrow.on('pageerror', (e) => narrowErrors.push(e.message));
     await narrow.goto(URL);
+    await H.dismissTitle(narrow);
     const nStart = await narrow.evaluate(() => getComputedStyle(document.getElementById('banner')).display);
     check('narrow page: the banner starts hidden too', nStart === 'none', nStart);
     const narrowDrive = await driveToEnd(narrow);

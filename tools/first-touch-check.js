@@ -69,6 +69,7 @@ function getJson(url) {
         return await evaluate("(function () { var a = document.getElementById('start-statement'); var b = document.getElementById('controls-explain'); var c = document.getElementById('map-legend'); return !!a && !!b && !!c && a.textContent.replace(/\\s+/g, '').length > 0 && b.textContent.replace(/\\s+/g, '').length > 0 && c.textContent.replace(/\\s+/g, '').length > 0 && document.querySelectorAll('.province').length > 0; })()");
       } catch (e) { return false; }
     }, 10000, 'start statement, controls explanation, and map legend render');
+    await evaluate(H.TITLE_DISMISS_EXPR);
 
     // ---- 1. Start statement ----
     const startText = await evaluate("document.getElementById('start-statement') ? document.getElementById('start-statement').textContent.replace(/\\s+/g, ' ').trim() : ''");

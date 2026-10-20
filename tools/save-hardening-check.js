@@ -160,6 +160,7 @@ function checkTextNoBrokenLabels(text) {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
 
     await ensureRunning(page);
 
@@ -190,6 +191,7 @@ function checkTextNoBrokenLabels(text) {
     await page.evaluate((key) => { localStorage.removeItem(key); }, SAVE_SLOT_KEY);
     await page.evaluate((key) => { localStorage.removeItem(key); }, SAVE_SLOT_META_KEY);
     await page.reload();
+    await H.dismissTitle(page);
     await H.tryWait(async () => (await page.textContent('#save-slot-meta')).trim().length > 0, 2000);
     const emptyMeta = (await page.textContent('#save-slot-meta')).trim();
     const expectedEmptyMeta = 'Browser slot: empty. Nothing is saved in the browser slot yet.';

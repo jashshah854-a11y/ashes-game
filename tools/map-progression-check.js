@@ -232,6 +232,7 @@ async function importSave(page, savePath) {
     let page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errorsA.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.ensurePaused(page);
     await H.dismissBurst(page);
 
@@ -277,6 +278,7 @@ async function importSave(page, savePath) {
     page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errorsB.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.ensurePaused(page);
     await H.dismissBurst(page);
 

@@ -120,6 +120,7 @@ async function ensurePausedClear(page) {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
 
     // Start with the game running, then pause for the save. The save captures
     // whatever day and tick the sim has reached when the pause lands. All

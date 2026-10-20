@@ -73,6 +73,7 @@ function getJson(url) {
         return await evaluate("(function () { var f = document.getElementById('stat-factories'); var d = document.getElementById('day-counter'); var rows = document.querySelectorAll('#production-lines .prod-line').length; return !!f && !!d && f.textContent.replace(/\\s+/g, '').length > 0 && d.textContent.replace(/\\s+/g, '').length > 0 && rows > 0; })()");
       } catch (e) { return false; }
     }, 10000, 'factory stat, day counter, and production lines render');
+    await evaluate(H.TITLE_DISMISS_EXPR);
 
     const snap = await evaluate(`(function () {
       var rows = Array.prototype.map.call(document.querySelectorAll('#production-lines .prod-line'), function (r) {

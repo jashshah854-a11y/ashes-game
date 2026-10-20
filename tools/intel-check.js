@@ -54,6 +54,7 @@
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
 const fs = require('fs');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
@@ -139,7 +140,7 @@ function plaqueKeys(state, provId) {
   const serveEdited = async (page, editSrc) => {
     await page.route('**/js/sim.js', async (r) => {
       const src = fs.readFileSync(path.join(REPO, 'js/sim.js'), 'utf8') +
-        '\n;(function(){var S=window.AshesSim,o=S.createGame;S.createGame=function(seed){var s=o(seed);' +
+        '\n;(function(){var S=window.AshesSim,o=S.createGame,R=[S.CFG.ownedSightRange,S.CFG.unitSightRange,S.CFG.droneSightRange];S.createGame=function(seed){S.CFG.ownedSightRange=R[0];S.CFG.unitSightRange=R[1];S.CFG.droneSightRange=R[2];var s=o(seed);' +
         editSrc + 'return s;};})();\n';
       await r.fulfill({ contentType: 'application/javascript', body: src });
     });
@@ -174,6 +175,7 @@ function plaqueKeys(state, provId) {
     // Run 1: the unmodified game at the start.
     let page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     let map = await tiles(page);
     const mismatches = Object.keys(fresh.provinces).filter((id) => map[id].intel !== Sim.intelState(fresh, 'player', id));
@@ -277,6 +279,7 @@ function plaqueKeys(state, provId) {
     page = await newPage();
     await serveEdited(page, 'S.intelPhase(s);' + ZERO_SIGHT_SRC);
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     map = await tiles(page);
     check('remembered tile is hatched in its snapshot owner color, from the readout state',
@@ -326,6 +329,7 @@ function plaqueKeys(state, provId) {
     page = await newPage();
     await serveEdited(page, ZERO_SIGHT_SRC);
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     map = await tiles(page);
     check('staged dark tile matches the readout state', map[front].intel === 'dark', map[front].cls);
@@ -350,6 +354,7 @@ function plaqueKeys(state, provId) {
     page = await newPage();
     await serveEdited(page, 's.nations.player.agents=1;');
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('staged agent stock shows on the nation card',
       (await page.textContent('#stat-agents')) === '1', await page.textContent('#stat-agents'));
@@ -385,6 +390,7 @@ function plaqueKeys(state, provId) {
     // Run 5: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);

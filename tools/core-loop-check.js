@@ -70,6 +70,7 @@ function getJson(url) {
         return await evaluate("(function () { var p = document.getElementById('btn-pause'); var d = document.getElementById('day-counter'); var c = document.getElementById('prov-details'); return !!p && !!d && !!c && p.textContent.replace(/\\s+/g, '').length > 0 && d.textContent.replace(/\\s+/g, '').length > 0 && c.textContent.replace(/\\s+/g, '').length > 0 && document.querySelectorAll('.province').length > 0; })()");
       } catch (e) { return false; }
     }, 10000, 'pause button, day counter, and province card render');
+    await evaluate(H.TITLE_DISMISS_EXPR);
 
     // Every expected number below comes from the sim, never a copied literal.
     const CFG = Sim.CFG;

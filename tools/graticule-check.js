@@ -76,6 +76,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(HARNESS_URL);
+    await H.dismissTitle(page);
     await H.ensurePaused(page);
     await H.dismissBurst(page);
     await H.waitFor(page, async () => page.evaluate(() =>

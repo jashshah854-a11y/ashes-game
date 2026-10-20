@@ -183,6 +183,7 @@ async function drainBurst(page, label, first) {
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto('file://' + path.join(REPO, 'index.html') + '?seed=7');
+      await H.dismissTitle(page);
       await page.click('#btn-speed2');
       if (run === 'A') {
         check('A: first card appears', await untilCard(page));
@@ -307,6 +308,7 @@ async function drainBurst(page, label, first) {
           const errorsF = [];
           pageF.on('pageerror', (e) => errorsF.push(e.message));
           await pageF.goto('file://' + path.join(REPO, 'index.html') + '?seed=1');
+          await H.dismissTitle(pageF);
           await pageF.click('#btn-pause');
           // Import /tmp/lore-F.json through the real file import input
           const [fileChooserF] = await Promise.all([
@@ -357,6 +359,7 @@ async function drainBurst(page, label, first) {
     }
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await phone.goto('file://' + path.join(REPO, 'index.html') + '?seed=7');
+    await H.dismissTitle(phone);
     await phone.click('#btn-pause');
     const w = await phone.evaluate(() => document.documentElement.scrollWidth);
     check('phone width: no horizontal scroll at 390 px', w <= 390, 'document width ' + w);

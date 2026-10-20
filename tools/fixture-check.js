@@ -210,6 +210,7 @@ async function main() {
     let page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
     page.on('pageerror', (e) => errorsDesktop.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.ensurePaused(page);
     await H.dismissBurst(page);
     await importSave(page, FIXTURE_PATH);
@@ -280,6 +281,7 @@ async function main() {
     page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
     page.on('pageerror', (e) => errorsDPR2.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.ensurePaused(page);
     await H.dismissBurst(page);
     await importSave(page, FIXTURE_PATH);
@@ -298,6 +300,7 @@ async function main() {
     page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
     page.on('pageerror', (e) => errorsPhone.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.ensurePaused(page);
     await H.dismissBurst(page);
     await importSave(page, FIXTURE_PATH);

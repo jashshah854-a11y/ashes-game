@@ -91,6 +91,7 @@ async function allBadgesOnTop(page, provId) {
     // Run 1: the unmodified game.
     let page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.clickWhenClear(page,'#btn-pause');
     await H.clickWhenClear(page,'[data-prov="p1_3"]');
     const cost1 = CFG.fortCostPerLevel;
@@ -105,6 +106,7 @@ async function allBadgesOnTop(page, provId) {
     page = await newPage();
     await withExtraEquipment(page, 'player', 5000);
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.clickWhenClear(page,'#btn-pause');
     await H.clickWhenClear(page,'[data-prov="p0_3"]');
     await H.clickWhenClear(page,'#btn-fort');
@@ -129,6 +131,7 @@ async function allBadgesOnTop(page, provId) {
     page = await newPage();
     await withExtraEquipment(page, 'player', 5000);
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.clickWhenClear(page,'#btn-pause');
     await H.clickWhenClear(page,'[data-prov="p0_3"]');
     await H.clickWhenClear(page,'#btn-fort');
@@ -161,6 +164,7 @@ async function allBadgesOnTop(page, provId) {
     page = await newPage();
     await withExtraEquipment(page, 'enemy', 2000);
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.clickWhenClear(page,'#btn-speed2');
     const river = Sim.provinceId(CFG.mapW / 2, 3);
     await H.untilText(page, async () => (await badgeOnTop(page, river)).text === 'Fort 1', 30000);
@@ -175,6 +179,7 @@ async function allBadgesOnTop(page, provId) {
     // Run 4: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await H.clickWhenClear(page,'#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);

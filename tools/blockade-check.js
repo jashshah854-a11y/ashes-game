@@ -35,6 +35,7 @@
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
 const fs = require('fs');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
@@ -156,6 +157,7 @@ function statusText(s) {
     let page = await newPage();
     await serveEdited(page, editSrc);
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('blockaded game: Dominion steel lost to blockade today equals the mirror readout',
       (await page.textContent('#stat-blockade-enemy')) === String(Sim.blockadeLoss(served, 'enemy')),
@@ -187,6 +189,7 @@ function statusText(s) {
     const fresh = Sim.createGame(7);
     page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('unmodified game: both blockade stats are 0',
       (await page.textContent('#stat-blockade-player')) === '0' &&
@@ -200,6 +203,7 @@ function statusText(s) {
     // Run 3: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);

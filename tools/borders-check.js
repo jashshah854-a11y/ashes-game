@@ -162,6 +162,7 @@ async function main() {
     page.on('pageerror', (e) => errors.push(e.message));
 
     await page.goto(HARNESS_URL);
+    await H.dismissTitle(page);
     await H.waitFor(page, async () => {
       try {
         return await page.evaluate(() => typeof window.AshesMapCanvasDebug !== 'undefined' &&

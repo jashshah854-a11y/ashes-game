@@ -172,6 +172,7 @@ fs.writeFileSync('/tmp/order-marker-C.json', saveTextC);
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, acceptDownloads: true });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(URL);
+    await H.dismissTitle(page);
 
     await H.ensurePaused(page);
     await H.dismissBurst(page);

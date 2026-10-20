@@ -51,6 +51,7 @@ async function main() {
     page.on('pageerror', (e) => errors.push(e.message));
 
     await page.goto(HARNESS_URL);
+    await H.dismissTitle(page);
 
     const ready = await H.waitFor(page, async () => {
       try {

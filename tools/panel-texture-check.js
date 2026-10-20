@@ -194,6 +194,7 @@ async function loadAndMeasure(cdp, url, label, blocked, exceptions) {
       return await cdp.evaluate("document.readyState === 'complete' && !!document.querySelector('.card') && document.getElementById('day-counter').textContent.trim().length > 0");
     } catch (e) { return false; }
   }, 20000, label + ': page initializes');
+  await cdp.evaluate(H.TITLE_DISMISS_EXPR);
   await H.waitUntil(async () => { try { return await cdp.evaluate(SETTLE_EXPR); } catch (e) { return false; } }, 10000, label + ': overlay dismissed and clock paused');
   if (!blocked) {
     await H.waitUntil(async () => {

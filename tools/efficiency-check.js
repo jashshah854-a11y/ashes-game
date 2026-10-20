@@ -26,6 +26,7 @@
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
 const fs = require('fs');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
@@ -63,6 +64,7 @@ async function prodRows(page) {
     // Run 1: the unmodified game at the floor.
     let page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     let rows = await prodRows(page);
     const floorDaysInf = Sim.lineBuildDays({ template: 'infantry', efficiency: CFG.lineEfficiencyFloor });
@@ -102,6 +104,7 @@ async function prodRows(page) {
       await r.fulfill({ contentType: 'application/javascript', body: src });
     });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     rows = await prodRows(page);
     const midLine = { template: 'infantry', efficiency: 130, queue: 1, progressDays: 2, work: 254 };
@@ -146,6 +149,7 @@ async function prodRows(page) {
     // Run 3: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);

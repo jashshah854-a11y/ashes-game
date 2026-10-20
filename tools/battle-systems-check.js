@@ -70,6 +70,7 @@ function getJson(url) {
         return await evaluate("(function () { var el = document.querySelector('#map-legend + .hint'); return !!el && el.textContent.replace(/\\s+/g, '').length > 0 && document.querySelectorAll('.province').length > 0; })()");
       } catch (e) { return false; }
     }, 10000, 'map hint paragraph renders');
+    await evaluate(H.TITLE_DISMISS_EXPR);
 
     // Every expected number below comes from the sim, never a copied literal.
     const CFG = Sim.CFG;

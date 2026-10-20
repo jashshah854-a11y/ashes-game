@@ -34,6 +34,7 @@
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
 const fs = require('fs');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
@@ -63,6 +64,7 @@ function check(name, ok, detail) {
     // Run 1: the unmodified game at the start.
     let page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('nation card shows the drone generation from the readout',
       (await page.textContent('#stat-drone-gen')) === 'Gen ' + Sim.droneGeneration(fresh, 'player'));
@@ -167,6 +169,7 @@ function check(name, ok, detail) {
       await r.fulfill({ contentType: 'application/javascript', body: src });
     });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('scoreboard shows the staged player figures from the readouts',
       (await page.textContent('#ex-player-destroyed')) === String(sp.destroyed) &&
@@ -199,6 +202,7 @@ function check(name, ok, detail) {
       await r.fulfill({ contentType: 'application/javascript', body: src });
     });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('Gen 3 button is enabled with Gen 2 fielded and points banked',
       (await page.textContent('#btn-research-gen3')) === 'Research Drone Gen 3 (' + CFG.droneGen3Cost + ' pts)' &&
@@ -221,6 +225,7 @@ function check(name, ok, detail) {
     // Run 4: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);

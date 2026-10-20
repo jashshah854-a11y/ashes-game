@@ -50,6 +50,7 @@
 // Exit 0 when every check passes, 1 on a failed check, 2 on error.
 const fs = require('fs');
 const path = require('path');
+const H = require('./browser-helper.js');
 
 const REPO = path.join(__dirname, '..');
 const Sim = require('../js/sim.js');
@@ -115,6 +116,7 @@ async function tile(page, id) {
     // Run 1: the unmodified game at the start.
     let page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('nation card shows the flotilla stock from the readout',
       (await page.textContent('#stat-flotillas')) === String(Sim.flotillaStock(fresh, 'player')),
@@ -201,6 +203,7 @@ async function tile(page, id) {
     page = await newPage();
     await serveEdited(page, 's.nations.player.flotillas=2;');
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('staged flotilla stock shows on the nation card',
       (await page.textContent('#stat-flotillas')) === '2', await page.textContent('#stat-flotillas'));
@@ -255,6 +258,7 @@ async function tile(page, id) {
     await serveEdited(page, flipped.map((id) =>
       's.provinces[\'' + id + '\'].owner=\'player\';s.provinces[\'' + id + '\'].flotilla=\'player\';').join(''));
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     check('blockaded game: nation card coastal counts match the mirror',
       (await page.textContent('#stat-coastal-player')) === String(Sim.coastalControlCount(mirror3, 'player')) &&
@@ -278,6 +282,7 @@ async function tile(page, id) {
     const emptyReason = Sim.deployFlotilla(mirror4, 'player', ownCoastal).reason;
     page = await newPage();
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     await page.click('[data-prov="' + ownCoastal + '"]');
     await page.click('#btn-flotilla');
@@ -295,6 +300,7 @@ async function tile(page, id) {
     // Run 5: phone width.
     page = await newPage({ width: 390, height: 844 });
     await page.goto(URL);
+    await H.dismissTitle(page);
     await page.click('#btn-pause');
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     check('no horizontal scroll at 390 px', w <= 390, 'document width ' + w);
