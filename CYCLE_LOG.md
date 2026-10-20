@@ -6346,3 +6346,6 @@ Claimed this run: Step 17a only. Split recorded at claim time under RUN WINDOW D
 
 ### Mission status
 MAP_TREATMENT Step 17 is half complete: the vignette (17a) is live. Next run claims Step 17b (palette harness and remaining K-ATM), then the pan step under item 34's Option B ruling, then Step 18. The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 Step 17a sync note
+- Sync out after commits df8395a and ee67468: the import script completed with exit 0 and sent 4 commits to GitHub (the pending Step 16b sync note 82c32a8 at remote 064c562, its correction 118870f at remote 1d37de9, df8395a at remote eeba8d4, and ee67468 at remote 54a66d4; remote head 54a66d4, local head ee67468; the script notes the commit shas differ while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
