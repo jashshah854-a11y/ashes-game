@@ -6381,3 +6381,6 @@ Claimed this run: Step 17b only (the palette harness homed here by Step 17a: a b
 
 ### Mission status
 MAP_TREATMENT Step 17 is complete in both halves: the corner vignette (17a) and the palette harness (17b), whose band report now passes for every province and every sea row on both real boards, with no atmosphere pixel reaching 225. Next run claims the zoom pan step under DECISIONS item 34's Option B ruling (a pan step lands right after Step 17, before Step 18). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 Step 17b sync note
+- Sync out after commits 1d0aebb and 4ba209c: the import script completed with exit 0 and sent 3 commits to GitHub (the pending Step 17a sync note 707e0d1 at remote b5872b7, 1d0aebb at remote e4c9cde, and 4ba209c at remote 20bba8f; remote head 20bba8f, local head 4ba209c; the script notes the commit shas differ while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
