@@ -6527,3 +6527,6 @@ Claimed this run: the first R1 sub-split of Step 18b, recorded at claim time und
 
 ### State and next claim
 - Step 18b is still NOT complete: R1 requests 5 to 14 remain (sub-splits 2 to 4 as recorded above), then the v2 assembly with the P6 crop from MAP-TGT-R0-c3, then R2, then Step 18c (the TX-LAND bake-off). Next run claims R1 sub-split 2 (requests 5 to 8: P5 structure lineup and P7 smoke and ember). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure.
+
+### Cycle 23 Step 18b R1 sub-split 1 sync note
+- Sync out after commits 0ad58cc and 4d2cc0d: the import script completed with exit 0 and sent 3 commits to GitHub (3ae2597, the R0 sync note carried over, plus 0ad58cc and 4d2cc0d; jashshah854-a11y/ashes-game, master now at remote 75b6b15; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). All figures read from the sync log file (/tmp/ashes-18b-r1a-sync.log) directly. Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
