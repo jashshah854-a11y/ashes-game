@@ -65,7 +65,7 @@
    'event-noeffect', 'btn-event-codex', 'btn-event-continue', 'codex-overlay', 'codex-nav',
    'codex-article', 'btn-codex-close',
    'progression-blocks', 'progression-explain',
-   'map-base', 'map-fog', 'map-state', 'map-board', 'map-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
+   'map-base', 'map-fog', 'map-state', 'map-board', 'map-labels', 'map-chart-labels', 'map-viewport', 'btn-zoom-out', 'btn-zoom-reset', 'btn-zoom-in', 'zoom-label'
   ].forEach(function (id) { el[id.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase(); })] = document.getElementById(id); });
 
   function selectedUnit() {
@@ -202,7 +202,9 @@
     });
 
     var ops = MapCanvas.buildFogOps(geom, view);
-    var hash = MapCanvas.fogOpsHash(ops);
+    // Cycle 23 Step 13: the graticule furniture counts in the fog hash.
+    var furniture = MapCanvas.buildFurnitureOps(geom);
+    var hash = MapCanvas.fogOpsHash(ops.concat(furniture));
     var fp = fogFingerprintOf(view);
     var fitted = MapCanvas.fitPixels(widthPx, heightPx);
 
@@ -225,7 +227,8 @@
     window.AshesFogDebug = {
       hash: hash,
       drawCount: fogDrawCount,
-      counts: counts
+      counts: counts,
+      furnitureOps: furniture.length
     };
   }
 
@@ -658,7 +661,59 @@
   // measurement pass runs once per key instead of on every tick render.
   var labelFitCache = {};
   var labelFitChart = null;
+
+  // Chart border labels (MAP_TREATMENT 4.3 and 4.4, Cycle 23 Step 13): degree
+  // labels at each graticule line, the scale bar labels and note, and the
+  // north arrow's N. Every position comes from the MapCanvas exports, in
+  // percent of the whole chart board, so the canvas and the labels agree.
+  var chartLabelsChart;
+  function renderChartLabels() {
+    var layer = el.mapChartLabels;
+    if (!layer) return;
+    if (chartLabelsChart === lastChart && layer.childNodes.length) return;
+    chartLabelsChart = lastChart;
+    var cw = lastChart ? lastChart.widthCells : 12.6;
+    var chh = lastChart ? lastChart.heightCells : 9.85;
+    var ix = lastChart ? lastChart.insetX : 1.3;
+    var it = lastChart ? lastChart.insetTop : 1.3;
+    var neat = lastChart ? lastChart.neatline : null;
+    var ext = lastChart ? lastChart.extent : null;
+    var topY = neat && ext ? (ext.y0 + neat.y0) / 2 : -1.15;
+    var footY = neat && ext ? neat.y1 + (ext.y1 - neat.y1) / 2 : 8.275;
+    var leftX = neat && ext ? (ext.x0 + neat.x0) / 2 : -1.15;
+    var rightX = neat && ext ? (neat.x1 + ext.x1) / 2 : 11.15;
+    var sb = MapCanvas.SCALE_BAR;
+    var na = MapCanvas.NORTH_ARROW;
+    layer.innerHTML = '';
+    function put(cls, text, x, y) {
+      var span = document.createElement('span');
+      span.className = cls;
+      span.textContent = text;
+      span.style.left = ((x + ix) / cw * 100) + '%';
+      span.style.top = ((y + it) / chh * 100) + '%';
+      layer.appendChild(span);
+    }
+    MapCanvas.GRATICULE_MERIDIANS.forEach(function (m) {
+      put('chart-label degree-label', m.label, m.x, topY);
+      put('chart-label degree-label', m.label, m.x, footY);
+    });
+    MapCanvas.GRATICULE_PARALLELS.forEach(function (p) {
+      // The side strips are narrower than a level label, so these read
+      // turned along the border, as on a printed chart.
+      put('chart-label degree-label degree-side', p.label, leftX, p.y);
+      put('chart-label degree-label degree-side', p.label, rightX, p.y);
+    });
+    var labelY = sb.y + 0.10;
+    put('chart-label scale-label', '0', sb.x + sb.marks[0], labelY);
+    put('chart-label scale-label', '100', sb.x + sb.marks[2], labelY);
+    put('chart-label scale-label', '200 km', sb.x + sb.marks[3], labelY);
+    // 0.35 under the bar, so the note runs below the foot 10°E label.
+    put('chart-label scale-note', 'One province is about 220 km across.', sb.x, sb.y + 0.35);
+    put('chart-label north-label', 'N', na.cx, na.tipY - 0.09);
+  }
+
   function renderLabels() {
+    renderChartLabels();
     var layer = el.mapLabels;
     if (!layer || !el.mapBoard) return;
     var cw = lastChart ? lastChart.widthCells : 12.6;

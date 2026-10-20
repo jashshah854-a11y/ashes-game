@@ -42,6 +42,49 @@
   var FRONT_CASING_ALPHA = 0.6;
   var FRONT_CASING_PLUS_PX = 2;
 
+  // Fictional coordinates (Cycle 23 Step 13, MAP_TREATMENT 4.1 and 4.2):
+  // latitude(y) = 51.5 - 2.0 * y, longitude(x) = 8.5 + 2.8 * x. One
+  // graticule line every 5 degrees.
+  var DEG = '°';
+  var GRATICULE_MERIDIANS = [10, 15, 20, 25, 30, 35].map(function (lon) {
+    return { lon: lon, x: (lon - 8.5) / 2.8, label: lon + DEG + 'E' };
+  });
+  var GRATICULE_PARALLELS = [50, 45, 40].map(function (lat) {
+    return { lat: lat, y: (51.5 - lat) / 2, label: lat + DEG + 'N' };
+  });
+  var GRATICULE_LABELS = GRATICULE_MERIDIANS.map(function (m) { return m.label; })
+    .concat(GRATICULE_PARALLELS.map(function (p) { return p.label; }));
+  var GRATICULE_ALPHA = 0.20;
+
+  // Chart border furniture (MAP_TREATMENT 4.3 and 4.4), in cell units. The
+  // scale bar and the north arrow sit in the foot strip of the standard
+  // 10 by 7 lattice (neatline bottom at y 8, frame bottom at y 8.55). The
+  // arrow stands in the corner column past the right degree bar (x 11.06 to
+  // 11.3), so the N above its tip clears both degree bars.
+  var DEGREE_BAR_W = 0.06;
+  var NEATLINE_W = 0.008;
+  var OUTER_FRAME_W = 0.012;
+  var SCALE_BAR = { x: -1.20, y: 8.10, length: 0.90, height: 0.035, marks: [0, 0.225, 0.45, 0.90] };
+  var NORTH_ARROW = { cx: 11.18, tipY: 8.14, baseY: 8.50, halfWidth: 0.07 };
+
+  // Graticule furniture ops (MAP_TREATMENT 4.2): meridians west to east, then
+  // parallels north to south, each running neatline to neatline. Geometry
+  // alone decides the list; it never reads the view or the fog.
+  function buildFurnitureOps(geom) {
+    var x0 = -1;
+    var y0 = -1;
+    var x1 = geom.mapW + 1;
+    var y1 = geom.mapH + 1;
+    var ops = [];
+    GRATICULE_MERIDIANS.forEach(function (m) {
+      ops.push({ kind: 'graticule', line: [m.x, y0, m.x, y1] });
+    });
+    GRATICULE_PARALLELS.forEach(function (p) {
+      ops.push({ kind: 'graticule', line: [x0, p.y, x1, p.y] });
+    });
+    return ops;
+  }
+
   // Flat [x, y, ...] from a point array.
   function flatPoints(points) {
     var flat = [];
@@ -483,7 +526,112 @@
       inland.push([seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y]);
     });
     over.push({ kind: 'chart-edge-of-war', segments: inland });
-    return { under: under, over: over };
+    return { under: under, over: over, furniture: buildChartFurniture(chart) };
+  }
+
+  // Chart furniture (Cycle 23 Step 13, MAP_TREATMENT 4.3 and 4.4): the degree
+  // bar outside the neatline, the neatline and outer frame, the scale bar,
+  // and the north arrow. Drawn last on the base canvas.
+  function buildChartFurniture(chart) {
+    var ext = chart.extent;
+    var neat = chart.neatline;
+    var w = DEGREE_BAR_W;
+    var degX = 1 / 2.8;
+    var degY = 0.5;
+    var out = [];
+
+    // One side of the degree bar, clockwise from its starting corner, Ink
+    // first, one degree per segment, the last clipped at the far corner.
+    // rectAt(a, b) turns the run [a, b] along the side into a rect.
+    function side(start, end, step, rectAt) {
+      var dir = end > start ? 1 : -1;
+      var total = Math.abs(end - start);
+      for (var i = 0, d = 0; d < total - 1e-9; i++, d += step) {
+        var a = start + dir * d;
+        var b = start + dir * Math.min(d + step, total);
+        out.push({ kind: 'chart-degree-bar', rect: rectAt(Math.min(a, b), Math.max(a, b)), style: i % 2 === 0 ? 'ink' : 'paper' });
+      }
+    }
+    side(neat.x0, neat.x1, degX, function (a, b) { return [a, neat.y0 - w, b - a, w]; });
+    side(neat.y0, neat.y1, degY, function (a, b) { return [neat.x1, a, w, b - a]; });
+    side(neat.x1, neat.x0, degX, function (a, b) { return [a, neat.y1, b - a, w]; });
+    side(neat.y1, neat.y0, degY, function (a, b) { return [neat.x0 - w, a, w, b - a]; });
+
+    out.push({ kind: 'chart-frame', rect: [neat.x0, neat.y0, neat.x1 - neat.x0, neat.y1 - neat.y0], widthCells: NEATLINE_W });
+    out.push({ kind: 'chart-frame', rect: [ext.x0, ext.y0, ext.x1 - ext.x0, ext.y1 - ext.y0], widthCells: OUTER_FRAME_W });
+
+    // Scale bar parts between the marks at 0, 50, 100, and 200 km (the last
+    // part twice as long), alternating Ink and Paper from the left.
+    var mk = SCALE_BAR.marks;
+    for (var k = 1; k < mk.length; k++) {
+      out.push({ kind: 'chart-scale-bar', rect: [SCALE_BAR.x + mk[k - 1], SCALE_BAR.y, mk[k] - mk[k - 1], SCALE_BAR.height], style: k % 2 === 1 ? 'ink' : 'paper' });
+    }
+    out.push({ kind: 'chart-north-arrow', cx: NORTH_ARROW.cx, tipY: NORTH_ARROW.tipY, baseY: NORTH_ARROW.baseY, halfWidth: NORTH_ARROW.halfWidth });
+    return out;
+  }
+
+  // Execute chart furniture ops on a context already translated to the cell
+  // space origin.
+  function drawChartFurniture(ctx, ops, scaleX, scaleY) {
+    function rectPx(r) { return [r[0] * scaleX, r[1] * scaleY, r[2] * scaleX, r[3] * scaleY]; }
+    ops.forEach(function (op) {
+      var r;
+      switch (op.kind) {
+        case 'chart-degree-bar':
+        case 'chart-scale-bar':
+          r = rectPx(op.rect);
+          ctx.save();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = op.style === 'ink' ? CHART_INK : CHART_FRAME_PAPER;
+          ctx.fillRect(r[0], r[1], r[2], r[3]);
+          ctx.strokeStyle = CHART_INK;
+          ctx.globalAlpha = op.kind === 'chart-degree-bar' ? 0.5 : 1;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(r[0], r[1], r[2], r[3]);
+          ctx.restore();
+          break;
+
+        case 'chart-frame':
+          r = rectPx(op.rect);
+          ctx.save();
+          ctx.strokeStyle = CHART_INK;
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = op.widthCells * scaleX;
+          ctx.strokeRect(r[0], r[1], r[2], r[3]);
+          ctx.restore();
+          break;
+
+        case 'chart-north-arrow':
+          var cx = op.cx * scaleX;
+          var tip = op.tipY * scaleY;
+          var base = op.baseY * scaleY;
+          var hw = op.halfWidth * scaleX;
+          ctx.save();
+          ctx.lineJoin = 'miter';
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = CHART_INK;
+          // Right half: Paper with an Ink outline.
+          ctx.beginPath();
+          ctx.moveTo(cx, tip);
+          ctx.lineTo(cx + hw, base);
+          ctx.lineTo(cx, base);
+          ctx.closePath();
+          ctx.fillStyle = CHART_FRAME_PAPER;
+          ctx.fill();
+          ctx.stroke();
+          // Left half: Ink.
+          ctx.beginPath();
+          ctx.moveTo(cx, tip);
+          ctx.lineTo(cx - hw, base);
+          ctx.lineTo(cx, base);
+          ctx.closePath();
+          ctx.fillStyle = CHART_INK;
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+          break;
+      }
+    });
   }
 
   function traceClosed(ctx, path, scaleX, scaleY) {
@@ -707,6 +855,7 @@
     drawRelief(ctx, chart, scaleX, scaleY);
     drawOps(ctx, opsOfKind(['river', 'river-mouths']).concat(opsOfKind(['border']), opsOfKind(['rail'])), scaleX, scaleY);
     drawChartOps(ctx, chartOps.over, scaleX, scaleY);
+    drawChartFurniture(ctx, chartOps.furniture, scaleX, scaleY);
     ctx.restore();
 
     var hash = fnv1a(drawOpsHash(ops) + '|' + coastlineHash(chart)).toString(16).padStart(8, '0');
@@ -1173,8 +1322,13 @@
   // scaleX, scaleY: device pixels per cell-space unit.
   function drawFogOps(ctx, ops, scaleX, scaleY) {
     var bandW = 0.01875 * scaleX;
+    var graticule = [];
 
     ops.forEach(function (op) {
+      if (op.kind === 'graticule') {
+        graticule.push(op.line);
+        return;
+      }
       var poly = op.polygon;
       if (!poly || poly.length < 6) return;
 
@@ -1250,6 +1404,35 @@
         ctx.restore();
       }
     });
+
+    // Graticule furniture (Cycle 23 Step 13, MAP_TREATMENT 4.2): one solid
+    // Ink path at alpha 0.20 over every fog state, so crossings do not
+    // double. Width 1 device px, or 2 at scaleX 240 and up (the drawRelief
+    // contour rule). Each line snaps to the device pixel grid so a 1 px line
+    // lands on one pixel column instead of smearing over two.
+    if (!graticule.length) return;
+    var lw = scaleX >= 240 ? 2 : 1;
+    var tf = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+    function snap(v, origin) {
+      if (!tf) return v;
+      var dev = origin + v;
+      return (lw % 2 === 1 ? Math.floor(dev) + 0.5 : Math.round(dev)) - origin;
+    }
+    ctx.save();
+    ctx.strokeStyle = CHART_INK;
+    ctx.globalAlpha = GRATICULE_ALPHA;
+    ctx.lineWidth = lw;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    graticule.forEach(function (ln) {
+      var x1 = ln[0] * scaleX, y1 = ln[1] * scaleY, x2 = ln[2] * scaleX, y2 = ln[3] * scaleY;
+      if (x1 === x2) { x1 = x2 = snap(x1, tf ? tf.e : 0); }
+      if (y1 === y2) { y1 = y2 = snap(y1, tf ? tf.f : 0); }
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+    });
+    ctx.stroke();
+    ctx.restore();
   }
 
   // FNV-1a hash of a canonical string built from fog ops.
@@ -1258,6 +1441,11 @@
     function pushNum(v) { parts.push(v.toFixed(4)); }
     ops.forEach(function (op) {
       parts.push(op.kind);
+      // Graticule furniture (Step 13) carries only its line, no id or polygon.
+      if (op.kind === 'graticule') {
+        op.line.forEach(pushNum);
+        return;
+      }
       parts.push(String(op.id));
       if (op.kind === 'remembered') {
         parts.push(op.snapshotOwner === null ? '' : String(op.snapshotOwner));
@@ -1300,10 +1488,13 @@
 
     ctx.save();
     ctx.translate(tf.tx, tf.ty);
-    drawFogOps(ctx, ops, scaleX, scaleY);
+    // Graticule furniture drawn last and counted in the hash (MAP_TREATMENT
+    // 4.2); the returned ops stay the fog ops only.
+    var withFurniture = ops.concat(buildFurnitureOps(geom));
+    drawFogOps(ctx, withFurniture, scaleX, scaleY);
     ctx.restore();
 
-    var hash = fogOpsHash(ops);
+    var hash = fogOpsHash(withFurniture);
 
     return {
       canvas: canvas,
@@ -1330,6 +1521,14 @@
     buildChartOps: buildChartOps,
     drawChartOps: drawChartOps,
     coastlineHash: coastlineHash,
+    // Chart furniture and graticule exports (Cycle 23 Step 13)
+    GRATICULE_MERIDIANS: GRATICULE_MERIDIANS,
+    GRATICULE_PARALLELS: GRATICULE_PARALLELS,
+    GRATICULE_LABELS: GRATICULE_LABELS,
+    SCALE_BAR: SCALE_BAR,
+    NORTH_ARROW: NORTH_ARROW,
+    buildFurnitureOps: buildFurnitureOps,
+    drawChartFurniture: drawChartFurniture,
     // State layer exports
     BAND_WIDE_W: BAND_WIDE_W,
     BAND_MID_W: BAND_MID_W,

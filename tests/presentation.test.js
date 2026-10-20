@@ -2018,3 +2018,186 @@ test('label wiring: #map-labels in index.html, registered in main.js, tile name 
     'style.css declares the IM Fell English SC face');
   assert.ok(/#map-labels\s*\{/.test(css), 'style.css has a #map-labels rule');
 });
+
+// Cycle 23 Step 13: graticule, degree border, scale bar, north arrow, legend
+// (MAP_TREATMENT 4.1 to 4.4 and 5.6).
+test('graticule data: meridians at 10 to 35 E and parallels at 50, 45, 40 N follow the 4.1 formulas, with degree labels', () => {
+  const mer = AshesMapCanvas.GRATICULE_MERIDIANS;
+  const par = AshesMapCanvas.GRATICULE_PARALLELS;
+  assert.deepStrictEqual(mer.map(m => m.lon), [10, 15, 20, 25, 30, 35]);
+  assert.deepStrictEqual(par.map(p => p.lat), [50, 45, 40]);
+  const xs = [0.5357, 2.3214, 4.1071, 5.8929, 7.6786, 9.4643];
+  mer.forEach(function (m, i) {
+    assert.strictEqual(m.x.toFixed(4), ((m.lon - 8.5) / 2.8).toFixed(4), 'meridian ' + m.lon + ' x formula');
+    assert.strictEqual(m.x.toFixed(4), xs[i].toFixed(4), 'meridian ' + m.lon + ' x value');
+    assert.ok(Math.abs((8.5 + 2.8 * m.x) - m.lon) < 1e-9, 'longitude(x) round trips for ' + m.lon);
+  });
+  const ys = [0.75, 3.25, 5.75];
+  par.forEach(function (p, i) {
+    assert.strictEqual(p.y.toFixed(4), ((51.5 - p.lat) / 2).toFixed(4), 'parallel ' + p.lat + ' y formula');
+    assert.strictEqual(p.y.toFixed(4), ys[i].toFixed(4), 'parallel ' + p.lat + ' y value');
+  });
+  assert.deepStrictEqual(mer.map(m => m.label), ['10°E', '15°E', '20°E', '25°E', '30°E', '35°E']);
+  assert.deepStrictEqual(par.map(p => p.label), ['50°N', '45°N', '40°N']);
+});
+
+test('furniture ops: 9 graticule lines neatline to neatline, meridians west to east then parallels north to south, constant and view independent', () => {
+  const { geom } = step9Chart(42);
+  const ops = AshesMapCanvas.buildFurnitureOps(geom);
+  assert.strictEqual(ops.length, 9);
+  ops.forEach(function (op) { assert.strictEqual(op.kind, 'graticule'); assert.strictEqual(op.line.length, 4); });
+  const x0 = -1, y0 = -1, x1 = geom.mapW + 1, y1 = geom.mapH + 1;
+  assert.strictEqual(x1, 11);
+  assert.strictEqual(y1, 8);
+  AshesMapCanvas.GRATICULE_MERIDIANS.forEach(function (m, i) {
+    assert.deepStrictEqual(ops[i].line, [m.x, y0, m.x, y1], 'meridian ' + m.lon + ' is vertical neatline to neatline');
+  });
+  AshesMapCanvas.GRATICULE_PARALLELS.forEach(function (p, i) {
+    assert.deepStrictEqual(ops[6 + i].line, [x0, p.y, x1, p.y], 'parallel ' + p.lat + ' is horizontal neatline to neatline');
+  });
+  for (let i = 1; i < 6; i++) assert.ok(ops[i].line[0] > ops[i - 1].line[0], 'meridians run west to east');
+  for (let i = 7; i < 9; i++) assert.ok(ops[i].line[1] > ops[i - 1].line[1], 'parallels run north to south');
+  assert.deepStrictEqual(AshesMapCanvas.buildFurnitureOps(geom), ops, 'identical on a second call');
+  // A different view (the worst case fixture, different fog) gives the same list.
+  const fixtureGeom = AshesMapGeometry.buildGeometry(fogFixtureView());
+  assert.deepStrictEqual(AshesMapCanvas.buildFurnitureOps(fixtureGeom), ops, 'geometry size alone decides the list');
+});
+
+test('furniture in the fog hash: fog ops plus furniture hash differently from fog ops alone; fog ops alone stay deterministic', () => {
+  const view = fogFixtureView();
+  const geom = AshesMapGeometry.buildGeometry(view);
+  const fog = AshesMapCanvas.buildFogOps(geom, view);
+  const furniture = AshesMapCanvas.buildFurnitureOps(geom);
+  assert.strictEqual(fog.length, 24, 'buildFogOps is unchanged by the furniture');
+  const alone = AshesMapCanvas.fogOpsHash(fog);
+  assert.strictEqual(AshesMapCanvas.fogOpsHash(AshesMapCanvas.buildFogOps(geom, view)), alone);
+  const both = AshesMapCanvas.fogOpsHash(fog.concat(furniture));
+  assert.notStrictEqual(both, alone);
+  assert.strictEqual(AshesMapCanvas.fogOpsHash(fog.concat(AshesMapCanvas.buildFurnitureOps(geom))), both);
+  assert.match(AshesMapCanvas.fogOpsHash(furniture), /^[0-9a-f]{8}$/, 'furniture alone hashes without a polygon');
+});
+
+test('graticule draw: one solid Ink stroke at alpha 0.20, 1 device px under scaleX 240 and 2 at 240 and up', () => {
+  const { geom } = step9Chart(42);
+  const furniture = AshesMapCanvas.buildFurnitureOps(geom);
+  [[160, 1], [320, 2]].forEach(function (pair) {
+    const strokes = [];
+    let dash = null;
+    const ctx = {
+      strokeStyle: '', fillStyle: '', lineWidth: 1, globalAlpha: 1,
+      beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, fill() {}, save() {}, restore() {}, clip() {},
+      setLineDash(d) { dash = d.slice(); },
+      stroke() { strokes.push({ style: this.strokeStyle, width: this.lineWidth, alpha: this.globalAlpha, dash: dash }); }
+    };
+    AshesMapCanvas.drawFogOps(ctx, furniture, pair[0], pair[0]);
+    assert.strictEqual(strokes.length, 1, 'one graticule stroke at scaleX ' + pair[0]);
+    assert.strictEqual(strokes[0].style, '#2B2620');
+    assert.strictEqual(strokes[0].alpha, 0.20);
+    assert.strictEqual(strokes[0].width, pair[1]);
+    assert.deepStrictEqual(strokes[0].dash, [], 'solid');
+  });
+});
+
+test('chart furniture: frame, degree bar, scale bar, and north arrow ops on a third list; under and over unchanged', () => {
+  const { chart } = step9Chart(42);
+  const ops = AshesMapCanvas.buildChartOps(chart);
+  assert.ok(Array.isArray(ops.furniture), 'buildChartOps returns a furniture list');
+  assert.deepStrictEqual(ops.over.map(o => o.kind), ['chart-beach', 'chart-coastline', 'chart-edge-of-war']);
+  ops.under.concat(ops.over).forEach(function (op) {
+    assert.ok(['chart-degree-bar', 'chart-frame', 'chart-scale-bar', 'chart-north-arrow'].indexOf(op.kind) === -1, 'no furniture in under or over');
+  });
+  const neat = chart.neatline;
+  const ext = chart.extent;
+  const eps = 1e-9;
+
+  const frames = ops.furniture.filter(o => o.kind === 'chart-frame');
+  assert.strictEqual(frames.length, 2);
+  assert.strictEqual(frames[0].widthCells, 0.008);
+  assert.deepStrictEqual(frames[0].rect, [neat.x0, neat.y0, neat.x1 - neat.x0, neat.y1 - neat.y0], 'neatline rect');
+  assert.strictEqual(frames[1].widthCells, 0.012);
+  assert.deepStrictEqual(frames[1].rect, [ext.x0, ext.y0, ext.x1 - ext.x0, ext.y1 - ext.y0], 'outer frame rect');
+
+  const bars = ops.furniture.filter(o => o.kind === 'chart-degree-bar');
+  bars.forEach(function (b) {
+    // Top and bottom bars lie outside the neatline in y; side bars in x.
+    const horizontal = b.rect[1] < neat.y0 || b.rect[1] >= neat.y1 - eps;
+    assert.ok(Math.abs((horizontal ? b.rect[3] : b.rect[2]) - 0.06) < eps, 'every degree bar rect is 0.06 thick');
+    assert.ok(b.style === 'ink' || b.style === 'paper');
+  });
+  const top = bars.filter(b => Math.abs(b.rect[1] - (neat.y0 - 0.06)) < eps && Math.abs(b.rect[3] - 0.06) < eps);
+  assert.ok(top.length >= 33, 'about 33.6 one degree segments along the top, got ' + top.length);
+  assert.ok(Math.abs(top[0].rect[0] - neat.x0) < eps, 'top starts at the top left corner');
+  top.forEach(function (b, i) {
+    assert.strictEqual(b.style, i % 2 === 0 ? 'ink' : 'paper', 'top segment ' + i + ' alternates from ink');
+    if (i < top.length - 1) assert.ok(Math.abs(b.rect[2] - 1 / 2.8) < eps, 'one degree is 1 / 2.8 cell');
+  });
+  const last = top[top.length - 1];
+  assert.ok(Math.abs(last.rect[0] + last.rect[2] - neat.x1) < eps, 'last top segment clipped at the corner');
+  const left = bars.filter(b => Math.abs(b.rect[0] - (neat.x0 - 0.06)) < eps && Math.abs(b.rect[2] - 0.06) < eps);
+  assert.strictEqual(left.length, (neat.y1 - neat.y0) / 0.5, 'one degree is 0.5 cell along the sides');
+
+  const scale = ops.furniture.filter(o => o.kind === 'chart-scale-bar');
+  const widths = scale.map(s => s.rect[2]);
+  assert.deepStrictEqual(widths.map(w => w.toFixed(4)), ['0.2250', '0.2250', '0.4500']);
+  assert.ok(Math.abs(widths.reduce((a, b) => a + b, 0) - 0.90) < eps, 'parts sum to 0.90 cell (200 km)');
+  assert.deepStrictEqual(scale.map(s => s.style), ['ink', 'paper', 'ink']);
+  const SB = AshesMapCanvas.SCALE_BAR;
+  assert.ok(Math.abs(SB.y - (neat.y1 + 0.10)) < eps, 'scale bar sits 0.10 into the foot strip');
+  assert.ok(SB.y + SB.height < ext.y1, 'scale bar inside the foot strip');
+  scale.forEach(function (s) {
+    assert.strictEqual(s.rect[1], SB.y);
+    assert.strictEqual(s.rect[3], 0.035);
+  });
+  assert.strictEqual(scale[0].rect[0], SB.x);
+  assert.deepStrictEqual(SB.marks, [0, 0.225, 0.45, 0.90]);
+
+  const arrows = ops.furniture.filter(o => o.kind === 'chart-north-arrow');
+  assert.strictEqual(arrows.length, 1);
+  assert.ok(Math.abs(arrows[0].baseY - arrows[0].tipY - 0.36) < eps, 'arrow is 0.36 cell tall');
+  assert.deepStrictEqual(arrows[0], Object.assign({ kind: 'chart-north-arrow' }, AshesMapCanvas.NORTH_ARROW));
+  assert.ok(arrows[0].tipY > neat.y1 && arrows[0].baseY < ext.y1, 'arrow inside the foot strip');
+});
+
+const STEP13_LEGEND = [
+  'This is a map of the war. Blue is your nation, the Vessari Compact. Red is the Khessite Dominion.',
+  'A coloured band along a border shows who holds the ground on that side: blue for yours, red for the Dominion. The black line where blue meets red is the front.',
+  'Dashed lines are province borders. Click anywhere inside a province to select it.',
+  'Rivers are drawn in blue gray. Crossing a river is harder for your troops.',
+  'Provinces that touch the sea are coastal. Flotillas are built and sail there.',
+  'Railways are drawn as ties on a line. A dotted line is a railway not yet built.',
+  'A dash dot line at the edge of the map is the edge of the war. The land beyond it takes no part.',
+  'Hills and shading make the map look like real land. They are scenery only. They do not slow armies or help defenders.',
+  'The thin lines of latitude and longitude help you find your way. Distance in the game is counted in provinces, not degrees.',
+  'Blank paper is land you have never seen, and paper sea is water you have not charted. A faded brown, hatched province is what you saw last time; it may have changed.'
+];
+
+test('legend: the first #map-legend list is the 5.6 treatment list word for word; the marks list keeps the other tokens', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const legendAt = html.indexOf('<div id="map-legend"');
+  assert.ok(legendAt !== -1, '#map-legend present');
+  const legend = html.slice(legendAt, html.indexOf('</div>', legendAt));
+  const ulAt = legend.indexOf('<ul class="legend-list');
+  const firstList = legend.slice(ulAt, legend.indexOf('</ul>', ulAt));
+  const items = [];
+  const re = /<li>([\s\S]*?)<\/li>/g;
+  let m;
+  while ((m = re.exec(firstList)) !== null) items.push(m[1].replace(/\s+/g, ' ').trim());
+  assert.strictEqual(items.length, 10);
+  assert.deepStrictEqual(items, STEP13_LEGEND);
+  ['capital star', 'order marker', '2x24'].forEach(function (tok) {
+    assert.ok(legend.indexOf(tok) !== -1, '#map-legend keeps ' + tok);
+  });
+});
+
+test('chart label wiring: #map-chart-labels in index.html, registered in main.js from the MapCanvas exports, layer rule in style.css', () => {
+  const html = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const main = fs.readFileSync(path.join(REPO_ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(REPO_ROOT, 'css', 'style.css'), 'utf8');
+  assert.ok(html.indexOf('id="map-labels"></div>\n        <div id="map-chart-labels"></div>') !== -1, '#map-chart-labels follows #map-labels');
+  assert.ok(main.indexOf("'map-chart-labels'") !== -1, 'main.js registers map-chart-labels');
+  ['GRATICULE_MERIDIANS', 'GRATICULE_PARALLELS', 'SCALE_BAR', 'NORTH_ARROW', 'buildFurnitureOps'].forEach(function (name) {
+    assert.ok(main.indexOf('MapCanvas.' + name) !== -1, 'main.js reads MapCanvas.' + name);
+  });
+  assert.ok(main.indexOf('furnitureOps') !== -1, 'AshesFogDebug reports furnitureOps');
+  assert.ok(/#map-chart-labels\s*\{[^}]*z-index:\s*5/.test(css), 'style.css has the #map-chart-labels layer at z-index 5');
+});

@@ -394,3 +394,21 @@ button.linkish:hover { background: none; color: #fff2c4; }
 }
 .map-label.capital { font-size: 14px; }
 .map-label.dark { opacity: 0.75; }
+
+/* Cycle 23 Step 13 (MAP_TREATMENT 4.3 and 4.4): chart border labels over the
+   whole board, positioned in percent of the board from js/main.js. IM Fell
+   English (roman) is declared per the treatment; only the SC face ships, so
+   the roman labels fall back to Georgia until a roman asset lands. */
+#map-chart-labels { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.chart-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #2B2620;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.degree-label { font-family: "IM Fell English", Georgia, serif; font-size: 11px; }
+.degree-label.degree-side { transform: translate(-50%, -50%) rotate(-90deg); }
+.scale-label { font-family: "IM Fell English", Georgia, serif; font-size: 10px; }
+.scale-note { font-family: "IM Fell English", Georgia, serif; font-size: 10px; font-style: italic; transform: translate(0, -50%); }
+.north-label { font-family: "IM Fell English SC", Georgia, serif; font-size: 12px; }
