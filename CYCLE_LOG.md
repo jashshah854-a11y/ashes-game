@@ -6185,3 +6185,6 @@ Claimed this run: MAP_TREATMENT Step 13 only (graticule as fog canvas furniture,
 
 ### Mission status
 Cycle 23 MAP_TREATMENT Step 13 is complete. Next run claims MAP_TREATMENT Step 14 (fog on the chart, plus the map review for Jash with the MAP-TGT side by side). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 Step 13 sync note
+- Sync out after commits 7113f87 and 6300e37: the import script completed with exit 0 and sent the pending commits to GitHub (jashshah854-a11y/ashes-game, master now at remote 2d46794 for local 6300e37; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
