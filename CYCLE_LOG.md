@@ -6576,3 +6576,6 @@ Claimed this run: R1 sub-split 3 only (requests 9 to 12 of art-direction/briefs/
 
 ### State and next claim
 - Step 18b is still NOT complete: R1 requests 13 to 14 remain (sub-split 4: P10 scene keys, closing R1), then the v2 assembly with the P6 crop from MAP-TGT-R0-c3, then R2, then Step 18c (the TX-LAND bake-off). Next run claims R1 sub-split 4 (requests 13 to 14). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure.
+
+### Cycle 23 Step 18b R1 sub-split 3 sync note
+- Sync out after commits eb2a8b3 and 1c0093e: the import script completed with exit 0 and sent 3 commits to GitHub (the pending R1 sub-split 2 sync note correction f950b25 at remote 770522c, eb2a8b3 at remote dc5b593, and 1c0093e at remote 44da665; remote head 44da665, local head 1c0093e; the script notes the commit shas differ while the trees match, as in prior syncs). All figures read from the sync log file (/tmp/ashes-18b-r1c-sync.log) directly. Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
