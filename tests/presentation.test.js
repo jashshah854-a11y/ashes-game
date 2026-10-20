@@ -2893,3 +2893,59 @@ describe('master sheet tool (tools/master-sheet.js)', () => {
     assert.deepStrictEqual(ihdr(path.join(v2, 'master-sheet-v2.png')), [3072, 2304], 'composite is 3072 x 2304');
   });
 });
+
+// Cycle 23 Step 19a: the TX-LAND bake-off winner (Candidate B) wired into the
+// live board.
+test('TX-LAND data: js/tx-land-data.js decodes to the committed candidate-b.webp bytes', () => {
+  const data = require('../js/tx-land-data.js');
+  assert.strictEqual(typeof data, 'string');
+  const bytes = Buffer.from(data, 'base64');
+  const webp = fs.readFileSync(path.join(REPO_ROOT, 'art-direction', 'bakeoff', 'TX-LAND', 'candidate-b.webp'));
+  const sha = b => crypto.createHash('sha256').update(b).digest('hex');
+  assert.strictEqual(bytes.length, 165548);
+  assert.strictEqual(sha(bytes), sha(webp));
+  assert.strictEqual(bytes.toString('ascii', 0, 4), 'RIFF');
+  assert.strictEqual(bytes.toString('ascii', 8, 12), 'WEBP');
+});
+
+test('TX-LAND constants: alpha 0.35, size 1024, value scale 0.25 matching the source, node state unavailable', () => {
+  assert.strictEqual(AshesMapCanvas.TX_LAND_ALPHA, 0.35);
+  assert.strictEqual(AshesMapCanvas.TX_LAND_SIZE, 1024);
+  assert.strictEqual(AshesMapCanvas.TX_LAND_VALUE_SCALE, 0.25);
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  const m = src.match(/var TX_LAND_VALUE_SCALE = ([0-9.]+);/);
+  assert.ok(m, 'TX_LAND_VALUE_SCALE is a named constant in js/map-canvas.js');
+  assert.strictEqual(Number(m[1]), AshesMapCanvas.TX_LAND_VALUE_SCALE);
+  assert.strictEqual(AshesMapCanvas.textureDebug.landState, 'unavailable');
+  assert.strictEqual(AshesMapCanvas.textureDebug.landAlpha, 0.35);
+  assert.strictEqual(AshesMapCanvas.textureDebug.landSize, 1024);
+  assert.strictEqual(AshesMapCanvas.textureDebug.landValueScale, AshesMapCanvas.TX_LAND_VALUE_SCALE);
+});
+
+// Structural pin, not a render test: it checks the source text only. Index
+// ordering on the file text is used to pin that drawRelief calls
+// drawLandTexture after the relief raster drawImage and before the contour
+// stroke, and that renderBaseCanvas no longer calls it directly.
+test('TX-LAND structural pin: soft-light pattern, drawn inside drawRelief after the relief raster and before the contours', () => {
+  const src = fs.readFileSync(path.join(REPO_ROOT, 'js', 'map-canvas.js'), 'utf8');
+  assert.ok(src.indexOf("'soft-light'") !== -1);
+  assert.ok(src.indexOf('createPattern') !== -1);
+  function bodyOf(name) {
+    const start = src.indexOf('function ' + name + '(');
+    assert.ok(start !== -1, name + ' is defined');
+    return src.slice(start, src.indexOf('\n  }\n', start));
+  }
+  const relief = bodyOf('drawRelief');
+  const raster = relief.indexOf('ctx.drawImage(reliefRaster(');
+  const tex = relief.indexOf('drawLandTexture(ctx,');
+  const contours = relief.indexOf('relief.contours.forEach(');
+  assert.ok(raster !== -1 && tex !== -1 && contours !== -1);
+  assert.ok(raster < tex, 'drawLandTexture follows the relief raster drawImage');
+  assert.ok(tex < contours, 'drawLandTexture precedes the contour drawing');
+  assert.strictEqual(relief.indexOf('drawLandTexture(ctx,', tex + 1), -1, 'drawLandTexture is called once in drawRelief');
+  assert.strictEqual(bodyOf('renderBaseCanvas').indexOf('drawLandTexture(ctx,'), -1, 'renderBaseCanvas does not call drawLandTexture');
+  const mentions = src.split('drawLandTexture(ctx,').length - 1;
+  const defs = src.split('function drawLandTexture(ctx,').length - 1;
+  assert.strictEqual(defs, 1);
+  assert.strictEqual(mentions - defs, 1, 'drawLandTexture has exactly one call site');
+});

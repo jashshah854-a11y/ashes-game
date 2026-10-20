@@ -2371,6 +2371,10 @@
   el.btnZoomOut.addEventListener('click', function () { applyZoom(mapZoomIndex - 1); });
   el.btnZoomReset.addEventListener('click', function () { applyZoom(2); });
 
+  // Cycle 23 Step 19a: the TX-LAND pattern loads asynchronously after the
+  // first base render, so rebake the base once when it becomes ready.
+  window.addEventListener('ashes-land-texture-ready', function () { renderBaseCanvasNow(); });
+
   newGame();
   updateSlotMeta();
 })();

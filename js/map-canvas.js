@@ -24,6 +24,11 @@
   var CHART_RIVER_GLINT = CHART_C.RIVER_GLINT;
   var CHART_CONTOUR = CHART_C.CONTOUR;
 
+  // TX-LAND texture data (Cycle 23 Step 19a): node require, browser global.
+  var AshesTxLandData = (typeof module !== 'undefined' && module.exports)
+    ? require('./tx-land-data.js')
+    : global.AshesTxLandData;
+
   // Rail restyle (Cycle 23 Step 10, MAP_TREATMENT 2.6), in cell units.
   var RAIL_LINE_W = 0.008;
   var RAIL_TIE_STEP = 0.06;
@@ -798,6 +803,15 @@
       (neat.x1 - neat.x0) * scaleX, (neat.y1 - neat.y0) * scaleY);
     ctx.restore();
 
+    // TX-LAND (Step 19a) draws here, above the relief raster and below the
+    // contours. The relief raster is opaque over all land, so any position
+    // under it is invisible (measured at 19a with the texture before
+    // drawRelief: 5254 of 673460 F02 base pixels changed, 0.8 percent).
+    // drawLandTexture applies its own clip to the same coastline path the
+    // raster block above uses, so it is called after that block's restore
+    // rather than inside it, to keep one clip rather than two.
+    drawLandTexture(ctx, chart, scaleX, scaleY);
+
     ctx.save();
     ctx.strokeStyle = CHART_CONTOUR;
     ctx.globalAlpha = 0.22;
@@ -909,12 +923,101 @@
     ctx.restore();
   }
 
+  // TX-LAND land texture (Cycle 23 Step 19a, MAP_TREATMENT 7.3 and 6.5): the
+  // Step 18c-2 bake-off winner (Candidate B) as a pattern over the land path,
+  // soft-light at alpha 0.35. TX_LAND_VALUE_SCALE compresses the texture
+  // around mid gray (128) before it becomes a pattern; 1 is the image as
+  // baked. The pattern source is built once at load time. 0.25 is the
+  // measured value at which the wired board (texture above the relief
+  // raster, below the contours) passes the band report: scale 1 gives
+  // fixture separation 23.0, 0.5 gives 24.9, 0.25 gives 25.9 against the
+  // 25 gate.
+  var TX_LAND_ALPHA = 0.35;
+  var TX_LAND_SIZE = 1024;
+  var TX_LAND_VALUE_SCALE = 0.25;
+
+  var txLandDebug = {
+    landState: 'unavailable',
+    landAlpha: TX_LAND_ALPHA,
+    landSize: TX_LAND_SIZE,
+    landValueScale: TX_LAND_VALUE_SCALE
+  };
+  var txLandSource = null;
+
+  // Browser-only loader, started lazily by the first renderBaseCanvas call.
+  // Never throws into rendering: a decode or canvas failure records 'error'.
+  function startLandTexture() {
+    if (txLandDebug.landState !== 'unavailable') return;
+    if (typeof document === 'undefined' || typeof Image === 'undefined' || !AshesTxLandData) return;
+    txLandDebug.landState = 'loading';
+    try {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var sc = document.createElement('canvas');
+          sc.width = TX_LAND_SIZE;
+          sc.height = TX_LAND_SIZE;
+          var sctx = sc.getContext('2d');
+          // Value remap out = 128 + (in - 128) * TX_LAND_VALUE_SCALE, done as
+          // source-over of the image at alpha TX_LAND_VALUE_SCALE on mid gray
+          // (k * in + (1 - k) * 128 is the same line), because game code
+          // never reads pixels back (the source lint bans that call here).
+          if (TX_LAND_VALUE_SCALE !== 1) {
+            sctx.fillStyle = 'rgb(128, 128, 128)';
+            sctx.fillRect(0, 0, TX_LAND_SIZE, TX_LAND_SIZE);
+            sctx.globalAlpha = TX_LAND_VALUE_SCALE;
+          }
+          sctx.drawImage(img, 0, 0, TX_LAND_SIZE, TX_LAND_SIZE);
+          sctx.globalAlpha = 1;
+          txLandSource = sc;
+          txLandDebug.landState = 'ready';
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new Event('ashes-land-texture-ready'));
+          }
+        } catch (e) {
+          txLandSource = null;
+          txLandDebug.landState = 'error';
+        }
+      };
+      img.onerror = function () {
+        txLandSource = null;
+        txLandDebug.landState = 'error';
+      };
+      img.src = 'data:image/webp;base64,' + AshesTxLandData;
+    } catch (e) {
+      txLandDebug.landState = 'error';
+    }
+  }
+
+  // Draw the TX-LAND pattern clipped to the coastline path, over the chart
+  // extent rect (the chart-paper rect). Returns false, drawing nothing, until
+  // the pattern source is ready. The context here is translated only (cell
+  // coordinates are multiplied by scaleX and scaleY by hand), so the pattern
+  // space is already device px and one tile is 1024 device px, matching the
+  // 18c-2 harness application; a scale(1 / scaleX, 1 / scaleY) pattern
+  // transform would shrink the tile to a few device px, so none is set.
+  function drawLandTexture(ctx, chart, scaleX, scaleY) {
+    if (!txLandSource) return false;
+    var ext = chart.extent;
+    ctx.save();
+    traceClosed(ctx, coastFlat(chart), scaleX, scaleY);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = TX_LAND_ALPHA;
+    ctx.fillStyle = ctx.createPattern(txLandSource, 'repeat');
+    ctx.fillRect(ext.x0 * scaleX, ext.y0 * scaleY, (ext.x1 - ext.x0) * scaleX, (ext.y1 - ext.y0) * scaleY);
+    ctx.restore();
+    return true;
+  }
+
   // Render the base offscreen canvas. Browser only (needs document).
   // Returns {canvas, width, height, hash, ops} or null if not in browser.
   function renderBaseCanvas(geom, view, widthPx, heightPx) {
     if (typeof document === 'undefined') {
       return null;
     }
+
+    startLandTexture();
 
     var canvas = document.createElement('canvas');
     var fitted = fitPixels(widthPx, heightPx);
@@ -948,6 +1051,10 @@
     }
     drawChartOps(ctx, chartOps.under, scaleX, scaleY);
     drawOps(ctx, ops.filter(function (op) { return op.kind !== 'border'; }), scaleX, scaleY);
+    // TX-LAND (Step 19a) draws inside drawRelief, above the relief raster and
+    // below the contours. Every earlier position is buried: the 'chart-land'
+    // case of drawChartOps sits under the opaque drawOps province fills, and
+    // a position after those fills sits under the opaque relief raster.
     drawRelief(ctx, chart, scaleX, scaleY);
     drawOps(ctx, opsOfKind(['river', 'river-mouths']).concat(opsOfKind(['border']), opsOfKind(['rail'])), scaleX, scaleY);
     drawChartOps(ctx, chartOps.over, scaleX, scaleY);
@@ -1890,11 +1997,18 @@
     VIGNETTE_RANGE: VIGNETTE_RANGE,
     VIGNETTE_RES: VIGNETTE_RES,
     buildVignetteRaster: buildVignetteRaster,
-    drawVignette: drawVignette
+    drawVignette: drawVignette,
+    // TX-LAND texture exports (Cycle 23 Step 19a)
+    TX_LAND_ALPHA: TX_LAND_ALPHA,
+    TX_LAND_SIZE: TX_LAND_SIZE,
+    TX_LAND_VALUE_SCALE: TX_LAND_VALUE_SCALE,
+    textureDebug: txLandDebug,
+    drawLandTexture: drawLandTexture
   };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = AshesMapCanvas;
   }
   global.AshesMapCanvas = AshesMapCanvas;
+  global.AshesTextureDebug = txLandDebug;
 })(typeof window !== 'undefined' ? window : globalThis);

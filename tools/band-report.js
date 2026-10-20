@@ -45,6 +45,12 @@
 // composite under 225, n >= 20 per row, and the page board identity
 // (AshesFogDebug counts equal the node counts).
 //
+// TX-LAND (Cycle 23 Step 19a). The measured #map-base now includes the wired
+// TX-LAND land texture (soft-light pattern above the relief raster). The pattern
+// loads asynchronously, so before each board's measurement the harness waits
+// until window.AshesTextureDebug.landState is 'ready'; an 'error' state (or
+// a timeout) is a harness error (exit 2), never a silent untextured pass.
+//
 // Uses playwright-core from PLAYWRIGHT env var and Chromium from CHROME env var.
 // Uses tools/browser-helper.js for waiting (no waitForTimeout, no local sleep).
 // Exit 0 when every check passes, 1 on counted failures, 2 on harness errors.
@@ -209,6 +215,20 @@ function reportBoard(label, built, m, expectSep) {
   return { prov: prov, sea: sea, globalMax: m.globalMax, stateMean: stateMean };
 }
 
+// Wait for the TX-LAND texture (Step 19a) to finish loading; 'error' throws.
+async function waitLandTexture(page, label) {
+  await H.waitUntil(async () => {
+    try {
+      return await page.evaluate(() => window.AshesTextureDebug &&
+        (window.AshesTextureDebug.landState === 'ready' || window.AshesTextureDebug.landState === 'error'));
+    } catch (e) {
+      return false;
+    }
+  }, 30000, label + ': TX-LAND texture landState settles');
+  const st = await page.evaluate(() => window.AshesTextureDebug.landState);
+  if (st !== 'ready') throw new Error(label + ': TX-LAND texture landState is ' + st + ', not ready');
+}
+
 async function fogDebugCounts(page) {
   return page.evaluate(() => window.AshesFogDebug && window.AshesFogDebug.counts);
 }
@@ -304,6 +324,7 @@ async function main() {
     // ----- Board A: F02, seed 42 -----
     const countsA = await fogDebugCounts(page);
     check('F02: AshesFogDebug counts equal node seed 42 counts', sameCounts(countsA, seedCounts), JSON.stringify(countsA));
+    await waitLandTexture(page, 'F02');
     const mA = await measure(page, seedRows);
     sumA = reportBoard('F02', seedRows, mA, [['live', 'dark']]);
     // Identity holds after the read too, so the measured pixels are this board.
@@ -323,6 +344,7 @@ async function main() {
     }, 10000);
     const countsB = await fogDebugCounts(page);
     check('fixture: AshesFogDebug counts equal node fixture counts', sameCounts(countsB, fixtureCounts), JSON.stringify(countsB));
+    await waitLandTexture(page, 'fixture');
     const mB = await measure(page, fixtureRows);
     sumB = reportBoard('fixture', fixtureRows, mB, [['live', 'remembered'], ['remembered', 'dark']]);
     const countsB2 = await fogDebugCounts(page);
