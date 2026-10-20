@@ -6887,3 +6887,6 @@ Orchestrator verification (all personally rerun on the final tree):
 - One pre step note: a combined back to back run of both suites before the build showed presentation at 134 pass 4 fail once; standalone reruns before and after are green (138), and no file had changed. Recorded as an unreproduced combined run flake, watched, not attributed.
 
 Cycle 23 MAP_TREATMENT Step 20a is complete. Next run claims Step 20b (DC-xx decals clipped to hit polygons). The Step 9d tick finding stays open and recorded: state redraw p95 16.6 ms against the 6 ms Step 4 budget, not widened. No stop condition is met: no failed milestone verdict, no broken build, no verification failure on the final tree.
+
+### Cycle 23 Step 20a sync note
+- Sync out after commits 8e5380b and 855ac13: the import script completed with exit 0 and sent both commits to GitHub (jashshah854-a11y/ashes-game, master now at remote 95ad3b4 for local 855ac13; the script notes the remote shas differ from the local shas while the trees match, as in prior syncs). Sync succeeded and did not block or alter the local commits. This note rides the next run's sync, as prior sync notes have.
